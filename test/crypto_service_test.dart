@@ -117,7 +117,8 @@ void main() {
     expect(kekSession.vaultData.activeItems.single.title, 'Bank');
   });
 
-  test('can re-encrypt the same data under a dedicated export password', () async {
+  test('can re-encrypt the same data under a dedicated export password',
+      () async {
     final cryptoService = CryptoService();
     final original = await cryptoService.createVault(
       password: 'master-pass',

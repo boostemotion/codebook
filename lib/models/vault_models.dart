@@ -1,6 +1,12 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+const int vaultDocumentVersion = 1;
+const String vaultKdfAlgorithmArgon2id = 'argon2id';
+const int vaultKdfSaltLength = 16;
+const int xchacha20NonceLength = 24;
+const int poly1305MacLength = 16;
+
 class KdfConfig {
   const KdfConfig({
     required this.memoryKiB,
@@ -15,19 +21,34 @@ class KdfConfig {
   final Uint8List salt;
 
   Map<String, dynamic> toJson() => {
-        'algorithm': 'argon2id',
+        'algorithm': vaultKdfAlgorithmArgon2id,
         'memoryKiB': memoryKiB,
         'iterations': iterations,
         'parallelism': parallelism,
         'salt': base64Encode(salt),
       };
 
-  factory KdfConfig.fromJson(Map<String, dynamic> json) => KdfConfig(
-        memoryKiB: json['memoryKiB'] as int,
-        iterations: json['iterations'] as int,
-        parallelism: json['parallelism'] as int,
-        salt: Uint8List.fromList(base64Decode(json['salt'] as String)),
+  factory KdfConfig.fromJson(Map<String, dynamic> json) {
+    final algorithm = _readRequiredString(json, key: 'algorithm');
+    if (algorithm != vaultKdfAlgorithmArgon2id) {
+      throw FormatException('Unsupported KDF algorithm: $algorithm');
+    }
+    final memoryKiB = _readPositiveInt(json, key: 'memoryKiB');
+    final iterations = _readPositiveInt(json, key: 'iterations');
+    final parallelism = _readPositiveInt(json, key: 'parallelism');
+    final salt = _readBase64Bytes(json, key: 'salt');
+    if (salt.length != vaultKdfSaltLength) {
+      throw FormatException(
+        'Invalid KDF salt length: ${salt.length}. Expected $vaultKdfSaltLength.',
       );
+    }
+    return KdfConfig(
+      memoryKiB: memoryKiB,
+      iterations: iterations,
+      parallelism: parallelism,
+      salt: salt,
+    );
+  }
 }
 
 class CipherPayload {
@@ -47,12 +68,16 @@ class CipherPayload {
         'mac': base64Encode(mac),
       };
 
-  factory CipherPayload.fromJson(Map<String, dynamic> json) => CipherPayload(
-        nonce: Uint8List.fromList(base64Decode(json['nonce'] as String)),
-        cipherText:
-            Uint8List.fromList(base64Decode(json['cipherText'] as String)),
-        mac: Uint8List.fromList(base64Decode(json['mac'] as String)),
-      );
+  factory CipherPayload.fromJson(Map<String, dynamic> json) {
+    final nonce = _readBase64Bytes(json, key: 'nonce');
+    final cipherText = _readBase64Bytes(json, key: 'cipherText');
+    final mac = _readBase64Bytes(json, key: 'mac');
+    return CipherPayload(
+      nonce: nonce,
+      cipherText: cipherText,
+      mac: mac,
+    );
+  }
 }
 
 class EncryptedVaultDocument {
@@ -75,14 +100,17 @@ class EncryptedVaultDocument {
         'payload': payload.toJson(),
       };
 
-  factory EncryptedVaultDocument.fromJson(Map<String, dynamic> json) =>
-      EncryptedVaultDocument(
-        version: json['version'] as int,
-        kdf: KdfConfig.fromJson(json['kdf'] as Map<String, dynamic>),
-        wrappedDek:
-            CipherPayload.fromJson(json['wrappedDek'] as Map<String, dynamic>),
-        payload: CipherPayload.fromJson(json['payload'] as Map<String, dynamic>),
-      );
+  factory EncryptedVaultDocument.fromJson(Map<String, dynamic> json) {
+    final document = EncryptedVaultDocument(
+      version: _readRequiredInt(json, key: 'version'),
+      kdf: KdfConfig.fromJson(_readRequiredMap(json, key: 'kdf')),
+      wrappedDek:
+          CipherPayload.fromJson(_readRequiredMap(json, key: 'wrappedDek')),
+      payload: CipherPayload.fromJson(_readRequiredMap(json, key: 'payload')),
+    );
+    document._validate();
+    return document;
+  }
 
   Uint8List encode() => Uint8List.fromList(utf8.encode(jsonEncode(toJson())));
 
@@ -90,6 +118,38 @@ class EncryptedVaultDocument {
       EncryptedVaultDocument.fromJson(
         jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>,
       );
+
+  void _validate() {
+    if (version != vaultDocumentVersion) {
+      throw FormatException(
+        'Unsupported vault document version: $version. '
+        'Expected $vaultDocumentVersion.',
+      );
+    }
+    _validatePayload(wrappedDek, fieldName: 'wrappedDek');
+    _validatePayload(payload, fieldName: 'payload');
+  }
+
+  void _validatePayload(
+    CipherPayload payload, {
+    required String fieldName,
+  }) {
+    if (payload.nonce.length != xchacha20NonceLength) {
+      throw FormatException(
+        'Invalid $fieldName nonce length: ${payload.nonce.length}. '
+        'Expected $xchacha20NonceLength.',
+      );
+    }
+    if (payload.mac.length != poly1305MacLength) {
+      throw FormatException(
+        'Invalid $fieldName mac length: ${payload.mac.length}. '
+        'Expected $poly1305MacLength.',
+      );
+    }
+    if (payload.cipherText.isEmpty) {
+      throw FormatException('Invalid $fieldName ciphertext: empty.');
+    }
+  }
 }
 
 class VaultItem {
@@ -214,9 +274,10 @@ class VaultData {
             : DateTime.parse(json['updatedAt'] as String).toLocal(),
       );
 
-  List<VaultItem> get activeItems =>
-      items.where((item) => !item.isDeleted).toList()
-        ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+  List<VaultItem> get activeItems => items
+      .where((item) => !item.isDeleted)
+      .toList()
+    ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
 
   VaultData upsert(VaultItem item) {
     final nextItems = [
@@ -246,7 +307,8 @@ class VaultData {
     };
     for (final incomingItem in incoming.items) {
       final current = byId[incomingItem.id];
-      if (current == null || incomingItem.updatedAt.isAfter(current.updatedAt)) {
+      if (current == null ||
+          incomingItem.updatedAt.isAfter(current.updatedAt)) {
         byId[incomingItem.id] = incomingItem;
       }
     }
@@ -270,5 +332,91 @@ class VaultData {
   }
 }
 
+enum ImportChangeKind {
+  newItem,
+  updatedItem,
+  deletedItem,
+  unchangedItem,
+}
+
+class ImportChangeDetail {
+  const ImportChangeDetail({
+    required this.id,
+    required this.title,
+    required this.kind,
+    required this.incomingUpdatedAt,
+    this.localUpdatedAt,
+  });
+
+  final String id;
+  final String title;
+  final ImportChangeKind kind;
+  final DateTime incomingUpdatedAt;
+  final DateTime? localUpdatedAt;
+}
+
+class ImportMergeSummary {
+  const ImportMergeSummary({
+    required this.incomingItems,
+    required this.newItems,
+    required this.updatedItems,
+    required this.deletedItems,
+    required this.unchangedItems,
+    required this.replacesLocalVault,
+    required this.details,
+  });
+
+  final int incomingItems;
+  final int newItems;
+  final int updatedItems;
+  final int deletedItems;
+  final int unchangedItems;
+  final bool replacesLocalVault;
+  final List<ImportChangeDetail> details;
+}
+
 const Object _unset = Object();
 
+int _readRequiredInt(Map<String, dynamic> json, {required String key}) {
+  final value = json[key];
+  if (value is int) {
+    return value;
+  }
+  throw FormatException('Invalid or missing integer field: $key');
+}
+
+int _readPositiveInt(Map<String, dynamic> json, {required String key}) {
+  final value = _readRequiredInt(json, key: key);
+  if (value > 0) {
+    return value;
+  }
+  throw FormatException('Invalid non-positive integer field: $key');
+}
+
+String _readRequiredString(Map<String, dynamic> json, {required String key}) {
+  final value = json[key];
+  if (value is String && value.isNotEmpty) {
+    return value;
+  }
+  throw FormatException('Invalid or missing string field: $key');
+}
+
+Map<String, dynamic> _readRequiredMap(
+  Map<String, dynamic> json, {
+  required String key,
+}) {
+  final value = json[key];
+  if (value is Map<String, dynamic>) {
+    return value;
+  }
+  throw FormatException('Invalid or missing object field: $key');
+}
+
+Uint8List _readBase64Bytes(Map<String, dynamic> json, {required String key}) {
+  final encoded = _readRequiredString(json, key: key);
+  try {
+    return Uint8List.fromList(base64Decode(encoded));
+  } on FormatException {
+    throw FormatException('Invalid base64 payload in field: $key');
+  }
+}

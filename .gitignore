@@ -5,3 +5,7 @@
 .packages
 build/
 
+# Local toolchains and downloaded installers are machine-local.
+tools/flutter/
+tools/cmdline-tools-extract/
+tools/*.zip

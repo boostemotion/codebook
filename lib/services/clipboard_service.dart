@@ -26,4 +26,3 @@ class ClipboardService {
     _clearTimer?.cancel();
   }
 }
-

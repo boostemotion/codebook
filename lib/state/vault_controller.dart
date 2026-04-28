@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
@@ -70,41 +69,41 @@ class VaultController extends ChangeNotifier {
 
   Future<void> createVault(String password) async {
     await _run(() async {
-      _requirePassword(password, fieldName: 'Master password');
+      _requirePassword(password, fieldName: '主密码');
       final document = await _cryptoService.createVault(password: password);
       await _repository.save(document);
       _document = document;
       _hasVault = true;
       await _unlockDocument(document, password);
       await _syncQuickUnlockCache();
-      _message = 'Created a new encrypted vault.';
+      _message = '已创建新的加密密码库。';
     });
   }
 
   Future<void> unlock(String password) async {
     await _run(() async {
-      _requirePassword(password, fieldName: 'Master password');
+      _requirePassword(password, fieldName: '主密码');
       final document = _document ?? await _repository.load();
       if (document == null) {
-        throw const VaultUnlockException('No local vault was found.');
+        throw const VaultUnlockException('未找到本地密码库。');
       }
       await _unlockDocument(document, password);
-      _message = 'Vault unlocked.';
+      _message = '密码库已解锁。';
     });
   }
 
   Future<void> unlockWithQuickUnlock() async {
     await _run(() async {
       if (!_quickUnlockSupported || !_quickUnlockEnabled) {
-        throw StateError('Quick unlock is not enabled on this device.');
+        throw StateError('当前设备未开启快速解锁。');
       }
       final document = _document ?? await _repository.load();
       if (document == null) {
-        throw const VaultUnlockException('No local vault was found.');
+        throw const VaultUnlockException('未找到本地密码库。');
       }
       final protectedKek = await _deviceKeyStore.readWrappedDek();
       if (protectedKek == null) {
-        throw StateError('Quick unlock key is unavailable.');
+        throw StateError('快速解锁密钥不可用。');
       }
       final session = await _cryptoService.openVaultWithKek(
         document: document,
@@ -116,16 +115,16 @@ class VaultController extends ChangeNotifier {
       _sessionKek = session.keyEncryptionKey;
       _isUnlocked = true;
       _restartAutoLockTimer();
-      _message = 'Vault unlocked with quick unlock.';
+      _message = '已通过快速解锁打开密码库。';
     });
   }
 
   Future<ImportPlan?> previewImport(String importPassword) {
     return _runWithResult(() async {
-      _requirePassword(importPassword, fieldName: 'Import file password');
+      _requirePassword(importPassword, fieldName: '导入文件密码');
       final importPath = await _importExportService.pickImportPath();
       if (importPath == null) {
-        _message = 'Import cancelled.';
+        _message = '已取消导入。';
         return null;
       }
       final importBytes = await _importExportService.readFile(importPath);
@@ -155,7 +154,7 @@ class VaultController extends ChangeNotifier {
         _isUnlocked = true;
         _restartAutoLockTimer();
         await _syncQuickUnlockCache();
-        _message = 'Imported vault into local storage.';
+        _message = '已导入为本地密码库。';
         return;
       }
 
@@ -165,7 +164,7 @@ class VaultController extends ChangeNotifier {
         vaultData: merged,
         keyEncryptionKey: _requireSessionKek(),
       );
-      _message = 'Import completed and merged by updatedAt.';
+      _message = '导入完成，已按更新时间合并。';
     });
   }
 
@@ -182,13 +181,13 @@ class VaultController extends ChangeNotifier {
       _ensureUnlocked();
       final exportPath = await _importExportService.pickExportPath();
       if (exportPath == null) {
-        _message = 'Export cancelled.';
+        _message = '已取消导出。';
         return;
       }
 
       Uint8List bytesToWrite;
       if (exportPassword != null && exportPassword.trim().isNotEmpty) {
-        _requirePassword(exportPassword, fieldName: 'Export password');
+        _requirePassword(exportPassword, fieldName: '导出密码');
         final exported = await _cryptoService.saveVault(
           vaultData: _vaultData,
           password: exportPassword,
@@ -198,7 +197,7 @@ class VaultController extends ChangeNotifier {
       } else {
         final raw = await _repository.loadRaw();
         if (raw == null) {
-          throw StateError('Local vault does not exist.');
+          throw StateError('本地密码库不存在。');
         }
         bytesToWrite = raw;
       }
@@ -206,8 +205,8 @@ class VaultController extends ChangeNotifier {
       await _importExportService.writeFile(exportPath, bytesToWrite);
       _restartAutoLockTimer();
       _message = exportPassword == null || exportPassword.trim().isEmpty
-          ? 'Exported encrypted snapshot.'
-          : 'Exported encrypted snapshot with a dedicated export password.';
+          ? '已导出加密备份。'
+          : '已使用独立导出密码导出加密备份。';
     });
   }
 
@@ -224,7 +223,7 @@ class VaultController extends ChangeNotifier {
     await _run(() async {
       _ensureUnlocked();
       if (title.trim().isEmpty) {
-        throw ArgumentError('Title cannot be empty.');
+        throw ArgumentError('名称不能为空。');
       }
       final now = DateTime.now();
       final existing = id == null
@@ -247,7 +246,7 @@ class VaultController extends ChangeNotifier {
         vaultData: _vaultData.upsert(item),
         keyEncryptionKey: _requireSessionKek(),
       );
-      _message = existing == null ? 'Entry added.' : 'Entry updated.';
+      _message = existing == null ? '条目已新增。' : '条目已更新。';
     });
   }
 
@@ -259,7 +258,7 @@ class VaultController extends ChangeNotifier {
         vaultData: _vaultData.markDeleted(id, now),
         keyEncryptionKey: _requireSessionKek(),
       );
-      _message = 'Entry deleted.';
+      _message = '条目已删除。';
     });
   }
 
@@ -268,11 +267,11 @@ class VaultController extends ChangeNotifier {
     required String newPassword,
   }) async {
     await _run(() async {
-      _requirePassword(oldPassword, fieldName: 'Current master password');
-      _requirePassword(newPassword, fieldName: 'New master password');
+      _requirePassword(oldPassword, fieldName: '当前主密码');
+      _requirePassword(newPassword, fieldName: '新主密码');
       final document = _document;
       if (document == null) {
-        throw StateError('Local vault does not exist.');
+        throw StateError('本地密码库不存在。');
       }
       final rewrapped = await _cryptoService.rewrapMasterPassword(
         document: document,
@@ -291,7 +290,7 @@ class VaultController extends ChangeNotifier {
       _isUnlocked = true;
       await _syncQuickUnlockCache();
       _restartAutoLockTimer();
-      _message = 'Master password updated.';
+      _message = '主密码已更新。';
     });
   }
 
@@ -299,10 +298,10 @@ class VaultController extends ChangeNotifier {
     await _run(() async {
       _ensureUnlocked();
       if (!_quickUnlockSupported) {
-        throw StateError('Quick unlock is not supported on this device.');
+        throw StateError('当前设备不支持快速解锁。');
       }
       await _syncQuickUnlockCache(forceEnable: true);
-      _message = 'Quick unlock enabled for this device.';
+      _message = '已在当前设备开启快速解锁。';
     });
   }
 
@@ -310,7 +309,7 @@ class VaultController extends ChangeNotifier {
     await _run(() async {
       await _deviceKeyStore.clear();
       _quickUnlockEnabled = false;
-      _message = 'Quick unlock disabled for this device.';
+      _message = '已关闭当前设备的快速解锁。';
     });
   }
 
@@ -331,11 +330,11 @@ class VaultController extends ChangeNotifier {
   Future<void> copySecret(String text) async {
     await _run(() async {
       if (text.isEmpty) {
-        throw ArgumentError('Nothing to copy.');
+        throw ArgumentError('没有可复制的内容。');
       }
       await _clipboardService.copyText(text);
       _restartAutoLockTimer();
-      _message = 'Copied to clipboard. It will be cleared in 30 seconds.';
+      _message = '已复制到剪贴板，30 秒后自动清空。';
     });
   }
 
@@ -357,7 +356,7 @@ class VaultController extends ChangeNotifier {
     _vaultData = VaultData.empty();
     _dataEncryptionKey = null;
     _sessionKek = null;
-    _message = 'Vault locked.';
+    _message = '密码库已锁定。';
     notifyListeners();
   }
 
@@ -406,14 +405,14 @@ class VaultController extends ChangeNotifier {
 
   void _ensureUnlocked() {
     if (!_isUnlocked || _dataEncryptionKey == null) {
-      throw StateError('Vault is locked.');
+      throw StateError('密码库已锁定。');
     }
   }
 
   Uint8List _requireSessionKek() {
     if (_sessionKek == null) {
       throw StateError(
-        'This action requires quick unlock or a password-authenticated session.',
+        '此操作需要快速解锁或已通过密码认证的会话。',
       );
     }
     return _sessionKek!;
@@ -421,7 +420,7 @@ class VaultController extends ChangeNotifier {
 
   void _requirePassword(String value, {required String fieldName}) {
     if (value.trim().isEmpty) {
-      throw ArgumentError('$fieldName cannot be empty.');
+      throw ArgumentError('$fieldName不能为空。');
     }
   }
 
@@ -444,6 +443,18 @@ class VaultController extends ChangeNotifier {
         deletedItems: incoming.items.where((item) => item.isDeleted).length,
         unchangedItems: 0,
         replacesLocalVault: true,
+        details: incoming.items
+            .map(
+              (item) => ImportChangeDetail(
+                id: item.id,
+                title: item.title,
+                kind: item.isDeleted
+                    ? ImportChangeKind.deletedItem
+                    : ImportChangeKind.newItem,
+                incomingUpdatedAt: item.updatedAt,
+              ),
+            )
+            .toList(),
       );
     }
 
@@ -451,6 +462,7 @@ class VaultController extends ChangeNotifier {
     var updatedItems = 0;
     var deletedItems = 0;
     var unchangedItems = 0;
+    final details = <ImportChangeDetail>[];
     final currentById = <String, VaultItem>{
       for (final item in _vaultData.items) item.id: item,
     };
@@ -459,19 +471,62 @@ class VaultController extends ChangeNotifier {
       if (current == null) {
         if (incomingItem.isDeleted) {
           deletedItems++;
+          details.add(
+            ImportChangeDetail(
+              id: incomingItem.id,
+              title: incomingItem.title,
+              kind: ImportChangeKind.deletedItem,
+              incomingUpdatedAt: incomingItem.updatedAt,
+            ),
+          );
         } else {
           newItems++;
+          details.add(
+            ImportChangeDetail(
+              id: incomingItem.id,
+              title: incomingItem.title,
+              kind: ImportChangeKind.newItem,
+              incomingUpdatedAt: incomingItem.updatedAt,
+            ),
+          );
         }
         continue;
       }
       if (incomingItem.updatedAt.isAfter(current.updatedAt)) {
         if (incomingItem.isDeleted && !current.isDeleted) {
           deletedItems++;
+          details.add(
+            ImportChangeDetail(
+              id: incomingItem.id,
+              title: incomingItem.title,
+              kind: ImportChangeKind.deletedItem,
+              incomingUpdatedAt: incomingItem.updatedAt,
+              localUpdatedAt: current.updatedAt,
+            ),
+          );
         } else {
           updatedItems++;
+          details.add(
+            ImportChangeDetail(
+              id: incomingItem.id,
+              title: incomingItem.title,
+              kind: ImportChangeKind.updatedItem,
+              incomingUpdatedAt: incomingItem.updatedAt,
+              localUpdatedAt: current.updatedAt,
+            ),
+          );
         }
       } else {
         unchangedItems++;
+        details.add(
+          ImportChangeDetail(
+            id: incomingItem.id,
+            title: incomingItem.title,
+            kind: ImportChangeKind.unchangedItem,
+            incomingUpdatedAt: incomingItem.updatedAt,
+            localUpdatedAt: current.updatedAt,
+          ),
+        );
       }
     }
 
@@ -482,6 +537,7 @@ class VaultController extends ChangeNotifier {
       deletedItems: deletedItems,
       unchangedItems: unchangedItems,
       replacesLocalVault: false,
+      details: details,
     );
   }
 

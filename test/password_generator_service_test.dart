@@ -13,7 +13,8 @@ void main() {
     expect(password.contains(RegExp(r'[a-z]')), isTrue);
     expect(password.contains(RegExp(r'[A-Z]')), isTrue);
     expect(password.contains(RegExp(r'[2-9]')), isTrue);
-    expect(password.contains(RegExp(r'[!@#\$%\^&*\(\)\-_=+\[\]\{\}\?]')), isTrue);
+    expect(
+        password.contains(RegExp(r'[!@#\$%\^&*\(\)\-_=+\[\]\{\}\?]')), isTrue);
   });
 
   test('rejects short generated passwords', () {

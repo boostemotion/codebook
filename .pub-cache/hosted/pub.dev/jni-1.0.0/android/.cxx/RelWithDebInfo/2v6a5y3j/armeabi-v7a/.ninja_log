@@ -1,0 +1,13 @@
+# ninja log v5
+1	90	7990712683906631	CMakeFiles/jni.dir/include/dart_api_dl.c.o	51233793515effab
+5	131	7990712684315464	CMakeFiles/jni.dir/dartjni.c.o	5fc2340923b29590
+8	522	7990712688145983	CMakeFiles/jni.dir/third_party/global_jni_env.c.o	d773c444727f7252
+522	636	7990712689278822	C:/Users/opena/.codex/memories/cipherbook-release-src/build/jni/intermediates/cxx/RelWithDebInfo/2v6a5y3j/obj/armeabi-v7a/libdartjni.so	36744db1798a339d
+2	96	7990715544611657	CMakeFiles/jni.dir/include/dart_api_dl.c.o	51233793515effab
+13	143	7990715545051721	CMakeFiles/jni.dir/dartjni.c.o	5fc2340923b29590
+8	523	7990715548830846	CMakeFiles/jni.dir/third_party/global_jni_env.c.o	d773c444727f7252
+523	639	7990715549946290	C:/Users/opena/.codex/memories/cipherbook-release-src/build/jni/intermediates/cxx/RelWithDebInfo/2v6a5y3j/obj/armeabi-v7a/libdartjni.so	36744db1798a339d
+2	92	7990717153320640	CMakeFiles/jni.dir/include/dart_api_dl.c.o	51233793515effab
+7	151	7990717153877980	CMakeFiles/jni.dir/dartjni.c.o	5fc2340923b29590
+10	570	7990717158019946	CMakeFiles/jni.dir/third_party/global_jni_env.c.o	d773c444727f7252
+570	689	7990717159231542	C:/Users/opena/.codex/memories/cipherbook-release-src/build/jni/intermediates/cxx/RelWithDebInfo/2v6a5y3j/obj/armeabi-v7a/libdartjni.so	36744db1798a339d

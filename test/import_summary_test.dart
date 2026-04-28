@@ -82,6 +82,24 @@ void main() {
     expect(plan!.summary.newItems, 1);
     expect(plan.summary.updatedItems, 1);
     expect(plan.summary.deletedItems, 1);
+    expect(
+      plan.summary.details
+          .where((detail) => detail.kind == ImportChangeKind.newItem)
+          .length,
+      1,
+    );
+    expect(
+      plan.summary.details
+          .where((detail) => detail.kind == ImportChangeKind.updatedItem)
+          .length,
+      1,
+    );
+    expect(
+      plan.summary.details
+          .where((detail) => detail.kind == ImportChangeKind.deletedItem)
+          .length,
+      1,
+    );
   });
 }
 

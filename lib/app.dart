@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'services/crypto_service.dart';
 import 'services/device_key_store.dart';
@@ -41,7 +42,12 @@ class _CipherbookAppState extends State<CipherbookApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Cipherbook',
+      title: '密码本',
+      locale: const Locale('zh', 'CN'),
+      supportedLocales: const [
+        Locale('zh', 'CN'),
+      ],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF1E6F5C),

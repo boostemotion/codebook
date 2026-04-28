@@ -70,7 +70,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       builder: (context, _) {
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Cipherbook'),
+            title: const Text('密码本'),
             actions: [
               if (widget.controller.isUnlocked)
                 IconButton(
@@ -80,7 +80,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           widget.controller.lock();
                         },
                   icon: const Icon(Icons.lock_outline),
-                  tooltip: 'Lock',
+                  tooltip: '锁定',
                 ),
             ],
           ),
@@ -142,9 +142,7 @@ class _LockedView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              controller.hasVault
-                  ? 'Unlock local vault'
-                  : 'Create your first vault',
+              controller.hasVault ? '解锁本地密码库' : '创建第一个密码库',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
             const SizedBox(height: 16),
@@ -152,7 +150,7 @@ class _LockedView extends StatelessWidget {
               controller: masterPasswordController,
               obscureText: true,
               decoration: const InputDecoration(
-                labelText: 'Master password',
+                labelText: '主密码',
                 border: OutlineInputBorder(),
               ),
               onSubmitted: (_) {
@@ -172,7 +170,7 @@ class _LockedView extends StatelessWidget {
                   controller.createVault(masterPasswordController.text);
                 }
               },
-              child: Text(controller.hasVault ? 'Unlock' : 'Create vault'),
+              child: Text(controller.hasVault ? '解锁' : '创建密码库'),
             ),
             if (controller.quickUnlockSupported &&
                 controller.quickUnlockEnabled &&
@@ -183,7 +181,7 @@ class _LockedView extends StatelessWidget {
                   controller.unlockWithQuickUnlock();
                 },
                 icon: const Icon(Icons.fingerprint),
-                label: const Text('Quick unlock'),
+                label: const Text('快速解锁'),
               ),
             ],
             if (!controller.hasVault) ...[
@@ -192,17 +190,16 @@ class _LockedView extends StatelessWidget {
                 controller: importPasswordController,
                 obscureText: true,
                 decoration: const InputDecoration(
-                  labelText: 'Import file password',
-                  helperText:
-                      'Import an encrypted snapshot when no local vault exists.',
+                  labelText: '导入文件密码',
+                  helperText: '没有本地密码库时，可导入一个加密备份。',
                   border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: () async {
-                  final plan =
-                      await controller.previewImport(importPasswordController.text);
+                  final plan = await controller
+                      .previewImport(importPasswordController.text);
                   if (plan == null || !context.mounted) {
                     return;
                   }
@@ -215,7 +212,7 @@ class _LockedView extends StatelessWidget {
                   }
                 },
                 icon: const Icon(Icons.file_open_outlined),
-                label: const Text('Import as local vault'),
+                label: const Text('导入为本地密码库'),
               ),
             ],
           ],
@@ -264,22 +261,22 @@ class _VaultView extends StatelessWidget {
             FilledButton.icon(
               onPressed: () => _showItemEditor(context, controller: controller),
               icon: const Icon(Icons.add),
-              label: const Text('Add entry'),
+              label: const Text('新增条目'),
             ),
             OutlinedButton.icon(
               onPressed: () => _showExportDialog(context, controller),
               icon: const Icon(Icons.upload_file_outlined),
-              label: const Text('Export snapshot'),
+              label: const Text('导出备份'),
             ),
             OutlinedButton.icon(
               onPressed: () => _showImportDialog(context, controller),
               icon: const Icon(Icons.download_outlined),
-              label: const Text('Import and merge'),
+              label: const Text('导入并合并'),
             ),
             OutlinedButton.icon(
               onPressed: () => _showChangePasswordDialog(context, controller),
               icon: const Icon(Icons.key_outlined),
-              label: const Text('Change password'),
+              label: const Text('修改主密码'),
             ),
             if (controller.quickUnlockSupported)
               OutlinedButton.icon(
@@ -296,9 +293,7 @@ class _VaultView extends StatelessWidget {
                       : Icons.fingerprint,
                 ),
                 label: Text(
-                  controller.quickUnlockEnabled
-                      ? 'Disable quick unlock'
-                      : 'Enable quick unlock',
+                  controller.quickUnlockEnabled ? '关闭快速解锁' : '开启快速解锁',
                 ),
               ),
           ],
@@ -309,14 +304,14 @@ class _VaultView extends StatelessWidget {
           onChanged: onSearchChanged,
           decoration: const InputDecoration(
             prefixIcon: Icon(Icons.search),
-            labelText: 'Search entries',
+            labelText: '搜索条目',
             border: OutlineInputBorder(),
           ),
         ),
         const SizedBox(height: 20),
         Expanded(
           child: items.isEmpty
-              ? const Center(child: Text('No matching entries.'))
+              ? const Center(child: Text('没有匹配的条目。'))
               : ListView.separated(
                   itemCount: items.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
@@ -346,7 +341,7 @@ class _VaultView extends StatelessWidget {
                                 controller.copySecret(item.password);
                               },
                               icon: const Icon(Icons.copy_outlined),
-                              tooltip: 'Copy password',
+                              tooltip: '复制密码',
                             ),
                             IconButton(
                               onPressed: () => _showItemEditor(
@@ -380,22 +375,22 @@ Future<void> _showImportDialog(
   final confirmedPassword = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Import encrypted snapshot'),
+      title: const Text('导入加密备份'),
       content: TextField(
         controller: passwordController,
         obscureText: true,
         decoration: const InputDecoration(
-          labelText: 'Import file password',
+          labelText: '导入文件密码',
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: const Text('取消'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Continue'),
+          child: const Text('继续'),
         ),
       ],
     ),
@@ -425,7 +420,7 @@ Future<bool?> _showImportSummaryDialog(
   return showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Import summary'),
+      title: const Text('导入预览'),
       content: SizedBox(
         width: 360,
         child: _ImportSummaryView(summary: summary),
@@ -433,11 +428,11 @@ Future<bool?> _showImportSummaryDialog(
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: const Text('取消'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Import'),
+          child: const Text('导入'),
         ),
       ],
     ),
@@ -452,24 +447,23 @@ Future<void> _showExportDialog(
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Export encrypted snapshot'),
+      title: const Text('导出加密备份'),
       content: TextField(
         controller: passwordController,
         obscureText: true,
         decoration: const InputDecoration(
-          labelText: 'Optional export password',
-          helperText:
-              'Leave empty to export with the current vault encryption.',
+          labelText: '导出密码（可选）',
+          helperText: '留空则沿用当前本地密码库的加密。',
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: const Text('取消'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Export'),
+          child: const Text('导出'),
         ),
       ],
     ),
@@ -489,33 +483,31 @@ Future<void> _showChangePasswordDialog(
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Change master password'),
+      title: const Text('修改主密码'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
             controller: oldPasswordController,
             obscureText: true,
-            decoration:
-                const InputDecoration(labelText: 'Current master password'),
+            decoration: const InputDecoration(labelText: '当前主密码'),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: newPasswordController,
             obscureText: true,
-            decoration:
-                const InputDecoration(labelText: 'New master password'),
+            decoration: const InputDecoration(labelText: '新主密码'),
           ),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: const Text('取消'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Save'),
+          child: const Text('保存'),
         ),
       ],
     ),
@@ -547,7 +539,7 @@ Future<void> _showItemEditor(
   final saved = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: Text(item == null ? 'Add entry' : 'Edit entry'),
+      title: Text(item == null ? '新增条目' : '编辑条目'),
       content: SizedBox(
         width: 480,
         child: SingleChildScrollView(
@@ -556,15 +548,15 @@ Future<void> _showItemEditor(
             children: [
               TextField(
                 controller: titleController,
-                decoration: const InputDecoration(labelText: 'Title'),
+                decoration: const InputDecoration(labelText: '名称'),
               ),
               TextField(
                 controller: usernameController,
-                decoration: const InputDecoration(labelText: 'Username'),
+                decoration: const InputDecoration(labelText: '账号'),
               ),
               TextField(
                 controller: passwordController,
-                decoration: const InputDecoration(labelText: 'Password'),
+                decoration: const InputDecoration(labelText: '密码'),
               ),
               const SizedBox(height: 8),
               Row(
@@ -573,8 +565,7 @@ Future<void> _showItemEditor(
                     child: TextField(
                       controller: lengthController,
                       keyboardType: TextInputType.number,
-                      decoration:
-                          const InputDecoration(labelText: 'Generated length'),
+                      decoration: const InputDecoration(labelText: '生成长度'),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -585,29 +576,28 @@ Future<void> _showItemEditor(
                           controller.generatePassword(length: length);
                     },
                     icon: const Icon(Icons.password_outlined),
-                    label: const Text('Generate'),
+                    label: const Text('生成'),
                   ),
                 ],
               ),
               TextField(
                 controller: urlController,
-                decoration: const InputDecoration(labelText: 'URL'),
+                decoration: const InputDecoration(labelText: '网址'),
               ),
               TextField(
                 controller: totpController,
                 decoration: const InputDecoration(
-                  labelText: 'TOTP Secret or otpauth URI',
+                  labelText: 'TOTP 密钥或 otpauth URI',
                 ),
               ),
               TextField(
                 controller: tagsController,
-                decoration:
-                    const InputDecoration(labelText: 'Tags, comma separated'),
+                decoration: const InputDecoration(labelText: '标签，用逗号分隔'),
               ),
               TextField(
                 controller: notesController,
                 maxLines: 5,
-                decoration: const InputDecoration(labelText: 'Notes'),
+                decoration: const InputDecoration(labelText: '备注'),
               ),
             ],
           ),
@@ -616,11 +606,11 @@ Future<void> _showItemEditor(
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: const Text('取消'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Save'),
+          child: const Text('保存'),
         ),
       ],
     ),
@@ -668,21 +658,21 @@ Future<void> _showItemDetails(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _DetailRow(
-              label: 'Username',
+              label: '账号',
               value: item.username,
               onCopy: item.username.isEmpty
                   ? null
                   : () => controller.copySecret(item.username),
             ),
             _DetailRow(
-              label: 'Password',
+              label: '密码',
               value: item.password,
               onCopy: item.password.isEmpty
                   ? null
                   : () => controller.copySecret(item.password),
             ),
-            _DetailRow(label: 'URL', value: item.url),
-            _DetailRow(label: 'Tags', value: item.tags.join(', ')),
+            _DetailRow(label: '网址', value: item.url),
+            _DetailRow(label: '标签', value: item.tags.join(', ')),
             if ((item.totpSecret?.trim().isNotEmpty ?? false))
               _TotpPanel(
                 secretOrUri: item.totpSecret!,
@@ -698,7 +688,7 @@ Future<void> _showItemDetails(
       actions: [
         FilledButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Close'),
+          child: const Text('关闭'),
         ),
       ],
     ),
@@ -732,7 +722,7 @@ class _DetailRow extends StatelessWidget {
             IconButton(
               onPressed: onCopy,
               icon: const Icon(Icons.copy_outlined),
-              tooltip: 'Copy',
+              tooltip: '复制',
             ),
         ],
       ),
@@ -747,15 +737,18 @@ class _ImportSummaryView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final changedDetails = summary.details
+        .where((detail) => detail.kind != ImportChangeKind.unchangedItem)
+        .toList();
     final lines = <String>[
-      'Incoming items: ${summary.incomingItems}',
-      'New items: ${summary.newItems}',
-      'Updated items: ${summary.updatedItems}',
-      'Deleted items: ${summary.deletedItems}',
-      'Unchanged items: ${summary.unchangedItems}',
+      '导入文件条目：${summary.incomingItems}',
+      '新增：${summary.newItems}',
+      '更新：${summary.updatedItems}',
+      '删除：${summary.deletedItems}',
+      '不变：${summary.unchangedItems}',
     ];
     if (summary.replacesLocalVault) {
-      lines.insert(0, 'No local vault exists. This file will become the local vault.');
+      lines.insert(0, '当前没有本地密码库，此文件将作为本地密码库。');
     }
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -766,8 +759,73 @@ class _ImportSummaryView extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(line),
           ),
+        if (changedDetails.isNotEmpty) ...[
+          const Divider(),
+          const SizedBox(height: 8),
+          Text(
+            '变更条目',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 220,
+            child: ListView.separated(
+              itemCount: changedDetails.length,
+              separatorBuilder: (_, __) => const Divider(height: 12),
+              itemBuilder: (context, index) {
+                final detail = changedDetails[index];
+                final title =
+                    detail.title.trim().isEmpty ? '（未命名）' : detail.title;
+                final subtitleParts = <String>[
+                  'ID：${detail.id}',
+                  '导入：${detail.incomingUpdatedAt.toIso8601String()}',
+                  if (detail.localUpdatedAt != null)
+                    '本地：${detail.localUpdatedAt!.toIso8601String()}',
+                ];
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 80,
+                      child: Text(
+                        _kindLabel(detail.kind),
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(title),
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitleParts.join('  |  '),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ],
     );
+  }
+
+  String _kindLabel(ImportChangeKind kind) {
+    switch (kind) {
+      case ImportChangeKind.newItem:
+        return '新增';
+      case ImportChangeKind.updatedItem:
+        return '更新';
+      case ImportChangeKind.deletedItem:
+        return '删除';
+      case ImportChangeKind.unchangedItem:
+        return '跳过';
+    }
   }
 }
 
@@ -798,13 +856,13 @@ class _TotpPanel extends StatelessWidget {
             if (resultSnapshot.hasError) {
               return const _DetailRow(
                 label: 'TOTP',
-                value: 'Invalid secret',
+                value: '密钥无效',
               );
             }
             if (!resultSnapshot.hasData) {
               return const _DetailRow(
                 label: 'TOTP',
-                value: 'Loading...',
+                value: '加载中...',
               );
             }
             final result = resultSnapshot.data!;
@@ -826,7 +884,7 @@ class _TotpPanel extends StatelessWidget {
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
                         Text(
-                          'Refreshes in ${result.secondsRemaining}s',
+                          '${result.secondsRemaining} 秒后刷新',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
@@ -837,7 +895,7 @@ class _TotpPanel extends StatelessWidget {
                       onCopy(result.code);
                     },
                     icon: const Icon(Icons.copy_outlined),
-                    tooltip: 'Copy current TOTP code',
+                    tooltip: '复制当前 TOTP 验证码',
                   ),
                 ],
               ),

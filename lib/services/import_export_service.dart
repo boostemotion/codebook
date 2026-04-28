@@ -5,7 +5,7 @@ import 'package:file_selector/file_selector.dart';
 
 class ImportExportService {
   static const XTypeGroup vaultFileGroup = XTypeGroup(
-    label: 'Cipherbook Vault',
+    label: '密码本文件',
     extensions: <String>['pwv'],
   );
 

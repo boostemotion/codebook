@@ -18,7 +18,7 @@ class PasswordGeneratorService {
     bool includeSymbols = true,
   }) {
     if (length < 8) {
-      throw ArgumentError('Password length must be at least 8.');
+      throw ArgumentError('密码长度至少为 8 位。');
     }
 
     final pools = <String>[_lower];
@@ -50,4 +50,3 @@ class PasswordGeneratorService {
 
   String _pickFrom(String pool) => pool[_random.nextInt(pool.length)];
 }
-

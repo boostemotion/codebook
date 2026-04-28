@@ -47,19 +47,19 @@ class TotpService {
   _TotpConfig _parseConfig(String input) {
     final trimmed = input.trim();
     if (trimmed.isEmpty) {
-      throw ArgumentError('TOTP secret is empty.');
+      throw ArgumentError('TOTP 密钥不能为空。');
     }
 
     if (trimmed.startsWith('otpauth://')) {
       final uri = Uri.parse(trimmed);
       final secret = uri.queryParameters['secret'];
       if (secret == null || secret.trim().isEmpty) {
-        throw ArgumentError('TOTP URI does not contain a secret.');
+        throw ArgumentError('TOTP URI 中缺少密钥。');
       }
       final digits = int.tryParse(uri.queryParameters['digits'] ?? '') ?? 6;
       final period = int.tryParse(uri.queryParameters['period'] ?? '') ?? 30;
       if (digits <= 0 || period <= 0) {
-        throw ArgumentError('TOTP digits and period must be positive.');
+        throw ArgumentError('TOTP 位数和刷新周期必须大于 0。');
       }
       final algorithmName =
           (uri.queryParameters['algorithm'] ?? 'SHA1').toUpperCase();
@@ -83,11 +83,11 @@ class TotpService {
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
     final normalized = input.toUpperCase().replaceAll(RegExp(r'[\s-]'), '');
     if (RegExp(r'[^A-Z2-7=]').hasMatch(normalized)) {
-      throw ArgumentError('Invalid Base32 secret.');
+      throw ArgumentError('Base32 密钥格式无效。');
     }
     final cleaned = normalized.replaceAll('=', '');
     if (cleaned.isEmpty) {
-      throw ArgumentError('Invalid Base32 secret.');
+      throw ArgumentError('Base32 密钥格式无效。');
     }
 
     var buffer = 0;
@@ -97,7 +97,7 @@ class TotpService {
     for (final rune in cleaned.runes) {
       final value = alphabet.indexOf(String.fromCharCode(rune));
       if (value < 0) {
-        throw ArgumentError('Invalid Base32 secret.');
+        throw ArgumentError('Base32 密钥格式无效。');
       }
       buffer = (buffer << 5) | value;
       bitsLeft += 5;
@@ -130,7 +130,7 @@ class TotpService {
       case 'SHA512':
         return Hmac.sha512();
       default:
-        throw ArgumentError('Unsupported TOTP algorithm: $name');
+        throw ArgumentError('不支持的 TOTP 算法：$name');
     }
   }
 }

@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/services.dart';
 
 abstract class DeviceKeyStore {
@@ -56,4 +54,3 @@ class MethodChannelDeviceKeyStore implements DeviceKeyStore {
     }
   }
 }
-

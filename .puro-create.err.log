@@ -1,0 +1,25 @@
+[V] Started waiting for lock on C:\Users\opena\.puro\prefs.json
+[V] Waiting for lock on C:\Users\opena\.puro\prefs.json took 0ms
+[V] Not a distribution, skipping update check
+[V] Started waiting for lock on C:\Users\opena\.puro\bin\puro.bat
+[V] Waiting for lock on C:\Users\opena\.puro\bin\puro.bat took 0ms
+[V] Started waiting for lock on C:\Users\opena\.puro\releases_windows.json
+[V] Waiting for lock on C:\Users\opena\.puro\releases_windows.json took 4ms
+[V] Creating a new environment in C:\Users\opena\.puro\envs\stable
+[V] Started waiting for lock on C:\Users\opena\.puro\envs\stable\update.lock
+[V] Waiting for lock on C:\Users\opena\.puro\envs\stable\update.lock took 0ms
+[V] Started waiting for lock on C:\Users\opena\.puro\envs\stable\prefs.json
+[V] Waiting for lock on C:\Users\opena\.puro\envs\stable\prefs.json took 0ms
+[V] Pre-caching engine...
+[V] Cloning flutter with shared refs
+[V] Started cloning https://github.com/flutter/flutter.git
+[V] Started checking if dart works
+[V] Checking if dart works took 7ms
+[W] dart version check failed, deleting cache
+[V] Downloading engine
+[V] Downloading https://storage.googleapis.com/flutter_infra_release/flutter/59aa584fdf100e6c78c785d8a5b565d1de4b48ab/dart-sdk-windows-x64.zip to C:\Users\opena\.puro\shared\caches\59aa584fdf100e6c78c785d8a5b565d1de4b48ab.zip
+[V] Started downloading engine
+[V] git failed with exit code 128
+[E] git: Cloning into 'C:\Users\opena\.puro\shared\flutter'...
+    fatal: unable to access 'https://github.com/flutter/flutter.git/': Recv failure: Connection was reset
+[V] Cloning https://github.com/flutter/flutter.git took 19703ms

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
@@ -18,25 +19,25 @@ class CryptoService {
   CryptoService({Cryptography? cryptography})
       : _cryptography = cryptography ?? Cryptography.instance;
 
-  static const int currentVersion = 1;
+  static const int currentVersion = vaultDocumentVersion;
   static const int _keyLength = 32;
   static const int _argonMemoryKiB = 64 * 1024;
   static const int _argonIterations = 3;
   static const int _argonParallelism = 1;
   static const String _dekWrapAad = 'cipherbook:dek-wrap:v1';
   static const String _vaultPayloadAad = 'cipherbook:vault-payload:v1';
+  static final Random _random = Random.secure();
 
   final Cryptography _cryptography;
 
-  Cipher get _cipher => Xchacha20.poly1305Aead();
+  Cipher get _cipher => _cryptography.xchacha20Poly1305Aead();
 
   Future<EncryptedVaultDocument> createVault({
     required String password,
     VaultData? vaultData,
   }) async {
-    final random = _cryptography.secureRandom;
-    final salt = Uint8List.fromList(random.nextBytes(16));
-    final dek = Uint8List.fromList(random.nextBytes(_keyLength));
+    final salt = _randomBytes(16);
+    final dek = _randomBytes(_keyLength);
     final kdf = KdfConfig(
       memoryKiB: _argonMemoryKiB,
       iterations: _argonIterations,
@@ -64,10 +65,10 @@ class CryptoService {
       );
     } on SecretBoxAuthenticationError {
       throw const VaultUnlockException(
-        'Unlock failed: wrong password or vault file was modified.',
+        '解锁失败：密码错误或密码库文件已被修改。',
       );
     } on FormatException {
-      throw const VaultUnlockException('Invalid vault file format.');
+      throw const VaultUnlockException('密码库文件格式无效。');
     }
   }
 
@@ -93,10 +94,10 @@ class CryptoService {
       );
     } on SecretBoxAuthenticationError {
       throw const VaultUnlockException(
-        'Unlock failed: wrong password or vault file was modified.',
+        '解锁失败：密码错误或密码库文件已被修改。',
       );
     } on FormatException {
-      throw const VaultUnlockException('Invalid vault file format.');
+      throw const VaultUnlockException('密码库文件格式无效。');
     }
   }
 
@@ -111,7 +112,7 @@ class CryptoService {
           memoryKiB: _argonMemoryKiB,
           iterations: _argonIterations,
           parallelism: _argonParallelism,
-          salt: Uint8List.fromList(_cryptography.secureRandom.nextBytes(16)),
+          salt: _randomBytes(16),
         );
     final kekBytes = await deriveKekBytes(password, kdf);
     return saveVaultWithKek(
@@ -179,7 +180,7 @@ class CryptoService {
     SecretKey key, {
     required String aad,
   }) async {
-    final nonce = _cryptography.secureRandom.nextBytes(24);
+    final nonce = _cipher.newNonce();
     final box = await _cipher.encrypt(
       data,
       secretKey: key,
@@ -221,9 +222,18 @@ class CryptoService {
     return VaultSession(
       vaultData: VaultData.fromJson(vaultJson),
       dataEncryptionKey: Uint8List.fromList(dataEncryptionKey),
-      keyEncryptionKey:
-          keyEncryptionKey == null ? null : Uint8List.fromList(keyEncryptionKey),
+      keyEncryptionKey: keyEncryptionKey == null
+          ? null
+          : Uint8List.fromList(keyEncryptionKey),
     );
+  }
+
+  Uint8List _randomBytes(int length) {
+    final bytes = Uint8List(length);
+    for (var i = 0; i < length; i++) {
+      bytes[i] = _random.nextInt(256);
+    }
+    return bytes;
   }
 }
 
