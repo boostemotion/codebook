@@ -131,7 +131,7 @@ otpauth://totp/Example:alice?secret=JBSWY3DPEHPK3PXP&issuer=Example&digits=6&per
 
 界面中有 `开启快速解锁` / `快速解锁` 按钮。
 
-当前 Dart 侧流程已经存在，但 Android Keystore 原生桥还需要继续完善。因此这部分现在属于开发中功能，不应作为唯一解锁手段。继续保管好主密码。
+Android 端快速解锁使用 Android Keystore 保护当前会话 KEK。开启后，缓存文件保存在应用私有目录中，不能跨手机、跨应用数据或卸载后迁移。快速解锁只是便捷入口，不替代主密码；继续保管好主密码。
 
 ### 锁定和自动锁定
 
@@ -756,7 +756,6 @@ android/app/src/main/kotlin/com/example/cipherbook/MainActivity.kt
 
 ## Android 端后续开发重点
 
-- 接入 Android Keystore，实现真正设备绑定的快速解锁原生桥。
 - 为 release 包配置正式签名，不再使用 debug key 签 release。
 - 增加 Android 仪器测试或集成测试，覆盖导入、导出、锁定、解锁等关键流程。
 - 做一次真机 profile，定位大列表、TOTP 刷新、弹窗等场景是否还有掉帧。

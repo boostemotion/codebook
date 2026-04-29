@@ -11,3 +11,7 @@
 7	147	7990717169205973	CMakeFiles/jni.dir/dartjni.c.o	a88a054f30cd74d0
 10	579	7990717173465850	CMakeFiles/jni.dir/third_party/global_jni_env.c.o	24485a274b28c7b9
 579	688	7990717174520752	C:/Users/opena/.codex/memories/cipherbook-release-src/build/jni/intermediates/cxx/RelWithDebInfo/2v6a5y3j/obj/x86_64/libdartjni.so	ac46aed14ca24aa9
+3	96	7991609451846507	CMakeFiles/jni.dir/include/dart_api_dl.c.o	846694cc53a97fe5
+15	139	7991609452274047	CMakeFiles/jni.dir/dartjni.c.o	a88a054f30cd74d0
+10	532	7991609456174305	CMakeFiles/jni.dir/third_party/global_jni_env.c.o	24485a274b28c7b9
+533	654	7991609457249934	C:/Users/opena/.codex/memories/cipherbook-release-src/build/jni/intermediates/cxx/RelWithDebInfo/2v6a5y3j/obj/x86_64/libdartjni.so	ac46aed14ca24aa9
