@@ -4,6 +4,7 @@
 .metadata
 .packages
 build/
+dist/
 
 # Local toolchains and downloaded installers are machine-local.
 tools/flutter/

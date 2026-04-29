@@ -2,6 +2,7 @@
 
 #include <optional>
 
+#include "device_key_store_plugin.h"
 #include "flutter/generated_plugin_registrant.h"
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -25,6 +26,11 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  DeviceKeyStorePlugin::RegisterWithRegistrar(
+      flutter::PluginRegistrarManager::GetInstance()
+          ->GetRegistrar<flutter::PluginRegistrarWindows>(
+              flutter_controller_->engine()->GetRegistrarForPlugin(
+                  "DeviceKeyStore")));
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
