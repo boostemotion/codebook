@@ -18,13 +18,13 @@
 先安装 release APK：
 
 ```powershell
-& 'C:\Users\opena\AppData\Local\Android\Sdk\platform-tools\adb.exe' install -r 'D:\Z_work\密码\build\app\outputs\flutter-apk\app-release.apk'
+& 'C:\Users\<your-user>\AppData\Local\Android\Sdk\platform-tools\adb.exe' install -r '<project-root>\build\app\outputs\flutter-apk\app-release.apk'
 ```
 
 安装后可以从手机桌面打开 `密码本`，也可以用命令启动：
 
 ```powershell
-& 'C:\Users\opena\AppData\Local\Android\Sdk\platform-tools\adb.exe' shell monkey -p com.example.cipherbook -c android.intent.category.LAUNCHER 1
+& 'C:\Users\<your-user>\AppData\Local\Android\Sdk\platform-tools\adb.exe' shell monkey -p com.example.cipherbook -c android.intent.category.LAUNCHER 1
 ```
 
 ### 第一次创建密码库
@@ -242,7 +242,7 @@ C:\dev\flutter
 如果使用本机当前配置，Flutter SDK 在：
 
 ```powershell
-C:\Users\opena\.codex\memories\flutter-sdk
+C:\Users\<your-user>\.codex\memories\flutter-sdk
 ```
 
 新电脑可以选择以下任一方式：
@@ -260,7 +260,7 @@ flutter --version
 如果使用本机路径：
 
 ```powershell
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\flutter.bat' --version
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\flutter.bat' --version
 ```
 
 ### 3. 安装 Visual Studio Build Tools
@@ -315,7 +315,7 @@ C:\dev\cipherbook
 当前项目路径是：
 
 ```powershell
-D:\Z_work\密码
+<project-root>
 ```
 
 这个路径可以开发和测试 Dart 层，但 Windows release 构建可能因为中文路径被 Flutter/MSBuild 误解码而失败。因此 Windows release 推荐使用 ASCII 构建副本。
@@ -334,17 +334,17 @@ flutter test
 如果在当前本机中文路径，并使用本机 Flutter：
 
 ```powershell
-cd D:\Z_work\密码
-$env:GIT_CONFIG_GLOBAL='D:\Z_work\密码\.gitconfig.flutter'
-$env:PUB_CACHE='D:\Z_work\密码\.pub-cache'
-$env:APPDATA='D:\Z_work\密码\.appdata'
-$env:LOCALAPPDATA='D:\Z_work\密码\.localappdata'
-$env:USERPROFILE='D:\Z_work\密码\.userprofile'
-$env:HOME='D:\Z_work\密码\.home'
+cd <project-root>
+$env:GIT_CONFIG_GLOBAL='<project-root>\.gitconfig.flutter'
+$env:PUB_CACHE='<project-root>\.pub-cache'
+$env:APPDATA='<project-root>\.appdata'
+$env:LOCALAPPDATA='<project-root>\.localappdata'
+$env:USERPROFILE='<project-root>\.userprofile'
+$env:HOME='<project-root>\.home'
 
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\flutter.bat' pub get
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\flutter.bat' analyze lib test
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\flutter.bat' test
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\flutter.bat' pub get
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\flutter.bat' analyze lib test
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\flutter.bat' test
 ```
 
 当前已验证：
@@ -375,42 +375,42 @@ build\windows\x64\runner\Release\
 
 ### 8. 中文路径项目的 Windows release 构建方式
 
-如果项目路径包含中文，例如 `D:\Z_work\密码`，使用 ASCII 构建副本：
+如果项目路径包含中文，例如 `<project-root>`，使用 ASCII 构建副本：
 
 ```powershell
-$root='C:\Users\opena\.codex\memories\cipherbook-windows-src'
+$root='C:\Users\<your-user>\.codex\memories\cipherbook-windows-src'
 New-Item -ItemType Directory -Force -Path $root | Out-Null
 
 foreach ($name in @('lib','test','windows')) {
   $dst=Join-Path $root $name
   if (Test-Path $dst) { Remove-Item -LiteralPath $dst -Recurse -Force }
-  Copy-Item -Recurse -Force -LiteralPath "D:\Z_work\密码\$name" -Destination $root
+  Copy-Item -Recurse -Force -LiteralPath "<project-root>\$name" -Destination $root
 }
 
 foreach ($name in @('pubspec.yaml','pubspec.lock','analysis_options.yaml','.metadata')) {
-  Copy-Item -Force -LiteralPath "D:\Z_work\密码\$name" -Destination $root
+  Copy-Item -Force -LiteralPath "<project-root>\$name" -Destination $root
 }
 ```
 
 在副本目录构建：
 
 ```powershell
-cd C:\Users\opena\.codex\memories\cipherbook-windows-src
-$env:PUB_CACHE='C:\Users\opena\.codex\memories\pub-cache-windows'
-$env:APPDATA='C:\Users\opena\.codex\memories\appdata-windows'
-$env:LOCALAPPDATA='C:\Users\opena\.codex\memories\localappdata-windows'
-$env:USERPROFILE='C:\Users\opena\.codex\memories\userprofile-windows'
-$env:HOME='C:\Users\opena\.codex\memories\home-windows'
+cd C:\Users\<your-user>\.codex\memories\cipherbook-windows-src
+$env:PUB_CACHE='C:\Users\<your-user>\.codex\memories\pub-cache-windows'
+$env:APPDATA='C:\Users\<your-user>\.codex\memories\appdata-windows'
+$env:LOCALAPPDATA='C:\Users\<your-user>\.codex\memories\localappdata-windows'
+$env:USERPROFILE='C:\Users\<your-user>\.codex\memories\userprofile-windows'
+$env:HOME='C:\Users\<your-user>\.codex\memories\home-windows'
 
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\flutter.bat' pub get
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\flutter.bat' build windows --release
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\flutter.bat' pub get
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\flutter.bat' build windows --release
 ```
 
 构建成功后复制回原项目：
 
 ```powershell
-$src='C:\Users\opena\.codex\memories\cipherbook-windows-src\build\windows\x64\runner\Release'
-$dst='D:\Z_work\密码\build\windows\x64\runner\Release'
+$src='C:\Users\<your-user>\.codex\memories\cipherbook-windows-src\build\windows\x64\runner\Release'
+$dst='<project-root>\build\windows\x64\runner\Release'
 if (Test-Path $dst) { Remove-Item -LiteralPath $dst -Recurse -Force }
 New-Item -ItemType Directory -Force -Path (Split-Path $dst) | Out-Null
 Copy-Item -Recurse -Force -LiteralPath $src -Destination (Split-Path $dst)
@@ -419,8 +419,8 @@ Copy-Item -Recurse -Force -LiteralPath $src -Destination (Split-Path $dst)
 ### 9. 生成 Windows 便携 Zip
 
 ```powershell
-$release='D:\Z_work\密码\build\windows\x64\runner\Release'
-$dist='D:\Z_work\密码\dist'
+$release='<project-root>\build\windows\x64\runner\Release'
+$dist='<project-root>\dist'
 New-Item -ItemType Directory -Force -Path $dist | Out-Null
 Compress-Archive -Path "$release\*" -DestinationPath "$dist\cipherbook-windows-x64.zip" -Force
 ```
@@ -502,14 +502,14 @@ start ms-settings:developers
 当前本机使用的 Flutter SDK 路径：
 
 ```powershell
-C:\Users\opena\.codex\memories\flutter-sdk
+C:\Users\<your-user>\.codex\memories\flutter-sdk
 ```
 
 常用命令：
 
 ```powershell
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\flutter.bat' --version
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\flutter.bat' doctor
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\flutter.bat' --version
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\flutter.bat' doctor
 ```
 
 2. Android SDK
@@ -517,19 +517,19 @@ C:\Users\opena\.codex\memories\flutter-sdk
 当前本机 Android SDK 路径：
 
 ```powershell
-C:\Users\opena\AppData\Local\Android\Sdk
+C:\Users\<your-user>\AppData\Local\Android\Sdk
 ```
 
 ADB 路径：
 
 ```powershell
-C:\Users\opena\AppData\Local\Android\Sdk\platform-tools\adb.exe
+C:\Users\<your-user>\AppData\Local\Android\Sdk\platform-tools\adb.exe
 ```
 
 如果 `adb` 不能直接识别，用完整路径执行：
 
 ```powershell
-& 'C:\Users\opena\AppData\Local\Android\Sdk\platform-tools\adb.exe' devices
+& 'C:\Users\<your-user>\AppData\Local\Android\Sdk\platform-tools\adb.exe' devices
 ```
 
 3. JDK
@@ -571,15 +571,15 @@ git --version
 在项目根目录执行：
 
 ```powershell
-$env:GIT_CONFIG_GLOBAL='D:\Z_work\密码\.gitconfig.flutter'
-$env:PUB_CACHE='D:\Z_work\密码\.pub-cache'
-$env:APPDATA='D:\Z_work\密码\.appdata'
-$env:LOCALAPPDATA='D:\Z_work\密码\.localappdata'
-$env:USERPROFILE='D:\Z_work\密码\.userprofile'
-$env:HOME='D:\Z_work\密码\.home'
+$env:GIT_CONFIG_GLOBAL='<project-root>\.gitconfig.flutter'
+$env:PUB_CACHE='<project-root>\.pub-cache'
+$env:APPDATA='<project-root>\.appdata'
+$env:LOCALAPPDATA='<project-root>\.localappdata'
+$env:USERPROFILE='<project-root>\.userprofile'
+$env:HOME='<project-root>\.home'
 
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\flutter.bat' doctor
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\flutter.bat' pub get
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\flutter.bat' doctor
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\flutter.bat' pub get
 ```
 
 这些环境变量的作用是把 Flutter/Dart 的缓存和配置尽量限制在项目附近，减少污染用户全局目录。
@@ -587,16 +587,16 @@ $env:HOME='D:\Z_work\密码\.home'
 ## 运行测试和静态检查
 
 ```powershell
-$env:GIT_CONFIG_GLOBAL='D:\Z_work\密码\.gitconfig.flutter'
-$env:PUB_CACHE='D:\Z_work\密码\.pub-cache'
-$env:APPDATA='D:\Z_work\密码\.appdata'
-$env:LOCALAPPDATA='D:\Z_work\密码\.localappdata'
-$env:USERPROFILE='D:\Z_work\密码\.userprofile'
-$env:HOME='D:\Z_work\密码\.home'
+$env:GIT_CONFIG_GLOBAL='<project-root>\.gitconfig.flutter'
+$env:PUB_CACHE='<project-root>\.pub-cache'
+$env:APPDATA='<project-root>\.appdata'
+$env:LOCALAPPDATA='<project-root>\.localappdata'
+$env:USERPROFILE='<project-root>\.userprofile'
+$env:HOME='<project-root>\.home'
 
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\dart.bat' format lib test
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\flutter.bat' analyze lib test
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\flutter.bat' test
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\dart.bat' format lib test
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\flutter.bat' analyze lib test
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\flutter.bat' test
 ```
 
 当前已验证：
@@ -611,14 +611,14 @@ $env:HOME='D:\Z_work\密码\.home'
 Debug 包用于开发调试，不适合判断手机流畅度。Flutter debug 模式会明显更卡。
 
 ```powershell
-$env:GIT_CONFIG_GLOBAL='D:\Z_work\密码\.gitconfig.flutter'
-$env:PUB_CACHE='D:\Z_work\密码\.pub-cache'
-$env:APPDATA='D:\Z_work\密码\.appdata'
-$env:LOCALAPPDATA='D:\Z_work\密码\.localappdata'
-$env:USERPROFILE='D:\Z_work\密码\.userprofile'
-$env:HOME='D:\Z_work\密码\.home'
+$env:GIT_CONFIG_GLOBAL='<project-root>\.gitconfig.flutter'
+$env:PUB_CACHE='<project-root>\.pub-cache'
+$env:APPDATA='<project-root>\.appdata'
+$env:LOCALAPPDATA='<project-root>\.localappdata'
+$env:USERPROFILE='<project-root>\.userprofile'
+$env:HOME='<project-root>\.home'
 
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\flutter.bat' build apk --debug
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\flutter.bat' build apk --debug
 ```
 
 输出：
@@ -632,14 +632,14 @@ build\app\outputs\flutter-apk\app-debug.apk
 Release 包用于真实手机体验和流畅度判断。
 
 ```powershell
-$env:GIT_CONFIG_GLOBAL='D:\Z_work\密码\.gitconfig.flutter'
-$env:PUB_CACHE='D:\Z_work\密码\.pub-cache'
-$env:APPDATA='D:\Z_work\密码\.appdata'
-$env:LOCALAPPDATA='D:\Z_work\密码\.localappdata'
-$env:USERPROFILE='D:\Z_work\密码\.userprofile'
-$env:HOME='D:\Z_work\密码\.home'
+$env:GIT_CONFIG_GLOBAL='<project-root>\.gitconfig.flutter'
+$env:PUB_CACHE='<project-root>\.pub-cache'
+$env:APPDATA='<project-root>\.appdata'
+$env:LOCALAPPDATA='<project-root>\.localappdata'
+$env:USERPROFILE='<project-root>\.userprofile'
+$env:HOME='<project-root>\.home'
 
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\flutter.bat' build apk --release
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\flutter.bat' build apk --release
 ```
 
 输出：
@@ -653,47 +653,47 @@ build\app\outputs\flutter-apk\app-release.apk
 当前项目路径包含中文：
 
 ```powershell
-D:\Z_work\密码
+<project-root>
 ```
 
 Flutter debug 构建通常可用，但 Windows 上 release AOT 构建可能因为中文路径解析问题失败。当前解决方式是在 ASCII 路径维护一个构建副本：
 
 ```powershell
-C:\Users\opena\.codex\memories\cipherbook-release-src
+C:\Users\<your-user>\.codex\memories\cipherbook-release-src
 ```
 
 如果在原项目路径构建 release 报类似 `D:\Z_work\����` 或 `.dart_tool\flutter_build` 路径错误，可以复制源码到 ASCII 路径后构建：
 
 ```powershell
-$root='C:\Users\opena\.codex\memories\cipherbook-release-src'
+$root='C:\Users\<your-user>\.codex\memories\cipherbook-release-src'
 New-Item -ItemType Directory -Force -Path $root | Out-Null
-Copy-Item -Recurse -Force -LiteralPath 'D:\Z_work\密码\android' -Destination $root
-Copy-Item -Recurse -Force -LiteralPath 'D:\Z_work\密码\lib' -Destination $root
-Copy-Item -Recurse -Force -LiteralPath 'D:\Z_work\密码\test' -Destination $root
-Copy-Item -Force -LiteralPath 'D:\Z_work\密码\pubspec.yaml' -Destination $root
-Copy-Item -Force -LiteralPath 'D:\Z_work\密码\pubspec.lock' -Destination $root
-Copy-Item -Force -LiteralPath 'D:\Z_work\密码\analysis_options.yaml' -Destination $root
+Copy-Item -Recurse -Force -LiteralPath '<project-root>\android' -Destination $root
+Copy-Item -Recurse -Force -LiteralPath '<project-root>\lib' -Destination $root
+Copy-Item -Recurse -Force -LiteralPath '<project-root>\test' -Destination $root
+Copy-Item -Force -LiteralPath '<project-root>\pubspec.yaml' -Destination $root
+Copy-Item -Force -LiteralPath '<project-root>\pubspec.lock' -Destination $root
+Copy-Item -Force -LiteralPath '<project-root>\analysis_options.yaml' -Destination $root
 ```
 
 然后在副本目录构建：
 
 ```powershell
-$env:GIT_CONFIG_GLOBAL='D:\Z_work\密码\.gitconfig.flutter'
-$env:PUB_CACHE='D:\Z_work\密码\.pub-cache'
-$env:APPDATA='D:\Z_work\密码\.appdata'
-$env:LOCALAPPDATA='D:\Z_work\密码\.localappdata'
-$env:USERPROFILE='D:\Z_work\密码\.userprofile'
-$env:HOME='D:\Z_work\密码\.home'
+$env:GIT_CONFIG_GLOBAL='<project-root>\.gitconfig.flutter'
+$env:PUB_CACHE='<project-root>\.pub-cache'
+$env:APPDATA='<project-root>\.appdata'
+$env:LOCALAPPDATA='<project-root>\.localappdata'
+$env:USERPROFILE='<project-root>\.userprofile'
+$env:HOME='<project-root>\.home'
 
-& 'C:\Users\opena\.codex\memories\flutter-sdk\bin\flutter.bat' build apk --release
+& 'C:\Users\<your-user>\.codex\memories\flutter-sdk\bin\flutter.bat' build apk --release
 ```
 
 构建成功后复制回原项目：
 
 ```powershell
 Copy-Item -Force `
-  -LiteralPath 'C:\Users\opena\.codex\memories\cipherbook-release-src\build\app\outputs\flutter-apk\app-release.apk' `
-  -Destination 'D:\Z_work\密码\build\app\outputs\flutter-apk\app-release.apk'
+  -LiteralPath 'C:\Users\<your-user>\.codex\memories\cipherbook-release-src\build\app\outputs\flutter-apk\app-release.apk' `
+  -Destination '<project-root>\build\app\outputs\flutter-apk\app-release.apk'
 ```
 
 ## 安装到 Android 手机
@@ -708,7 +708,7 @@ Copy-Item -Force `
 检查设备：
 
 ```powershell
-& 'C:\Users\opena\AppData\Local\Android\Sdk\platform-tools\adb.exe' devices
+& 'C:\Users\<your-user>\AppData\Local\Android\Sdk\platform-tools\adb.exe' devices
 ```
 
 正常会看到类似：
@@ -723,13 +723,13 @@ List of devices attached
 ### 安装 release 包
 
 ```powershell
-& 'C:\Users\opena\AppData\Local\Android\Sdk\platform-tools\adb.exe' install -r 'D:\Z_work\密码\build\app\outputs\flutter-apk\app-release.apk'
+& 'C:\Users\<your-user>\AppData\Local\Android\Sdk\platform-tools\adb.exe' install -r '<project-root>\build\app\outputs\flutter-apk\app-release.apk'
 ```
 
 ### 启动应用
 
 ```powershell
-& 'C:\Users\opena\AppData\Local\Android\Sdk\platform-tools\adb.exe' shell monkey -p com.example.cipherbook -c android.intent.category.LAUNCHER 1
+& 'C:\Users\<your-user>\AppData\Local\Android\Sdk\platform-tools\adb.exe' shell monkey -p com.example.cipherbook -c android.intent.category.LAUNCHER 1
 ```
 
 ## 流畅度和 120Hz 测试
@@ -745,13 +745,13 @@ android/app/src/main/kotlin/com/example/cipherbook/MainActivity.kt
 如果 release 包仍然卡，可以抓 Android 帧耗时：
 
 ```powershell
-& 'C:\Users\opena\AppData\Local\Android\Sdk\platform-tools\adb.exe' shell dumpsys gfxinfo com.example.cipherbook framestats
+& 'C:\Users\<your-user>\AppData\Local\Android\Sdk\platform-tools\adb.exe' shell dumpsys gfxinfo com.example.cipherbook framestats
 ```
 
 也可以查看设备连接和进程状态：
 
 ```powershell
-& 'C:\Users\opena\AppData\Local\Android\Sdk\platform-tools\adb.exe' shell pidof com.example.cipherbook
+& 'C:\Users\<your-user>\AppData\Local\Android\Sdk\platform-tools\adb.exe' shell pidof com.example.cipherbook
 ```
 
 ## Android 端后续开发重点
@@ -778,7 +778,7 @@ org.gradle.java.home=C:/Program Files/Android/Android Studio/jbr
 说明 Android SDK platform-tools 没有进 PATH。直接使用完整路径：
 
 ```powershell
-& 'C:\Users\opena\AppData\Local\Android\Sdk\platform-tools\adb.exe' devices
+& 'C:\Users\<your-user>\AppData\Local\Android\Sdk\platform-tools\adb.exe' devices
 ```
 
 ### release 构建卡住或中文路径乱码
@@ -790,5 +790,5 @@ org.gradle.java.home=C:/Program Files/Android/Android Studio/jbr
 确认安装的是最新 release 包，不是旧 debug 包：
 
 ```powershell
-& 'C:\Users\opena\AppData\Local\Android\Sdk\platform-tools\adb.exe' install -r 'D:\Z_work\密码\build\app\outputs\flutter-apk\app-release.apk'
+& 'C:\Users\<your-user>\AppData\Local\Android\Sdk\platform-tools\adb.exe' install -r '<project-root>\build\app\outputs\flutter-apk\app-release.apk'
 ```

@@ -1,3 +1,0 @@
-D:/Z_work/密码/.pub-cache/hosted/pub.dev/jni-1.0.0/android/.cxx/RelWithDebInfo/2v6a5y3j/x86_64/CMakeFiles/jni.dir
-D:/Z_work/密码/.pub-cache/hosted/pub.dev/jni-1.0.0/android/.cxx/RelWithDebInfo/2v6a5y3j/x86_64/CMakeFiles/edit_cache.dir
-D:/Z_work/密码/.pub-cache/hosted/pub.dev/jni-1.0.0/android/.cxx/RelWithDebInfo/2v6a5y3j/x86_64/CMakeFiles/rebuild_cache.dir

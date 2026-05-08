@@ -1,12 +1,43 @@
+# Flutter / Dart
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
-.metadata
 .packages
 build/
 dist/
 
-# Local toolchains and downloaded installers are machine-local.
+# Local runtime/cache folders (privacy + machine-specific)
+.android/
+.appdata/
+.home/
+.localappdata/
+.pub-cache/
+.userprofile/
+.omx/
+
+# IDE / editor
+.idea/
+*.iml
+
+# Local logs and temp artifacts
+*.log
+*.tmp
+*.bak
+.puro-create.err.log
+.puro-create.out.log
+
+# Local env/config files
+.gitconfig.flutter
+
+# Toolchains and downloaded installers are machine-local
 tools/flutter/
 tools/cmdline-tools-extract/
 tools/*.zip
+
+# Android/Windows signing secrets
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+key.properties

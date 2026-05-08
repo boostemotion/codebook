@@ -1,1 +1,0 @@
-C:\Users\opena\.codex\memories\cipherbook-release-src\build\jni\intermediates\cxx\RelWithDebInfo\2v6a5y3j\obj\arm64-v8a
