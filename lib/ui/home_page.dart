@@ -24,19 +24,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final TextEditingController _importPasswordController =
       TextEditingController();
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _vaultScrollController = ScrollController();
   String _searchQuery = '';
+  bool _hideAppBarTitle = false;
+  bool _hideTopActions = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     widget.controller.addListener(_handleControllerChanged);
+    _vaultScrollController.addListener(_handleVaultScroll);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.controller.removeListener(_handleControllerChanged);
+    _vaultScrollController.removeListener(_handleVaultScroll);
+    _vaultScrollController.dispose();
     _masterPasswordController.dispose();
     _importPasswordController.dispose();
     _searchController.dispose();
@@ -63,6 +69,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     widget.controller.clearMessage();
   }
 
+  void _handleVaultScroll() {
+    if (!_vaultScrollController.hasClients) {
+      return;
+    }
+    final shouldHideTitle = _vaultScrollController.offset > 24;
+    final shouldHideActions = _vaultScrollController.offset > 12;
+    if (shouldHideTitle == _hideAppBarTitle &&
+        shouldHideActions == _hideTopActions) {
+      return;
+    }
+    setState(() {
+      _hideAppBarTitle = shouldHideTitle;
+      _hideTopActions = shouldHideActions;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -70,7 +92,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       builder: (context, _) {
         return Scaffold(
           appBar: AppBar(
-            title: const Text('密码本'),
+            title: AnimatedOpacity(
+              duration: const Duration(milliseconds: 180),
+              opacity: _hideAppBarTitle ? 0 : 1,
+              child: const Text('密码本'),
+            ),
             actions: [
               if (widget.controller.isUnlocked)
                 IconButton(
@@ -80,7 +106,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           widget.controller.lock();
                         },
                   icon: const Icon(Icons.lock_outline),
-                  tooltip: '锁定',
+                  tooltip: '閿佸畾',
                 ),
             ],
           ),
@@ -94,6 +120,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       ? _VaultView(
                           controller: widget.controller,
                           searchController: _searchController,
+                          scrollController: _vaultScrollController,
+                          hideTopActions: _hideTopActions,
                           searchQuery: _searchQuery,
                           onSearchChanged: (value) {
                             setState(() {
@@ -190,7 +218,7 @@ class _LockedView extends StatelessWidget {
                 controller: importPasswordController,
                 obscureText: true,
                 decoration: const InputDecoration(
-                  labelText: '导入文件密码',
+                  labelText: '瀵煎叆鏂囦欢瀵嗙爜',
                   helperText: '没有本地密码库时，可导入一个加密备份。',
                   border: OutlineInputBorder(),
                 ),
@@ -212,7 +240,7 @@ class _LockedView extends StatelessWidget {
                   }
                 },
                 icon: const Icon(Icons.file_open_outlined),
-                label: const Text('导入为本地密码库'),
+                label: const Text('瀵煎叆涓烘湰鍦板瘑鐮佸簱'),
               ),
             ],
           ],
@@ -226,12 +254,16 @@ class _VaultView extends StatelessWidget {
   const _VaultView({
     required this.controller,
     required this.searchController,
+    required this.scrollController,
+    required this.hideTopActions,
     required this.searchQuery,
     required this.onSearchChanged,
   });
 
   final VaultController controller;
   final TextEditingController searchController;
+  final ScrollController scrollController;
+  final bool hideTopActions;
   final String searchQuery;
   final ValueChanged<String> onSearchChanged;
 
@@ -254,51 +286,59 @@ class _VaultView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            FilledButton.icon(
-              onPressed: () => _showItemEditor(context, controller: controller),
-              icon: const Icon(Icons.add),
-              label: const Text('新增条目'),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => _showExportDialog(context, controller),
-              icon: const Icon(Icons.upload_file_outlined),
-              label: const Text('导出备份'),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => _showImportDialog(context, controller),
-              icon: const Icon(Icons.download_outlined),
-              label: const Text('导入并合并'),
-            ),
-            OutlinedButton.icon(
-              onPressed: () => _showChangePasswordDialog(context, controller),
-              icon: const Icon(Icons.key_outlined),
-              label: const Text('修改主密码'),
-            ),
-            if (controller.quickUnlockSupported)
-              OutlinedButton.icon(
-                onPressed: () {
-                  if (controller.quickUnlockEnabled) {
-                    controller.disableQuickUnlock();
-                  } else {
-                    controller.enableQuickUnlock();
-                  }
-                },
-                icon: Icon(
-                  controller.quickUnlockEnabled
-                      ? Icons.phonelink_lock_outlined
-                      : Icons.fingerprint,
+        AnimatedSize(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          child: hideTopActions
+              ? const SizedBox.shrink()
+              : Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: () =>
+                          _showItemEditor(context, controller: controller),
+                      icon: const Icon(Icons.add),
+                      label: const Text('新增条目'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _showExportDialog(context, controller),
+                      icon: const Icon(Icons.upload_file_outlined),
+                      label: const Text('导出备份'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _showImportDialog(context, controller),
+                      icon: const Icon(Icons.download_outlined),
+                      label: const Text('导入并合并'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () =>
+                          _showChangePasswordDialog(context, controller),
+                      icon: const Icon(Icons.key_outlined),
+                      label: const Text('修改主密码'),
+                    ),
+                    if (controller.quickUnlockSupported)
+                      OutlinedButton.icon(
+                        onPressed: () {
+                          if (controller.quickUnlockEnabled) {
+                            controller.disableQuickUnlock();
+                          } else {
+                            controller.enableQuickUnlock();
+                          }
+                        },
+                        icon: Icon(
+                          controller.quickUnlockEnabled
+                              ? Icons.phonelink_lock_outlined
+                              : Icons.fingerprint,
+                        ),
+                        label: Text(
+                          controller.quickUnlockEnabled ? '关闭快速解锁' : '开启快速解锁',
+                        ),
+                      ),
+                  ],
                 ),
-                label: Text(
-                  controller.quickUnlockEnabled ? '关闭快速解锁' : '开启快速解锁',
-                ),
-              ),
-          ],
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: hideTopActions ? 0 : 16),
         TextField(
           controller: searchController,
           onChanged: onSearchChanged,
@@ -308,52 +348,122 @@ class _VaultView extends StatelessWidget {
             border: OutlineInputBorder(),
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 8),
         Expanded(
           child: items.isEmpty
               ? const Center(child: Text('没有匹配的条目。'))
               : ListView.separated(
+                  controller: scrollController,
                   itemCount: items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  separatorBuilder: (_, __) => const SizedBox(height: 6),
                   itemBuilder: (context, index) {
                     final item = items[index];
+                    final accountInfo = [item.username, item.url]
+                        .where((part) => part.isNotEmpty)
+                        .join('  -  ');
                     return Card(
-                      child: ListTile(
-                        title: Text(item.title),
-                        subtitle: Text(
-                          [item.username, item.url]
-                              .where((part) => part.isNotEmpty)
-                              .join('  -  '),
-                        ),
-                        trailing: Wrap(
-                          spacing: 8,
+                      elevation: 0.8,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 8, 4, 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            IconButton(
-                              onPressed: () => _showItemDetails(
-                                context,
-                                controller: controller,
-                                item: item,
-                              ),
-                              icon: const Icon(Icons.visibility_outlined),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    item.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          fontSize: 21,
+                                          fontWeight: FontWeight.w800,
+                                          height: 1.0,
+                                        ),
+                                  ),
+                                ),
+                                if (accountInfo.isNotEmpty) ...[
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      accountInfo,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.end,
+                                      style:
+                                          Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
-                            IconButton(
-                              onPressed: () {
-                                controller.copySecret(item.password);
-                              },
-                              icon: const Icon(Icons.copy_outlined),
-                              tooltip: '复制密码',
-                            ),
-                            IconButton(
-                              onPressed: () => _showItemEditor(
-                                context,
-                                controller: controller,
-                                item: item,
-                              ),
-                              icon: const Icon(Icons.edit_outlined),
-                            ),
-                            IconButton(
-                              onPressed: () => controller.deleteItem(item.id),
-                              icon: const Icon(Icons.delete_outline),
+                            const SizedBox(height: 1),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                IconButton(
+                                  onPressed: () => _showItemDetails(
+                                    context,
+                                    controller: controller,
+                                    item: item,
+                                  ),
+                                  icon: const Icon(Icons.visibility_outlined),
+                                  iconSize: 20,
+                                  splashRadius: 18,
+                                  visualDensity: VisualDensity.compact,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 30,
+                                    minHeight: 30,
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () {
+                                    controller.copySecret(item.password);
+                                  },
+                                  icon: const Icon(Icons.copy_outlined),
+                                  iconSize: 20,
+                                  splashRadius: 18,
+                                  visualDensity: VisualDensity.compact,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 30,
+                                    minHeight: 30,
+                                  ),
+                                  tooltip: '复制密码',
+                                ),
+                                IconButton(
+                                  onPressed: () => _showItemEditor(
+                                    context,
+                                    controller: controller,
+                                    item: item,
+                                  ),
+                                  icon: const Icon(Icons.edit_outlined),
+                                  iconSize: 20,
+                                  splashRadius: 18,
+                                  visualDensity: VisualDensity.compact,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 30,
+                                    minHeight: 30,
+                                  ),
+                                ),
+                                IconButton(
+                                  onPressed: () =>
+                                      controller.deleteItem(item.id),
+                                  icon: const Icon(Icons.delete_outline),
+                                  iconSize: 20,
+                                  splashRadius: 18,
+                                  visualDensity: VisualDensity.compact,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 30,
+                                    minHeight: 30,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -375,22 +485,22 @@ Future<void> _showImportDialog(
   final confirmedPassword = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('导入加密备份'),
+      title: const Text('瀵煎叆鍔犲瘑澶囦唤'),
       content: TextField(
         controller: passwordController,
         obscureText: true,
         decoration: const InputDecoration(
-          labelText: '导入文件密码',
+          labelText: '瀵煎叆鏂囦欢瀵嗙爜',
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
+          child: const Text('鍙栨秷'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('继续'),
+          child: const Text('缁х画'),
         ),
       ],
     ),
@@ -420,7 +530,7 @@ Future<bool?> _showImportSummaryDialog(
   return showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('导入预览'),
+      title: const Text('瀵煎叆棰勮'),
       content: SizedBox(
         width: 360,
         child: _ImportSummaryView(summary: summary),
@@ -428,11 +538,11 @@ Future<bool?> _showImportSummaryDialog(
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
+          child: const Text('鍙栨秷'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('导入'),
+          child: const Text('瀵煎叆'),
         ),
       ],
     ),
@@ -447,23 +557,23 @@ Future<void> _showExportDialog(
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('导出加密备份'),
+      title: const Text('瀵煎嚭鍔犲瘑澶囦唤'),
       content: TextField(
         controller: passwordController,
         obscureText: true,
         decoration: const InputDecoration(
-          labelText: '导出密码（可选）',
+          labelText: '瀵煎嚭瀵嗙爜锛堝彲閫夛級',
           helperText: '留空则沿用当前本地密码库的加密。',
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
+          child: const Text('鍙栨秷'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('导出'),
+          child: const Text('瀵煎嚭'),
         ),
       ],
     ),
@@ -496,18 +606,18 @@ Future<void> _showChangePasswordDialog(
           TextField(
             controller: newPasswordController,
             obscureText: true,
-            decoration: const InputDecoration(labelText: '新主密码'),
+            decoration: const InputDecoration(labelText: '鏂颁富瀵嗙爜'),
           ),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
+          child: const Text('鍙栨秷'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('保存'),
+          child: const Text('淇濆瓨'),
         ),
       ],
     ),
@@ -539,7 +649,7 @@ Future<void> _showItemEditor(
   final saved = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: Text(item == null ? '新增条目' : '编辑条目'),
+      title: Text(item == null ? '鏂板鏉＄洰' : '缂栬緫鏉＄洰'),
       content: SizedBox(
         width: 480,
         child: SingleChildScrollView(
@@ -548,15 +658,15 @@ Future<void> _showItemEditor(
             children: [
               TextField(
                 controller: titleController,
-                decoration: const InputDecoration(labelText: '名称'),
+                decoration: const InputDecoration(labelText: '鍚嶇О'),
               ),
               TextField(
                 controller: usernameController,
-                decoration: const InputDecoration(labelText: '账号'),
+                decoration: const InputDecoration(labelText: '璐﹀彿'),
               ),
               TextField(
                 controller: passwordController,
-                decoration: const InputDecoration(labelText: '密码'),
+                decoration: const InputDecoration(labelText: '瀵嗙爜'),
               ),
               const SizedBox(height: 8),
               Row(
@@ -565,7 +675,7 @@ Future<void> _showItemEditor(
                     child: TextField(
                       controller: lengthController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: '生成长度'),
+                      decoration: const InputDecoration(labelText: '鐢熸垚闀垮害'),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -576,28 +686,28 @@ Future<void> _showItemEditor(
                           controller.generatePassword(length: length);
                     },
                     icon: const Icon(Icons.password_outlined),
-                    label: const Text('生成'),
+                    label: const Text('鐢熸垚'),
                   ),
                 ],
               ),
               TextField(
                 controller: urlController,
-                decoration: const InputDecoration(labelText: '网址'),
+                decoration: const InputDecoration(labelText: '缃戝潃'),
               ),
               TextField(
                 controller: totpController,
                 decoration: const InputDecoration(
-                  labelText: 'TOTP 密钥或 otpauth URI',
+                  labelText: 'TOTP 瀵嗛挜鎴?otpauth URI',
                 ),
               ),
               TextField(
                 controller: tagsController,
-                decoration: const InputDecoration(labelText: '标签，用逗号分隔'),
+                decoration: const InputDecoration(labelText: '鏍囩锛岀敤閫楀彿鍒嗛殧'),
               ),
               TextField(
                 controller: notesController,
                 maxLines: 5,
-                decoration: const InputDecoration(labelText: '备注'),
+                decoration: const InputDecoration(labelText: '澶囨敞'),
               ),
             ],
           ),
@@ -606,11 +716,11 @@ Future<void> _showItemEditor(
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
+          child: const Text('鍙栨秷'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('保存'),
+          child: const Text('淇濆瓨'),
         ),
       ],
     ),
@@ -658,21 +768,21 @@ Future<void> _showItemDetails(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _DetailRow(
-              label: '账号',
+              label: '璐﹀彿',
               value: item.username,
               onCopy: item.username.isEmpty
                   ? null
                   : () => controller.copySecret(item.username),
             ),
             _DetailRow(
-              label: '密码',
+              label: '瀵嗙爜',
               value: item.password,
               onCopy: item.password.isEmpty
                   ? null
                   : () => controller.copySecret(item.password),
             ),
-            _DetailRow(label: '网址', value: item.url),
-            _DetailRow(label: '标签', value: item.tags.join(', ')),
+            _DetailRow(label: '缃戝潃', value: item.url),
+            _DetailRow(label: '鏍囩', value: item.tags.join(', ')),
             if ((item.totpSecret?.trim().isNotEmpty ?? false))
               _TotpPanel(
                 secretOrUri: item.totpSecret!,
@@ -688,7 +798,7 @@ Future<void> _showItemDetails(
       actions: [
         FilledButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('关闭'),
+          child: const Text('鍏抽棴'),
         ),
       ],
     ),
@@ -722,7 +832,7 @@ class _DetailRow extends StatelessWidget {
             IconButton(
               onPressed: onCopy,
               icon: const Icon(Icons.copy_outlined),
-              tooltip: '复制',
+              tooltip: '澶嶅埗',
             ),
         ],
       ),
@@ -741,11 +851,11 @@ class _ImportSummaryView extends StatelessWidget {
         .where((detail) => detail.kind != ImportChangeKind.unchangedItem)
         .toList();
     final lines = <String>[
-      '导入文件条目：${summary.incomingItems}',
-      '新增：${summary.newItems}',
-      '更新：${summary.updatedItems}',
-      '删除：${summary.deletedItems}',
-      '不变：${summary.unchangedItems}',
+      '瀵煎叆鏂囦欢鏉＄洰锛?{summary.incomingItems}',
+      '鏂板锛?{summary.newItems}',
+      '鏇存柊锛?{summary.updatedItems}',
+      '鍒犻櫎锛?{summary.deletedItems}',
+      '涓嶅彉锛?{summary.unchangedItems}',
     ];
     if (summary.replacesLocalVault) {
       lines.insert(0, '当前没有本地密码库，此文件将作为本地密码库。');
@@ -763,7 +873,7 @@ class _ImportSummaryView extends StatelessWidget {
           const Divider(),
           const SizedBox(height: 8),
           Text(
-            '变更条目',
+            '鍙樻洿鏉＄洰',
             style: Theme.of(context).textTheme.titleSmall,
           ),
           const SizedBox(height: 8),
@@ -777,10 +887,10 @@ class _ImportSummaryView extends StatelessWidget {
                 final title =
                     detail.title.trim().isEmpty ? '（未命名）' : detail.title;
                 final subtitleParts = <String>[
-                  'ID：${detail.id}',
-                  '导入：${detail.incomingUpdatedAt.toIso8601String()}',
+                  'ID锛?{detail.id}',
+                  '瀵煎叆锛?{detail.incomingUpdatedAt.toIso8601String()}',
                   if (detail.localUpdatedAt != null)
-                    '本地：${detail.localUpdatedAt!.toIso8601String()}',
+                    '鏈湴锛?{detail.localUpdatedAt!.toIso8601String()}',
                 ];
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -818,13 +928,13 @@ class _ImportSummaryView extends StatelessWidget {
   String _kindLabel(ImportChangeKind kind) {
     switch (kind) {
       case ImportChangeKind.newItem:
-        return '新增';
+        return '鏂板';
       case ImportChangeKind.updatedItem:
-        return '更新';
+        return '鏇存柊';
       case ImportChangeKind.deletedItem:
-        return '删除';
+        return '鍒犻櫎';
       case ImportChangeKind.unchangedItem:
-        return '跳过';
+        return '璺宠繃';
     }
   }
 }
@@ -856,13 +966,13 @@ class _TotpPanel extends StatelessWidget {
             if (resultSnapshot.hasError) {
               return const _DetailRow(
                 label: 'TOTP',
-                value: '密钥无效',
+                value: '瀵嗛挜鏃犳晥',
               );
             }
             if (!resultSnapshot.hasData) {
               return const _DetailRow(
                 label: 'TOTP',
-                value: '加载中...',
+                value: '鍔犺浇涓?..',
               );
             }
             final result = resultSnapshot.data!;
@@ -884,7 +994,7 @@ class _TotpPanel extends StatelessWidget {
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
                         Text(
-                          '${result.secondsRemaining} 秒后刷新',
+                          '${result.secondsRemaining} 绉掑悗鍒锋柊',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],

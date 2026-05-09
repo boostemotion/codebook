@@ -5,25 +5,28 @@ import android.os.Bundle
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import io.flutter.embedding.android.FlutterActivity
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import org.json.JSONObject
 import java.io.File
 import java.security.KeyStore
+import java.util.concurrent.Executor
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     private companion object {
         const val CHANNEL_NAME = "dev.codex.cipherbook/device_key_store"
         const val KEY_ALIAS = "cipherbook_quick_unlock_key"
         const val CACHE_FILE_NAME = "quick_unlock.keystore"
         const val CIPHER_TRANSFORMATION = "AES/GCM/NoPadding"
         const val GCM_TAG_BITS = 128
-        const val CACHE_VERSION = 1
+        const val CACHE_VERSION = 2
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,23 +52,9 @@ class MainActivity : FlutterActivity() {
                         )
                         return@setMethodCallHandler
                     }
-                    runCatching {
-                        storeWrappedDek(bytes)
-                    }.onSuccess {
-                        result.success(null)
-                    }.onFailure {
-                        result.error("store_failed", "Failed to store quick unlock key.", null)
-                    }
+                    authenticateAndStoreWrappedDek(bytes, result)
                 }
-                "readWrappedDek" -> {
-                    runCatching {
-                        readWrappedDek()
-                    }.onSuccess {
-                        result.success(it)
-                    }.onFailure {
-                        result.success(null)
-                    }
-                }
+                "readWrappedDek" -> authenticateAndReadWrappedDek(result)
                 "clear" -> {
                     clearQuickUnlock()
                     result.success(null)
@@ -103,54 +92,184 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun isQuickUnlockSupported(): Boolean {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            return false
+        }
+        val manager = BiometricManager.from(this)
+        val canAuthenticate = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            manager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+        } else {
+            @Suppress("DEPRECATION")
+            manager.canAuthenticate()
+        }
+        return canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS
     }
 
-    private fun storeWrappedDek(bytes: ByteArray) {
+    private fun authenticateAndStoreWrappedDek(
+        bytes: ByteArray,
+        result: MethodChannel.Result,
+    ) {
         if (!isQuickUnlockSupported()) {
-            throw IllegalStateException("Android Keystore is unavailable.")
+            result.error("store_failed", "Biometric auth is unavailable.", null)
+            return
         }
 
-        val cipher = Cipher.getInstance(CIPHER_TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
-        val ciphertext = cipher.doFinal(bytes)
-        val payload = JSONObject()
-            .put("version", CACHE_VERSION)
-            .put("iv", Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
-            .put("ciphertext", Base64.encodeToString(ciphertext, Base64.NO_WRAP))
-            .toString()
+        // Rotate keystore alias so upgraded builds don't reuse non-biometric keys.
+        deleteSecretKey()
 
-        quickUnlockFile().writeText(payload, Charsets.UTF_8)
+        val cipher = runCatching {
+            Cipher.getInstance(CIPHER_TRANSFORMATION).apply {
+                init(Cipher.ENCRYPT_MODE, getOrCreateSecretKey())
+            }
+        }.getOrElse {
+            result.error("store_failed", "Failed to initialize biometric cipher.", null)
+            return
+        }
+
+        val prompt = BiometricPrompt(
+            this,
+            mainExecutor(),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    result.error("store_failed", "Biometric authentication canceled.", null)
+                }
+
+                override fun onAuthenticationFailed() {
+                    // Keep prompt active; only terminal callbacks should return.
+                }
+
+                override fun onAuthenticationSucceeded(authResult: BiometricPrompt.AuthenticationResult) {
+                    val authCipher = authResult.cryptoObject?.cipher ?: cipher
+                    runCatching {
+                        val ciphertext = authCipher.doFinal(bytes)
+                        val payload = JSONObject()
+                            .put("version", CACHE_VERSION)
+                            .put("iv", Base64.encodeToString(authCipher.iv, Base64.NO_WRAP))
+                            .put("ciphertext", Base64.encodeToString(ciphertext, Base64.NO_WRAP))
+                            .toString()
+                        quickUnlockFile().writeText(payload, Charsets.UTF_8)
+                    }.onSuccess {
+                        result.success(null)
+                    }.onFailure {
+                        result.error("store_failed", "Failed to store quick unlock key.", null)
+                    }
+                }
+            },
+        )
+
+        prompt.authenticate(
+            buildPromptInfo(
+                title = "开启快速解锁",
+                subtitle = "请验证指纹以保存快速解锁密钥",
+            ),
+            BiometricPrompt.CryptoObject(cipher),
+        )
     }
 
-    private fun readWrappedDek(): ByteArray? {
+    private fun authenticateAndReadWrappedDek(
+        result: MethodChannel.Result,
+    ) {
         if (!isQuickUnlockSupported()) {
-            return null
+            result.success(null)
+            return
         }
         val file = quickUnlockFile()
         if (!file.exists()) {
-            return null
+            result.success(null)
+            return
         }
 
-        return runCatching {
-            val payload = JSONObject(file.readText(Charsets.UTF_8))
-            if (payload.optInt("version") != CACHE_VERSION) {
-                return null
+        val payload = runCatching {
+            JSONObject(file.readText(Charsets.UTF_8))
+        }.getOrNull() ?: run {
+            result.success(null)
+            return
+        }
+
+        if (payload.optInt("version") != CACHE_VERSION) {
+            result.success(null)
+            return
+        }
+
+        val iv = runCatching {
+            Base64.decode(payload.getString("iv"), Base64.NO_WRAP)
+        }.getOrNull() ?: run {
+            result.success(null)
+            return
+        }
+        val ciphertext = runCatching {
+            Base64.decode(payload.getString("ciphertext"), Base64.NO_WRAP)
+        }.getOrNull() ?: run {
+            result.success(null)
+            return
+        }
+
+        val cipher = runCatching {
+            Cipher.getInstance(CIPHER_TRANSFORMATION).apply {
+                init(
+                    Cipher.DECRYPT_MODE,
+                    getOrCreateSecretKey(),
+                    GCMParameterSpec(GCM_TAG_BITS, iv),
+                )
             }
-            val iv = Base64.decode(payload.getString("iv"), Base64.NO_WRAP)
-            val ciphertext = Base64.decode(payload.getString("ciphertext"), Base64.NO_WRAP)
-            val cipher = Cipher.getInstance(CIPHER_TRANSFORMATION)
-            cipher.init(
-                Cipher.DECRYPT_MODE,
-                getOrCreateSecretKey(),
-                GCMParameterSpec(GCM_TAG_BITS, iv),
-            )
-            cipher.doFinal(ciphertext)
-        }.getOrNull()
+        }.getOrNull() ?: run {
+            result.success(null)
+            return
+        }
+
+        val prompt = BiometricPrompt(
+            this,
+            mainExecutor(),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    result.success(null)
+                }
+
+                override fun onAuthenticationFailed() {
+                    // Keep prompt active; only terminal callbacks should return.
+                }
+
+                override fun onAuthenticationSucceeded(authResult: BiometricPrompt.AuthenticationResult) {
+                    val authCipher = authResult.cryptoObject?.cipher ?: cipher
+                    val plaintext = runCatching {
+                        authCipher.doFinal(ciphertext)
+                    }.getOrNull()
+                    result.success(plaintext)
+                }
+            },
+        )
+
+        prompt.authenticate(
+            buildPromptInfo(
+                title = "快速解锁",
+                subtitle = "请验证指纹以解锁密码库",
+            ),
+            BiometricPrompt.CryptoObject(cipher),
+        )
+    }
+
+    private fun buildPromptInfo(title: String, subtitle: String): BiometricPrompt.PromptInfo {
+        val promptInfoBuilder = BiometricPrompt.PromptInfo.Builder()
+            .setTitle(title)
+            .setSubtitle(subtitle)
+            .setNegativeButtonText("取消")
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            promptInfoBuilder.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+        }
+        return promptInfoBuilder.build()
     }
 
     private fun clearQuickUnlock() {
         quickUnlockFile().delete()
+        deleteSecretKey()
+    }
+
+    private fun deleteSecretKey() {
+        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        if (keyStore.containsAlias(KEY_ALIAS)) {
+            keyStore.deleteEntry(KEY_ALIAS)
+        }
     }
 
     private fun quickUnlockFile(): File {
@@ -169,15 +288,38 @@ class MainActivity : FlutterActivity() {
             KeyProperties.KEY_ALGORITHM_AES,
             "AndroidKeyStore",
         )
-        val spec = KeyGenParameterSpec.Builder(
+        val specBuilder = KeyGenParameterSpec.Builder(
             KEY_ALIAS,
             KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
         )
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
             .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
             .setRandomizedEncryptionRequired(true)
-            .build()
-        keyGenerator.init(spec)
+            .setUserAuthenticationRequired(true)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            specBuilder.setUserAuthenticationParameters(
+                0,
+                KeyProperties.AUTH_BIOMETRIC_STRONG,
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            specBuilder.setUserAuthenticationValidityDurationSeconds(-1)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            specBuilder.setInvalidatedByBiometricEnrollment(true)
+        }
+
+        keyGenerator.init(specBuilder.build())
         return keyGenerator.generateKey()
+    }
+
+    private fun mainExecutor(): Executor {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            super.getMainExecutor()
+        } else {
+            Executor { command -> runOnUiThread(command) }
+        }
     }
 }
