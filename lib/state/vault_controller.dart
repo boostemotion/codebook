@@ -69,6 +69,9 @@ class VaultController extends ChangeNotifier {
 
   Future<void> prepareDebugSession({int seedCount = 10}) async {
     await _run(() async {
+      if (await _repository.exists()) {
+        throw StateError('Debug seed skipped: existing vault detected.');
+      }
       await _deviceKeyStore.clear();
       _quickUnlockEnabled = false;
       _quickUnlockSupported = false;
