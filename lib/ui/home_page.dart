@@ -26,7 +26,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final TextEditingController _importPasswordController =
       TextEditingController();
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
   final ScrollController _vaultScrollController = ScrollController();
+  bool _searchKeyboardWasVisible = false;
 
   String _searchQuery = '';
 
@@ -35,16 +37,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     widget.controller.addListener(_handleControllerChanged);
+    _searchFocusNode.addListener(_handleSearchFocusChanged);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.controller.removeListener(_handleControllerChanged);
+    _searchFocusNode.removeListener(_handleSearchFocusChanged);
     _vaultScrollController.dispose();
     _masterPasswordController.dispose();
     _importPasswordController.dispose();
     _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -68,6 +73,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     widget.controller.clearMessage();
   }
 
+  void _handleSearchFocusChanged() {
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+  }
+
+  @override
+  void didChangeMetrics() {
+    if (!mounted) {
+      return;
+    }
+    final keyboardVisible = View.of(context).viewInsets.bottom > 0;
+    if (keyboardVisible) {
+      _searchKeyboardWasVisible = true;
+      return;
+    }
+    if (_searchKeyboardWasVisible && _searchFocusNode.hasFocus) {
+      _searchFocusNode.unfocus();
+    }
+    _searchKeyboardWasVisible = false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
@@ -88,6 +116,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           ? _VaultView(
                               controller: widget.controller,
                               searchController: _searchController,
+                              searchFocusNode: _searchFocusNode,
+                              isSearchFocused: _searchFocusNode.hasFocus,
                               scrollController: _vaultScrollController,
                               searchQuery: _searchQuery,
                               onSearchChanged: (value) {
@@ -304,6 +334,8 @@ class _VaultView extends StatelessWidget {
   const _VaultView({
     required this.controller,
     required this.searchController,
+    required this.searchFocusNode,
+    required this.isSearchFocused,
     required this.scrollController,
     required this.searchQuery,
     required this.onSearchChanged,
@@ -311,6 +343,8 @@ class _VaultView extends StatelessWidget {
 
   final VaultController controller;
   final TextEditingController searchController;
+  final FocusNode searchFocusNode;
+  final bool isSearchFocused;
   final ScrollController scrollController;
   final String searchQuery;
   final ValueChanged<String> onSearchChanged;
@@ -318,6 +352,7 @@ class _VaultView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final shouldHideDock = keyboardVisible || isSearchFocused;
     final items = controller.vaultData.activeItems.where((item) {
       if (searchQuery.isEmpty) {
         return true;
@@ -340,6 +375,7 @@ class _VaultView extends StatelessWidget {
             children: [
               _SearchField(
                 controller: searchController,
+                focusNode: searchFocusNode,
                 onChanged: onSearchChanged,
                 onClear: () {
                   searchController.clear();
@@ -372,21 +408,23 @@ class _VaultView extends StatelessWidget {
                             item.username.trim(),
                             item.url.trim(),
                           ].where((part) => part.isNotEmpty).join(' · ');
-                          return _EntryCard(
-                            item: item,
-                            accountInfo: accountInfo,
-                            onView: () => _showItemDetails(
-                              context,
-                              controller: controller,
+                          return RepaintBoundary(
+                            child: _EntryCard(
                               item: item,
+                              accountInfo: accountInfo,
+                              onView: () => _showItemDetails(
+                                context,
+                                controller: controller,
+                                item: item,
+                              ),
+                              onCopy: () => controller.copySecret(item.password),
+                              onEdit: () => _showItemEditor(
+                                context,
+                                controller: controller,
+                                item: item,
+                              ),
+                              onDelete: () => controller.deleteItem(item.id),
                             ),
-                            onCopy: () => controller.copySecret(item.password),
-                            onEdit: () => _showItemEditor(
-                              context,
-                              controller: controller,
-                              item: item,
-                            ),
-                            onDelete: () => controller.deleteItem(item.id),
                           );
                         },
                       ),
@@ -409,7 +447,7 @@ class _VaultView extends StatelessWidget {
                   child: FadeTransition(opacity: animation, child: child),
                 );
               },
-              child: keyboardVisible
+              child: shouldHideDock
                   ? const SizedBox.shrink(key: ValueKey('liquid-dock-hidden'))
                   : _BottomActionDock(
                       key: const ValueKey('liquid-dock'),
@@ -426,23 +464,28 @@ class _VaultView extends StatelessWidget {
 class _SearchField extends StatelessWidget {
   const _SearchField({
     required this.controller,
+    required this.focusNode,
     required this.onChanged,
     required this.onClear,
   });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
   final ValueChanged<String> onChanged;
   final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
     return _FrostedSurface(
-      sigma: 18,
+      sigma: 12,
       borderRadius: BorderRadius.circular(20),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       child: TextField(
         controller: controller,
+        focusNode: focusNode,
         onChanged: onChanged,
+        onTapOutside: (_) => focusNode.unfocus(),
+        onSubmitted: (_) => focusNode.unfocus(),
         decoration: InputDecoration(
           border: InputBorder.none,
           prefixIcon: const Icon(Icons.search_rounded),
@@ -510,7 +553,7 @@ class _BottomActionDockState extends State<_BottomActionDock> {
     ];
 
     return _FrostedSurface(
-      sigma: 26,
+      sigma: 14,
       borderRadius: BorderRadius.circular(34),
       padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
       tint: const Color(0x35FFFFFF),
@@ -530,41 +573,35 @@ class _BottomActionDockState extends State<_BottomActionDock> {
                   top: 0,
                   bottom: 0,
                   width: slotWidth - 6,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(30),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(30),
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Color(0x82FFFFFF),
-                              Color(0x4DFFFFFF),
-                            ],
-                          ),
-                          border: Border.all(color: const Color(0xC5FFFFFF)),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x2A4A303A),
-                              blurRadius: 14,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(30),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0x82FFFFFF),
+                          Color(0x4DFFFFFF),
+                        ],
+                      ),
+                      border: Border.all(color: const Color(0xC5FFFFFF)),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x2A4A303A),
+                          blurRadius: 14,
+                          offset: Offset(0, 4),
                         ),
-                        child: const DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Color(0x66FFFFFF),
-                                Color(0x00FFFFFF),
-                              ],
-                            ),
-                          ),
+                      ],
+                    ),
+                    child: const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0x66FFFFFF),
+                            Color(0x00FFFFFF),
+                          ],
                         ),
                       ),
                     ),
@@ -755,7 +792,7 @@ class _EntryCard extends StatelessWidget {
         );
 
     return _FrostedSurface(
-      sigma: 16,
+      enableBlur: false,
       borderRadius: BorderRadius.circular(14),
       padding: const EdgeInsets.fromLTRB(10, 7, 6, 7),
       child: Row(
@@ -828,6 +865,34 @@ class _MiniActionButton extends StatelessWidget {
   }
 }
 
+class _DockPopupEntrance extends StatelessWidget {
+  const _DockPopupEntrance({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 240),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        final eased = value.clamp(0.0, 1.0);
+        final slideY = (1 - eased) * 18;
+        final scale = 0.94 + (0.06 * eased);
+        return Opacity(
+          opacity: eased,
+          child: Transform.translate(
+            offset: Offset(0, slideY),
+            child: Transform.scale(scale: scale, child: child),
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+}
+
 Future<void> _showImportDialog(
   BuildContext context,
   VaultController controller,
@@ -835,25 +900,27 @@ Future<void> _showImportDialog(
   final passwordController = TextEditingController();
   final confirmedPassword = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('输入导入文件密码'),
-      content: TextField(
-        controller: passwordController,
-        obscureText: true,
-        decoration: const InputDecoration(
-          labelText: '导入文件密码',
+    builder: (context) => _DockPopupEntrance(
+      child: AlertDialog(
+        title: const Text('输入导入文件密码'),
+        content: TextField(
+          controller: passwordController,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: '导入文件密码',
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('继续'),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('继续'),
-        ),
-      ],
     ),
   );
 
@@ -880,22 +947,24 @@ Future<bool?> _showImportSummaryDialog(
 ) {
   return showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('导入预览'),
-      content: SizedBox(
-        width: 380,
-        child: _ImportSummaryView(summary: summary),
+    builder: (context) => _DockPopupEntrance(
+      child: AlertDialog(
+        title: const Text('导入预览'),
+        content: SizedBox(
+          width: 380,
+          child: _ImportSummaryView(summary: summary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('确认导入'),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('确认导入'),
-        ),
-      ],
     ),
   );
 }
@@ -907,26 +976,28 @@ Future<void> _showExportDialog(
   final passwordController = TextEditingController();
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('导出加密备份'),
-      content: TextField(
-        controller: passwordController,
-        obscureText: true,
-        decoration: const InputDecoration(
-          labelText: '导出密码（可选）',
-          helperText: '留空表示沿用当前密码库加密。',
+    builder: (context) => _DockPopupEntrance(
+      child: AlertDialog(
+        title: const Text('导出加密备份'),
+        content: TextField(
+          controller: passwordController,
+          obscureText: true,
+          decoration: const InputDecoration(
+            labelText: '导出密码（可选）',
+            helperText: '留空表示沿用当前密码库加密。',
+          ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('导出'),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('导出'),
-        ),
-      ],
     ),
   );
   if (confirmed == true && context.mounted) {
@@ -1000,87 +1071,89 @@ Future<void> _showItemEditor(
 
   final saved = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(item == null ? '新增条目' : '编辑条目'),
-      content: SizedBox(
-        width: 480,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleController,
-                decoration: const InputDecoration(labelText: '名称'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: usernameController,
-                decoration: const InputDecoration(labelText: '账号'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: passwordController,
-                decoration: const InputDecoration(labelText: '密码'),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: lengthController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: '自动密码长度'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  FilledButton.tonalIcon(
-                    onPressed: () {
-                      final length = int.tryParse(lengthController.text) ?? 20;
-                      passwordController.text =
-                          controller.generatePassword(length: length);
-                    },
-                    icon: const Icon(Icons.password_outlined),
-                    label: const Text('生成密码'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: urlController,
-                decoration: const InputDecoration(labelText: '网址'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: totpController,
-                decoration: const InputDecoration(
-                  labelText: 'TOTP 密钥 / otpauth URI',
+    builder: (context) => _DockPopupEntrance(
+      child: AlertDialog(
+        title: Text(item == null ? '新增条目' : '编辑条目'),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(labelText: '名称'),
                 ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: tagsController,
-                decoration: const InputDecoration(labelText: '标签（逗号分隔）'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: notesController,
-                maxLines: 5,
-                decoration: const InputDecoration(labelText: '备注'),
-              ),
-            ],
+                const SizedBox(height: 8),
+                TextField(
+                  controller: usernameController,
+                  decoration: const InputDecoration(labelText: '账号'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: passwordController,
+                  decoration: const InputDecoration(labelText: '密码'),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: lengthController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: '自动密码长度'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    FilledButton.tonalIcon(
+                      onPressed: () {
+                        final length = int.tryParse(lengthController.text) ?? 20;
+                        passwordController.text =
+                            controller.generatePassword(length: length);
+                      },
+                      icon: const Icon(Icons.password_outlined),
+                      label: const Text('生成密码'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: urlController,
+                  decoration: const InputDecoration(labelText: '网址'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: totpController,
+                  decoration: const InputDecoration(
+                    labelText: 'TOTP 密钥 / otpauth URI',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: tagsController,
+                  decoration: const InputDecoration(labelText: '标签（逗号分隔）'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: notesController,
+                  maxLines: 5,
+                  decoration: const InputDecoration(labelText: '备注'),
+                ),
+              ],
+            ),
           ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('保存'),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('保存'),
-        ),
-      ],
     ),
   );
 
@@ -1111,7 +1184,6 @@ Future<void> _showItemEditor(
   totpController.dispose();
   lengthController.dispose();
 }
-
 Future<void> _showItemDetails(
   BuildContext context, {
   required VaultController controller,
@@ -1389,6 +1461,7 @@ class _FrostedSurface extends StatelessWidget {
     this.tint,
     this.borderColor,
     this.shadowColor,
+    this.enableBlur = true,
   });
 
   final Widget child;
@@ -1398,39 +1471,46 @@ class _FrostedSurface extends StatelessWidget {
   final Color? tint;
   final Color? borderColor;
   final Color? shadowColor;
+  final bool enableBlur;
 
   @override
   Widget build(BuildContext context) {
+    final decorated = Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            (tint ?? const Color(0xAAFFFFFF)).withValues(alpha: 0.78),
+            (tint ?? const Color(0x74FFFFFF)).withValues(alpha: 0.62),
+          ],
+        ),
+        border: Border.all(
+          color: borderColor ?? const Color(0x9AFFFFFF),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor ?? const Color(0x261D1116),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: child,
+    );
+
+    if (!enableBlur) {
+      return decorated;
+    }
+
     return ClipRRect(
       borderRadius: borderRadius,
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            borderRadius: borderRadius,
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                (tint ?? const Color(0xAAFFFFFF)).withValues(alpha: 0.78),
-                (tint ?? const Color(0x74FFFFFF)).withValues(alpha: 0.62),
-              ],
-            ),
-            border: Border.all(
-              color: borderColor ?? const Color(0x9AFFFFFF),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: shadowColor ?? const Color(0x261D1116),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: child,
-        ),
+        child: decorated,
       ),
     );
   }

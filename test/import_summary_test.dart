@@ -148,6 +148,9 @@ class _MemoryDeviceKeyStore implements DeviceKeyStore {
   Future<bool> isSupported() async => false;
 
   @override
+  Future<bool> hasWrappedDekCache() async => storedBytes != null;
+
+  @override
   Future<Uint8List?> readWrappedDek() async => storedBytes;
 
   @override

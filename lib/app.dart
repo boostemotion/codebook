@@ -1,3 +1,4 @@
+﻿import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -30,7 +31,17 @@ class _CipherbookAppState extends State<CipherbookApp> {
       deviceKeyStore: MethodChannelDeviceKeyStore(),
       passwordGeneratorService: PasswordGeneratorService(),
       clipboardService: ClipboardService(),
-    )..bootstrap();
+    );
+
+    _initializeController();
+  }
+
+  Future<void> _initializeController() async {
+    await _controller.bootstrap();
+    // Debug mode should not overwrite an existing local vault.
+    if (kDebugMode && !_controller.hasVault) {
+      await _controller.prepareDebugSession(seedCount: 10);
+    }
   }
 
   @override
@@ -117,3 +128,4 @@ ThemeData _buildTheme() {
     ),
   );
 }
+
