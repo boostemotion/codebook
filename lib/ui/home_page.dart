@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../models/vault_models.dart';
@@ -25,23 +27,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       TextEditingController();
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _vaultScrollController = ScrollController();
+
   String _searchQuery = '';
-  bool _hideAppBarTitle = false;
-  bool _hideTopActions = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     widget.controller.addListener(_handleControllerChanged);
-    _vaultScrollController.addListener(_handleVaultScroll);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     widget.controller.removeListener(_handleControllerChanged);
-    _vaultScrollController.removeListener(_handleVaultScroll);
     _vaultScrollController.dispose();
     _masterPasswordController.dispose();
     _importPasswordController.dispose();
@@ -69,75 +68,47 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     widget.controller.clearMessage();
   }
 
-  void _handleVaultScroll() {
-    if (!_vaultScrollController.hasClients) {
-      return;
-    }
-    final shouldHideTitle = _vaultScrollController.offset > 24;
-    final shouldHideActions = _vaultScrollController.offset > 12;
-    if (shouldHideTitle == _hideAppBarTitle &&
-        shouldHideActions == _hideTopActions) {
-      return;
-    }
-    setState(() {
-      _hideAppBarTitle = shouldHideTitle;
-      _hideTopActions = shouldHideActions;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: widget.controller,
       builder: (context, _) {
         return Scaffold(
-          appBar: AppBar(
-            title: AnimatedOpacity(
-              duration: const Duration(milliseconds: 180),
-              opacity: _hideAppBarTitle ? 0 : 1,
-              child: const Text('密码本'),
-            ),
-            actions: [
-              if (widget.controller.isUnlocked)
-                IconButton(
-                  onPressed: widget.controller.busy
-                      ? null
-                      : () {
-                          widget.controller.lock();
-                        },
-                  icon: const Icon(Icons.lock_outline),
-                  tooltip: '閿佸畾',
-                ),
-            ],
-          ),
+          extendBody: true,
           body: Listener(
             onPointerDown: (_) => widget.controller.registerActivity(),
             child: Stack(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: widget.controller.isUnlocked
-                      ? _VaultView(
-                          controller: widget.controller,
-                          searchController: _searchController,
-                          scrollController: _vaultScrollController,
-                          hideTopActions: _hideTopActions,
-                          searchQuery: _searchQuery,
-                          onSearchChanged: (value) {
-                            setState(() {
-                              _searchQuery = value.trim().toLowerCase();
-                            });
-                          },
-                        )
-                      : _LockedView(
-                          controller: widget.controller,
-                          masterPasswordController: _masterPasswordController,
-                          importPasswordController: _importPasswordController,
-                        ),
+                const Positioned.fill(child: _GlassBackground()),
+                Positioned.fill(
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+                      child: widget.controller.isUnlocked
+                          ? _VaultView(
+                              controller: widget.controller,
+                              searchController: _searchController,
+                              scrollController: _vaultScrollController,
+                              searchQuery: _searchQuery,
+                              onSearchChanged: (value) {
+                                setState(() {
+                                  _searchQuery = value.trim().toLowerCase();
+                                });
+                              },
+                            )
+                          : _LockedView(
+                              controller: widget.controller,
+                              masterPasswordController:
+                                  _masterPasswordController,
+                              importPasswordController:
+                                  _importPasswordController,
+                            ),
+                    ),
+                  ),
                 ),
                 if (widget.controller.busy)
                   const ColoredBox(
-                    color: Color(0x66000000),
+                    color: Color(0x55000000),
                     child: Center(child: CircularProgressIndicator()),
                   ),
               ],
@@ -145,6 +116,65 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ),
         );
       },
+    );
+  }
+}
+
+class _GlassBackground extends StatelessWidget {
+  const _GlassBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        const Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFFF7F1F2),
+                  Color(0xFFF1E8EC),
+                  Color(0xFFEDE3E8),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: -120,
+          left: -90,
+          child: IgnorePointer(
+            child: Container(
+              width: 280,
+              height: 280,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [Color(0x66E7BBCB), Color(0x00E7BBCB)],
+                ),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          right: -130,
+          bottom: -120,
+          child: IgnorePointer(
+            child: Container(
+              width: 320,
+              height: 320,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [Color(0x55E4C4D0), Color(0x00E4C4D0)],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -164,86 +194,106 @@ class _LockedView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              controller.hasVault ? '解锁本地密码库' : '创建第一个密码库',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: masterPasswordController,
-              obscureText: true,
-              decoration: const InputDecoration(
-                labelText: '主密码',
-                border: OutlineInputBorder(),
-              ),
-              onSubmitted: (_) {
-                if (controller.hasVault) {
-                  controller.unlock(masterPasswordController.text);
-                } else {
-                  controller.createVault(masterPasswordController.text);
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            FilledButton(
-              onPressed: () {
-                if (controller.hasVault) {
-                  controller.unlock(masterPasswordController.text);
-                } else {
-                  controller.createVault(masterPasswordController.text);
-                }
-              },
-              child: Text(controller.hasVault ? '解锁' : '创建密码库'),
-            ),
-            if (controller.quickUnlockSupported &&
-                controller.quickUnlockEnabled &&
-                controller.hasVault) ...[
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () {
-                  controller.unlockWithQuickUnlock();
-                },
-                icon: const Icon(Icons.fingerprint),
-                label: const Text('快速解锁'),
-              ),
-            ],
-            if (!controller.hasVault) ...[
-              const SizedBox(height: 24),
-              TextField(
-                controller: importPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: '瀵煎叆鏂囦欢瀵嗙爜',
-                  helperText: '没有本地密码库时，可导入一个加密备份。',
-                  border: OutlineInputBorder(),
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: SingleChildScrollView(
+          child: _FrostedSurface(
+            sigma: 24,
+            padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  controller.hasVault ? '解锁密码本' : '创建密码本',
+                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.2,
+                      ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () async {
-                  final plan = await controller
-                      .previewImport(importPasswordController.text);
-                  if (plan == null || !context.mounted) {
-                    return;
-                  }
-                  final confirmed = await _showImportSummaryDialog(
-                    context,
-                    plan.summary,
-                  );
-                  if (confirmed == true && context.mounted) {
-                    await controller.applyImportPlan(plan);
-                  }
-                },
-                icon: const Icon(Icons.file_open_outlined),
-                label: const Text('瀵煎叆涓烘湰鍦板瘑鐮佸簱'),
-              ),
-            ],
-          ],
+                const SizedBox(height: 8),
+                Text(
+                  controller.hasVault
+                      ? '输入主密码进入本地加密库。'
+                      : '设置主密码后，所有数据会保存在本地加密库中。',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: masterPasswordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: '主密码',
+                    prefixIcon: Icon(Icons.key_rounded),
+                  ),
+                  onSubmitted: (_) {
+                    if (controller.hasVault) {
+                      controller.unlock(masterPasswordController.text);
+                    } else {
+                      controller.createVault(masterPasswordController.text);
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: () {
+                    if (controller.hasVault) {
+                      controller.unlock(masterPasswordController.text);
+                    } else {
+                      controller.createVault(masterPasswordController.text);
+                    }
+                  },
+                  icon: Icon(
+                    controller.hasVault
+                        ? Icons.lock_open_rounded
+                        : Icons.verified_user_rounded,
+                  ),
+                  label: Text(controller.hasVault ? '解锁' : '创建密码库'),
+                ),
+                if (controller.quickUnlockSupported &&
+                    controller.quickUnlockEnabled &&
+                    controller.hasVault) ...[
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: controller.unlockWithQuickUnlock,
+                    icon: const Icon(Icons.fingerprint_rounded),
+                    label: const Text('快速解锁（系统认证）'),
+                  ),
+                ],
+                if (!controller.hasVault) ...[
+                  const SizedBox(height: 20),
+                  const Divider(height: 1),
+                  const SizedBox(height: 14),
+                  TextField(
+                    controller: importPasswordController,
+                    obscureText: true,
+                    decoration: const InputDecoration(
+                      labelText: '导入文件密码',
+                      helperText: '首次使用时，也可以直接导入已有加密备份。',
+                      prefixIcon: Icon(Icons.file_open_rounded),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      final plan = await controller
+                          .previewImport(importPasswordController.text);
+                      if (plan == null || !context.mounted) {
+                        return;
+                      }
+                      final confirmed = await _showImportSummaryDialog(
+                        context,
+                        plan.summary,
+                      );
+                      if (confirmed == true && context.mounted) {
+                        await controller.applyImportPlan(plan);
+                      }
+                    },
+                    icon: const Icon(Icons.download_rounded),
+                    label: const Text('导入并合并备份'),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -255,7 +305,6 @@ class _VaultView extends StatelessWidget {
     required this.controller,
     required this.searchController,
     required this.scrollController,
-    required this.hideTopActions,
     required this.searchQuery,
     required this.onSearchChanged,
   });
@@ -263,12 +312,12 @@ class _VaultView extends StatelessWidget {
   final VaultController controller;
   final TextEditingController searchController;
   final ScrollController scrollController;
-  final bool hideTopActions;
   final String searchQuery;
   final ValueChanged<String> onSearchChanged;
 
   @override
   Widget build(BuildContext context) {
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final items = controller.vaultData.activeItems.where((item) {
       if (searchQuery.isEmpty) {
         return true;
@@ -283,196 +332,498 @@ class _VaultView extends StatelessWidget {
       return haystack.contains(searchQuery);
     }).toList();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Stack(
       children: [
-        AnimatedSize(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          child: hideTopActions
-              ? const SizedBox.shrink()
-              : Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: () =>
-                          _showItemEditor(context, controller: controller),
-                      icon: const Icon(Icons.add),
-                      label: const Text('新增条目'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => _showExportDialog(context, controller),
-                      icon: const Icon(Icons.upload_file_outlined),
-                      label: const Text('导出备份'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () => _showImportDialog(context, controller),
-                      icon: const Icon(Icons.download_outlined),
-                      label: const Text('导入并合并'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: () =>
-                          _showChangePasswordDialog(context, controller),
-                      icon: const Icon(Icons.key_outlined),
-                      label: const Text('修改主密码'),
-                    ),
-                    if (controller.quickUnlockSupported)
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          if (controller.quickUnlockEnabled) {
-                            controller.disableQuickUnlock();
-                          } else {
-                            controller.enableQuickUnlock();
-                          }
-                        },
-                        icon: Icon(
-                          controller.quickUnlockEnabled
-                              ? Icons.phonelink_lock_outlined
-                              : Icons.fingerprint,
+        Positioned.fill(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _SearchField(
+                controller: searchController,
+                onChanged: onSearchChanged,
+                onClear: () {
+                  searchController.clear();
+                  onSearchChanged('');
+                },
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: items.isEmpty
+                    ? _FrostedSurface(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 22,
                         ),
-                        label: Text(
-                          controller.quickUnlockEnabled ? '关闭快速解锁' : '开启快速解锁',
+                        child: Center(
+                          child: Text(
+                            searchQuery.isEmpty ? '还没有条目' : '没有匹配条目',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ),
+                      )
+                    : ListView.separated(
+                        controller: scrollController,
+                        itemCount: items.length,
+                        padding: const EdgeInsets.fromLTRB(0, 0, 0, 116),
+                        separatorBuilder: (_, __) => const SizedBox(height: 7),
+                        itemBuilder: (context, index) {
+                          final item = items[index];
+                          final accountInfo = [
+                            item.username.trim(),
+                            item.url.trim(),
+                          ].where((part) => part.isNotEmpty).join(' · ');
+                          return _EntryCard(
+                            item: item,
+                            accountInfo: accountInfo,
+                            onView: () => _showItemDetails(
+                              context,
+                              controller: controller,
+                              item: item,
+                            ),
+                            onCopy: () => controller.copySecret(item.password),
+                            onEdit: () => _showItemEditor(
+                              context,
+                              controller: controller,
+                              item: item,
+                            ),
+                            onDelete: () => controller.deleteItem(item.id),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: SafeArea(
+            top: false,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              transitionBuilder: (child, animation) {
+                return SizeTransition(
+                  sizeFactor: animation,
+                  axisAlignment: 1,
+                  child: FadeTransition(opacity: animation, child: child),
+                );
+              },
+              child: keyboardVisible
+                  ? const SizedBox.shrink(key: ValueKey('liquid-dock-hidden'))
+                  : _BottomActionDock(
+                      key: const ValueKey('liquid-dock'),
+                      controller: controller,
+                    ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SearchField extends StatelessWidget {
+  const _SearchField({
+    required this.controller,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return _FrostedSurface(
+      sigma: 18,
+      borderRadius: BorderRadius.circular(20),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          prefixIcon: const Icon(Icons.search_rounded),
+          hintText: '\u641c\u7d22\u6761\u76ee',
+          hintStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w500,
+            color: Color(0x8A6E5A63),
+          ),
+          suffixIcon: controller.text.isEmpty
+              ? null
+              : IconButton(
+                  onPressed: onClear,
+                  icon: const Icon(Icons.close_rounded),
+                  tooltip: '\u6e05\u7a7a\u641c\u7d22',
+                ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 12,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomActionDock extends StatefulWidget {
+  const _BottomActionDock({
+    super.key,
+    required this.controller,
+  });
+
+  final VaultController controller;
+
+  @override
+  State<_BottomActionDock> createState() => _BottomActionDockState();
+}
+
+class _BottomActionDockState extends State<_BottomActionDock> {
+  int _activeIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = <_DockActionData>[
+      _DockActionData(
+        icon: Icons.add_circle_outline_rounded,
+        label: '新增',
+        onTap: () => _showItemEditor(context, controller: widget.controller),
+      ),
+      _DockActionData(
+        icon: Icons.download_rounded,
+        label: '导入',
+        onTap: () => _showImportDialog(context, widget.controller),
+      ),
+      _DockActionData(
+        icon: Icons.upload_file_rounded,
+        label: '导出',
+        onTap: () => _showExportDialog(context, widget.controller),
+      ),
+      _DockActionData(
+        icon: Icons.settings_rounded,
+        label: '设置',
+        onTap: () => _openSettingsMenu(context),
+      ),
+    ];
+
+    return _FrostedSurface(
+      sigma: 26,
+      borderRadius: BorderRadius.circular(34),
+      padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+      tint: const Color(0x35FFFFFF),
+      borderColor: const Color(0x80FFFFFF),
+      shadowColor: const Color(0x33291B21),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final slotWidth = constraints.maxWidth / items.length;
+          return SizedBox(
+            height: 62,
+            child: Stack(
+              children: [
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOutCubic,
+                  left: (slotWidth * _activeIndex) + 3,
+                  top: 0,
+                  bottom: 0,
+                  width: slotWidth - 6,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(30),
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Color(0x82FFFFFF),
+                              Color(0x4DFFFFFF),
+                            ],
+                          ),
+                          border: Border.all(color: const Color(0xC5FFFFFF)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x2A4A303A),
+                              blurRadius: 14,
+                              offset: Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Color(0x66FFFFFF),
+                                Color(0x00FFFFFF),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    for (var i = 0; i < items.length; i++)
+                      Expanded(
+                        child: _DockActionButton(
+                          icon: items[i].icon,
+                          label: items[i].label,
+                          active: i == _activeIndex,
+                          onTap: () {
+                            setState(() {
+                              _activeIndex = i;
+                            });
+                            items[i].onTap();
+                          },
                         ),
                       ),
                   ],
                 ),
-        ),
-        SizedBox(height: hideTopActions ? 0 : 16),
-        TextField(
-          controller: searchController,
-          onChanged: onSearchChanged,
-          decoration: const InputDecoration(
-            prefixIcon: Icon(Icons.search),
-            labelText: '搜索条目',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Expanded(
-          child: items.isEmpty
-              ? const Center(child: Text('没有匹配的条目。'))
-              : ListView.separated(
-                  controller: scrollController,
-                  itemCount: items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 6),
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    final accountInfo = [item.username, item.url]
-                        .where((part) => part.isNotEmpty)
-                        .join('  -  ');
-                    return Card(
-                      elevation: 0.8,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 8, 4, 4),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    item.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleMedium
-                                        ?.copyWith(
-                                          fontSize: 21,
-                                          fontWeight: FontWeight.w800,
-                                          height: 1.0,
-                                        ),
-                                  ),
-                                ),
-                                if (accountInfo.isNotEmpty) ...[
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      accountInfo,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.end,
-                                      style:
-                                          Theme.of(context).textTheme.bodySmall,
-                                    ),
-                                  ),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 1),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                IconButton(
-                                  onPressed: () => _showItemDetails(
-                                    context,
-                                    controller: controller,
-                                    item: item,
-                                  ),
-                                  icon: const Icon(Icons.visibility_outlined),
-                                  iconSize: 20,
-                                  splashRadius: 18,
-                                  visualDensity: VisualDensity.compact,
-                                  constraints: const BoxConstraints(
-                                    minWidth: 30,
-                                    minHeight: 30,
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: () {
-                                    controller.copySecret(item.password);
-                                  },
-                                  icon: const Icon(Icons.copy_outlined),
-                                  iconSize: 20,
-                                  splashRadius: 18,
-                                  visualDensity: VisualDensity.compact,
-                                  constraints: const BoxConstraints(
-                                    minWidth: 30,
-                                    minHeight: 30,
-                                  ),
-                                  tooltip: '复制密码',
-                                ),
-                                IconButton(
-                                  onPressed: () => _showItemEditor(
-                                    context,
-                                    controller: controller,
-                                    item: item,
-                                  ),
-                                  icon: const Icon(Icons.edit_outlined),
-                                  iconSize: 20,
-                                  splashRadius: 18,
-                                  visualDensity: VisualDensity.compact,
-                                  constraints: const BoxConstraints(
-                                    minWidth: 30,
-                                    minHeight: 30,
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: () =>
-                                      controller.deleteItem(item.id),
-                                  icon: const Icon(Icons.delete_outline),
-                                  iconSize: 20,
-                                  splashRadius: 18,
-                                  visualDensity: VisualDensity.compact,
-                                  constraints: const BoxConstraints(
-                                    minWidth: 30,
-                                    minHeight: 30,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _openSettingsMenu(BuildContext context) async {
+    final action = await showModalBottomSheet<_DockSettingAction>(
+      context: context,
+      builder: (context) {
+        final enabled = widget.controller.quickUnlockEnabled;
+        final supported = widget.controller.quickUnlockSupported;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.key_rounded),
+                  title: const Text('修改主密码'),
+                  onTap: () {
+                    Navigator.of(context).pop(_DockSettingAction.changePassword);
                   },
                 ),
+                ListTile(
+                  leading: Icon(
+                    enabled
+                        ? Icons.phonelink_lock_outlined
+                        : Icons.fingerprint_rounded,
+                  ),
+                  title: Text(enabled ? '关闭快速解锁' : '开启快速解锁'),
+                  subtitle: Text(supported ? '使用系统认证保护会话密钥' : '当前设备不支持'),
+                  enabled: supported,
+                  onTap: !supported
+                      ? null
+                      : () {
+                          Navigator.of(context).pop(
+                            enabled
+                                ? _DockSettingAction.disableQuickUnlock
+                                : _DockSettingAction.enableQuickUnlock,
+                          );
+                        },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!context.mounted || action == null) {
+      return;
+    }
+    switch (action) {
+      case _DockSettingAction.changePassword:
+        await _showChangePasswordDialog(context, widget.controller);
+      case _DockSettingAction.enableQuickUnlock:
+        await widget.controller.enableQuickUnlock();
+      case _DockSettingAction.disableQuickUnlock:
+        await widget.controller.disableQuickUnlock();
+    }
+  }
+}
+
+class _DockActionData {
+  const _DockActionData({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+}
+
+enum _DockSettingAction {
+  changePassword,
+  enableQuickUnlock,
+  disableQuickUnlock,
+}
+
+class _DockActionButton extends StatelessWidget {
+  const _DockActionButton({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active ? const Color(0xFF744B5A) : const Color(0xFF302127);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(26),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 22, color: color),
+              const SizedBox(height: 3),
+              SizedBox(
+                width: double.infinity,
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-      ],
+      ),
+    );
+  }
+}
+
+class _EntryCard extends StatelessWidget {
+  const _EntryCard({
+    required this.item,
+    required this.accountInfo,
+    required this.onView,
+    required this.onCopy,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final VaultItem item;
+  final String accountInfo;
+  final VoidCallback onView;
+  final VoidCallback onCopy;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
+          fontWeight: FontWeight.w900,
+          fontSize: 21,
+          height: 1.0,
+          letterSpacing: -0.15,
+          color: const Color(0xFF241A1E),
+        );
+    final accountStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          fontWeight: FontWeight.w500,
+          color: const Color(0xFF5B4A51),
+        );
+
+    return _FrostedSurface(
+      sigma: 16,
+      borderRadius: BorderRadius.circular(14),
+      padding: const EdgeInsets.fromLTRB(10, 7, 6, 7),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(text: item.title, style: titleStyle),
+                  if (accountInfo.isNotEmpty)
+                    TextSpan(
+                      text: '   $accountInfo',
+                      style: accountStyle,
+                    ),
+                ],
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          _MiniActionButton(
+            icon: Icons.visibility_outlined,
+            tooltip: '查看',
+            onTap: onView,
+          ),
+          _MiniActionButton(
+            icon: Icons.copy_outlined,
+            tooltip: '复制密码',
+            onTap: onCopy,
+          ),
+          _MiniActionButton(
+            icon: Icons.edit_outlined,
+            tooltip: '编辑',
+            onTap: onEdit,
+          ),
+          _MiniActionButton(
+            icon: Icons.delete_outline,
+            tooltip: '删除',
+            onTap: onDelete,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniActionButton extends StatelessWidget {
+  const _MiniActionButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onTap,
+      icon: Icon(icon, color: const Color(0xFF3C2C32)),
+      tooltip: tooltip,
+      iconSize: 16,
+      splashRadius: 15,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+      padding: const EdgeInsets.all(4),
     );
   }
 }
@@ -485,22 +836,22 @@ Future<void> _showImportDialog(
   final confirmedPassword = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('瀵煎叆鍔犲瘑澶囦唤'),
+      title: const Text('输入导入文件密码'),
       content: TextField(
         controller: passwordController,
         obscureText: true,
         decoration: const InputDecoration(
-          labelText: '瀵煎叆鏂囦欢瀵嗙爜',
+          labelText: '导入文件密码',
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('鍙栨秷'),
+          child: const Text('取消'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('缁х画'),
+          child: const Text('继续'),
         ),
       ],
     ),
@@ -530,19 +881,19 @@ Future<bool?> _showImportSummaryDialog(
   return showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('瀵煎叆棰勮'),
+      title: const Text('导入预览'),
       content: SizedBox(
-        width: 360,
+        width: 380,
         child: _ImportSummaryView(summary: summary),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('鍙栨秷'),
+          child: const Text('取消'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('瀵煎叆'),
+          child: const Text('确认导入'),
         ),
       ],
     ),
@@ -557,23 +908,23 @@ Future<void> _showExportDialog(
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('瀵煎嚭鍔犲瘑澶囦唤'),
+      title: const Text('导出加密备份'),
       content: TextField(
         controller: passwordController,
         obscureText: true,
         decoration: const InputDecoration(
-          labelText: '瀵煎嚭瀵嗙爜锛堝彲閫夛級',
-          helperText: '留空则沿用当前本地密码库的加密。',
+          labelText: '导出密码（可选）',
+          helperText: '留空表示沿用当前密码库加密。',
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('鍙栨秷'),
+          child: const Text('取消'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('瀵煎嚭'),
+          child: const Text('导出'),
         ),
       ],
     ),
@@ -606,18 +957,18 @@ Future<void> _showChangePasswordDialog(
           TextField(
             controller: newPasswordController,
             obscureText: true,
-            decoration: const InputDecoration(labelText: '鏂颁富瀵嗙爜'),
+            decoration: const InputDecoration(labelText: '新主密码'),
           ),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('鍙栨秷'),
+          child: const Text('取消'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('淇濆瓨'),
+          child: const Text('保存'),
         ),
       ],
     ),
@@ -646,10 +997,11 @@ Future<void> _showItemEditor(
       TextEditingController(text: item == null ? '' : item.tags.join(', '));
   final totpController = TextEditingController(text: item?.totpSecret ?? '');
   final lengthController = TextEditingController(text: '20');
+
   final saved = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: Text(item == null ? '鏂板鏉＄洰' : '缂栬緫鏉＄洰'),
+      title: Text(item == null ? '新增条目' : '编辑条目'),
       content: SizedBox(
         width: 480,
         child: SingleChildScrollView(
@@ -658,15 +1010,17 @@ Future<void> _showItemEditor(
             children: [
               TextField(
                 controller: titleController,
-                decoration: const InputDecoration(labelText: '鍚嶇О'),
+                decoration: const InputDecoration(labelText: '名称'),
               ),
+              const SizedBox(height: 8),
               TextField(
                 controller: usernameController,
-                decoration: const InputDecoration(labelText: '璐﹀彿'),
+                decoration: const InputDecoration(labelText: '账号'),
               ),
+              const SizedBox(height: 8),
               TextField(
                 controller: passwordController,
-                decoration: const InputDecoration(labelText: '瀵嗙爜'),
+                decoration: const InputDecoration(labelText: '密码'),
               ),
               const SizedBox(height: 8),
               Row(
@@ -675,7 +1029,7 @@ Future<void> _showItemEditor(
                     child: TextField(
                       controller: lengthController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: '鐢熸垚闀垮害'),
+                      decoration: const InputDecoration(labelText: '自动密码长度'),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -686,28 +1040,32 @@ Future<void> _showItemEditor(
                           controller.generatePassword(length: length);
                     },
                     icon: const Icon(Icons.password_outlined),
-                    label: const Text('鐢熸垚'),
+                    label: const Text('生成密码'),
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
               TextField(
                 controller: urlController,
-                decoration: const InputDecoration(labelText: '缃戝潃'),
+                decoration: const InputDecoration(labelText: '网址'),
               ),
+              const SizedBox(height: 8),
               TextField(
                 controller: totpController,
                 decoration: const InputDecoration(
-                  labelText: 'TOTP 瀵嗛挜鎴?otpauth URI',
+                  labelText: 'TOTP 密钥 / otpauth URI',
                 ),
               ),
+              const SizedBox(height: 8),
               TextField(
                 controller: tagsController,
-                decoration: const InputDecoration(labelText: '鏍囩锛岀敤閫楀彿鍒嗛殧'),
+                decoration: const InputDecoration(labelText: '标签（逗号分隔）'),
               ),
+              const SizedBox(height: 8),
               TextField(
                 controller: notesController,
                 maxLines: 5,
-                decoration: const InputDecoration(labelText: '澶囨敞'),
+                decoration: const InputDecoration(labelText: '备注'),
               ),
             ],
           ),
@@ -716,15 +1074,16 @@ Future<void> _showItemEditor(
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('鍙栨秷'),
+          child: const Text('取消'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('淇濆瓨'),
+          child: const Text('保存'),
         ),
       ],
     ),
   );
+
   if (saved == true && context.mounted) {
     final tags = tagsController.text
         .split(',')
@@ -742,6 +1101,7 @@ Future<void> _showItemEditor(
       totpSecret: totpController.text,
     );
   }
+
   titleController.dispose();
   usernameController.dispose();
   passwordController.dispose();
@@ -763,42 +1123,44 @@ Future<void> _showItemDetails(
       title: Text(item.title),
       content: SizedBox(
         width: 500,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _DetailRow(
-              label: '璐﹀彿',
-              value: item.username,
-              onCopy: item.username.isEmpty
-                  ? null
-                  : () => controller.copySecret(item.username),
-            ),
-            _DetailRow(
-              label: '瀵嗙爜',
-              value: item.password,
-              onCopy: item.password.isEmpty
-                  ? null
-                  : () => controller.copySecret(item.password),
-            ),
-            _DetailRow(label: '缃戝潃', value: item.url),
-            _DetailRow(label: '鏍囩', value: item.tags.join(', ')),
-            if ((item.totpSecret?.trim().isNotEmpty ?? false))
-              _TotpPanel(
-                secretOrUri: item.totpSecret!,
-                onCopy: controller.copySecret,
-              )
-            else
-              const _DetailRow(label: 'TOTP', value: ''),
-            const SizedBox(height: 12),
-            SelectableText(item.notes),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _DetailRow(
+                label: '账号',
+                value: item.username,
+                onCopy: item.username.isEmpty
+                    ? null
+                    : () => controller.copySecret(item.username),
+              ),
+              _DetailRow(
+                label: '密码',
+                value: item.password,
+                onCopy: item.password.isEmpty
+                    ? null
+                    : () => controller.copySecret(item.password),
+              ),
+              _DetailRow(label: '网址', value: item.url),
+              _DetailRow(label: '标签', value: item.tags.join(', ')),
+              if ((item.totpSecret?.trim().isNotEmpty ?? false))
+                _TotpPanel(
+                  secretOrUri: item.totpSecret!,
+                  onCopy: controller.copySecret,
+                )
+              else
+                const _DetailRow(label: 'TOTP', value: ''),
+              const SizedBox(height: 10),
+              SelectableText(item.notes),
+            ],
+          ),
         ),
       ),
       actions: [
         FilledButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('鍏抽棴'),
+          child: const Text('关闭'),
         ),
       ],
     ),
@@ -824,7 +1186,7 @@ class _DetailRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 90,
+            width: 92,
             child: Text('$label:'),
           ),
           Expanded(child: SelectableText(value)),
@@ -832,7 +1194,7 @@ class _DetailRow extends StatelessWidget {
             IconButton(
               onPressed: onCopy,
               icon: const Icon(Icons.copy_outlined),
-              tooltip: '澶嶅埗',
+              tooltip: '复制',
             ),
         ],
       ),
@@ -850,16 +1212,18 @@ class _ImportSummaryView extends StatelessWidget {
     final changedDetails = summary.details
         .where((detail) => detail.kind != ImportChangeKind.unchangedItem)
         .toList();
+
     final lines = <String>[
-      '瀵煎叆鏂囦欢鏉＄洰锛?{summary.incomingItems}',
-      '鏂板锛?{summary.newItems}',
-      '鏇存柊锛?{summary.updatedItems}',
-      '鍒犻櫎锛?{summary.deletedItems}',
-      '涓嶅彉锛?{summary.unchangedItems}',
+      '导入条目总数：${summary.incomingItems}',
+      '新增：${summary.newItems}',
+      '更新：${summary.updatedItems}',
+      '删除：${summary.deletedItems}',
+      '未变化：${summary.unchangedItems}',
     ];
     if (summary.replacesLocalVault) {
-      lines.insert(0, '当前没有本地密码库，此文件将作为本地密码库。');
+      lines.insert(0, '当前没有本地密码库，导入文件将作为本地密码库。');
     }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -873,7 +1237,7 @@ class _ImportSummaryView extends StatelessWidget {
           const Divider(),
           const SizedBox(height: 8),
           Text(
-            '鍙樻洿鏉＄洰',
+            '变更明细',
             style: Theme.of(context).textTheme.titleSmall,
           ),
           const SizedBox(height: 8),
@@ -884,19 +1248,18 @@ class _ImportSummaryView extends StatelessWidget {
               separatorBuilder: (_, __) => const Divider(height: 12),
               itemBuilder: (context, index) {
                 final detail = changedDetails[index];
-                final title =
-                    detail.title.trim().isEmpty ? '（未命名）' : detail.title;
+                final title = detail.title.trim().isEmpty ? '（未命名）' : detail.title;
                 final subtitleParts = <String>[
-                  'ID锛?{detail.id}',
-                  '瀵煎叆锛?{detail.incomingUpdatedAt.toIso8601String()}',
+                  'ID: ${detail.id}',
+                  '导入更新时间: ${detail.incomingUpdatedAt.toIso8601String()}',
                   if (detail.localUpdatedAt != null)
-                    '鏈湴锛?{detail.localUpdatedAt!.toIso8601String()}',
+                    '本地更新时间: ${detail.localUpdatedAt!.toIso8601String()}',
                 ];
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SizedBox(
-                      width: 80,
+                      width: 64,
                       child: Text(
                         _kindLabel(detail.kind),
                         style: Theme.of(context).textTheme.bodyMedium,
@@ -928,13 +1291,13 @@ class _ImportSummaryView extends StatelessWidget {
   String _kindLabel(ImportChangeKind kind) {
     switch (kind) {
       case ImportChangeKind.newItem:
-        return '鏂板';
+        return '新增';
       case ImportChangeKind.updatedItem:
-        return '鏇存柊';
+        return '更新';
       case ImportChangeKind.deletedItem:
-        return '鍒犻櫎';
+        return '删除';
       case ImportChangeKind.unchangedItem:
-        return '璺宠繃';
+        return '未变';
     }
   }
 }
@@ -966,13 +1329,13 @@ class _TotpPanel extends StatelessWidget {
             if (resultSnapshot.hasError) {
               return const _DetailRow(
                 label: 'TOTP',
-                value: '瀵嗛挜鏃犳晥',
+                value: 'TOTP 解析失败',
               );
             }
             if (!resultSnapshot.hasData) {
               return const _DetailRow(
                 label: 'TOTP',
-                value: '鍔犺浇涓?..',
+                value: '正在生成...',
               );
             }
             final result = resultSnapshot.data!;
@@ -982,7 +1345,7 @@ class _TotpPanel extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(
-                    width: 90,
+                    width: 92,
                     child: Text('TOTP:'),
                   ),
                   Expanded(
@@ -994,7 +1357,7 @@ class _TotpPanel extends StatelessWidget {
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
                         Text(
-                          '${result.secondsRemaining} 绉掑悗鍒锋柊',
+                          '${result.secondsRemaining} 秒后刷新',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
@@ -1005,7 +1368,7 @@ class _TotpPanel extends StatelessWidget {
                       onCopy(result.code);
                     },
                     icon: const Icon(Icons.copy_outlined),
-                    tooltip: '复制当前 TOTP 验证码',
+                    tooltip: '复制当前 TOTP',
                   ),
                 ],
               ),
@@ -1013,6 +1376,62 @@ class _TotpPanel extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+class _FrostedSurface extends StatelessWidget {
+  const _FrostedSurface({
+    required this.child,
+    this.padding = const EdgeInsets.all(10),
+    this.borderRadius = const BorderRadius.all(Radius.circular(18)),
+    this.sigma = 14,
+    this.tint,
+    this.borderColor,
+    this.shadowColor,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final BorderRadius borderRadius;
+  final double sigma;
+  final Color? tint;
+  final Color? borderColor;
+  final Color? shadowColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            borderRadius: borderRadius,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                (tint ?? const Color(0xAAFFFFFF)).withValues(alpha: 0.78),
+                (tint ?? const Color(0x74FFFFFF)).withValues(alpha: 0.62),
+              ],
+            ),
+            border: Border.all(
+              color: borderColor ?? const Color(0x9AFFFFFF),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: shadowColor ?? const Color(0x261D1116),
+                blurRadius: 24,
+                offset: const Offset(0, 10),
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ),
     );
   }
 }

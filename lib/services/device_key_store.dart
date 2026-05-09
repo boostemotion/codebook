@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 abstract class DeviceKeyStore {
   Future<bool> isSupported();
 
+  Future<bool> hasWrappedDekCache();
+
   Future<void> storeWrappedDek(Uint8List wrappedDekBytes);
 
   Future<Uint8List?> readWrappedDek();
@@ -27,6 +29,15 @@ class MethodChannelDeviceKeyStore implements DeviceKeyStore {
   Future<bool> isSupported() async {
     try {
       return (await _channel.invokeMethod<bool>('isSupported')) ?? false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  @override
+  Future<bool> hasWrappedDekCache() async {
+    try {
+      return (await _channel.invokeMethod<bool>('hasWrappedDekCache')) ?? false;
     } on MissingPluginException {
       return false;
     }

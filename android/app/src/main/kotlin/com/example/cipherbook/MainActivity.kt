@@ -42,6 +42,7 @@ class MainActivity : FlutterFragmentActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "isSupported" -> result.success(isQuickUnlockSupported())
+                "hasWrappedDekCache" -> result.success(quickUnlockFile().exists())
                 "storeWrappedDek" -> {
                     val bytes = call.arguments as? ByteArray
                     if (bytes == null || bytes.isEmpty()) {

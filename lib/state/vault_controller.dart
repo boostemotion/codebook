@@ -62,8 +62,55 @@ class VaultController extends ChangeNotifier {
       _document = await _repository.load();
       _hasVault = _document != null;
       _quickUnlockSupported = await _deviceKeyStore.isSupported();
-      _quickUnlockEnabled = _quickUnlockSupported &&
-          (await _deviceKeyStore.readWrappedDek()) != null;
+      _quickUnlockEnabled =
+          _quickUnlockSupported && await _deviceKeyStore.hasWrappedDekCache();
+    });
+  }
+
+  Future<void> prepareDebugSession({int seedCount = 10}) async {
+    await _run(() async {
+      await _deviceKeyStore.clear();
+      _quickUnlockEnabled = false;
+      _quickUnlockSupported = false;
+
+      const debugPassword = 'debug-only-password';
+      final document = await _cryptoService.createVault(password: debugPassword);
+      await _repository.save(document);
+      _document = document;
+      _hasVault = true;
+      await _unlockDocument(document, debugPassword);
+
+      final now = DateTime.now();
+      final seededItems = List.generate(seedCount, (index) {
+        final offset = seedCount - index;
+        final timestamp = now.subtract(Duration(minutes: offset));
+        return VaultItem(
+          id: _uuid.v4(),
+          title: 'Test Account ${index + 1}',
+          username: 'user${1000 + index}@example.com',
+          password: _passwordGeneratorService.generate(
+            length: 14 + (index % 5),
+            includeUppercase: true,
+            includeDigits: true,
+            includeSymbols: true,
+          ),
+          url: 'https://example${(index % 3) + 1}.com',
+          notes: 'Debug seed item ${index + 1}',
+          tags: ['debug', 'sample${(index % 3) + 1}'],
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          deletedAt: null,
+        );
+      });
+
+      await _saveState(
+        vaultData: VaultData(
+          items: seededItems,
+          updatedAt: now,
+        ),
+        keyEncryptionKey: _requireSessionKek(),
+      );
+      _message = null;
     });
   }
 
