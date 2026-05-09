@@ -5,18 +5,57 @@
 #include <flutter/method_result_functions.h>
 #include <flutter/standard_method_codec.h>
 #include <shlobj.h>
+#include <UserConsentVerifierInterop.h>
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.Security.Credentials.UI.h>
 #include <windows.h>
 #include <wincrypt.h>
 
+#include <chrono>
 #include <filesystem>
+#include <future>
+#include <functional>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace {
 
 constexpr wchar_t kAppDataDirectory[] = L"Cipherbook";
 constexpr wchar_t kCacheFileName[] = L"quick_unlock.dpapi";
+constexpr wchar_t kWindowsHelloPrompt[] =
+    L"Use Windows Hello to unlock Cipherbook";
+HWND g_auth_window = nullptr;
+
+bool RunOnMtaBoolWithTimeout(const std::function<bool()>& work,
+                             std::chrono::milliseconds timeout,
+                             bool fallback) {
+  std::promise<bool> promise;
+  auto future = promise.get_future();
+  try {
+    std::thread([promise = std::move(promise), work, fallback]() mutable {
+      try {
+        winrt::init_apartment(winrt::apartment_type::multi_threaded);
+      } catch (...) {
+      }
+      try {
+        promise.set_value(work());
+      } catch (...) {
+        try {
+          promise.set_value(fallback);
+        } catch (...) {
+        }
+      }
+    }).detach();
+    if (future.wait_for(timeout) != std::future_status::ready) {
+      return fallback;
+    }
+    return future.get();
+  } catch (...) {
+    return fallback;
+  }
+}
 
 std::filesystem::path CacheFilePath() {
   PWSTR local_app_data = nullptr;
@@ -110,6 +149,52 @@ std::vector<uint8_t> UnprotectBytes(const std::vector<uint8_t>& protected_bytes)
   return plaintext;
 }
 
+bool IsWindowsHelloAvailable() {
+  using winrt::Windows::Security::Credentials::UI::UserConsentVerifier;
+  using winrt::Windows::Security::Credentials::UI::
+      UserConsentVerifierAvailability;
+  return RunOnMtaBoolWithTimeout(
+      []() {
+        const auto availability =
+            UserConsentVerifier::CheckAvailabilityAsync().get();
+        return availability == UserConsentVerifierAvailability::Available;
+      },
+      std::chrono::milliseconds(2500),
+      false);
+}
+
+HWND ResolveAuthWindow() {
+  if (g_auth_window != nullptr && IsWindow(g_auth_window)) {
+    return g_auth_window;
+  }
+  return GetForegroundWindow();
+}
+
+bool VerifyWithWindowsHello(HWND window) {
+  using winrt::Windows::Foundation::IAsyncOperation;
+  using winrt::Windows::Security::Credentials::UI::UserConsentVerifier;
+  using winrt::Windows::Security::Credentials::UI::UserConsentVerificationResult;
+  if (window == nullptr) {
+    return false;
+  }
+  return RunOnMtaBoolWithTimeout(
+      [window]() {
+        auto interop = winrt::get_activation_factory<UserConsentVerifier,
+                                                     IUserConsentVerifierInterop>();
+        IAsyncOperation<UserConsentVerificationResult> operation{nullptr};
+        winrt::check_hresult(interop->RequestVerificationForWindowAsync(
+            window,
+            reinterpret_cast<HSTRING>(
+                winrt::get_abi(winrt::hstring(kWindowsHelloPrompt))),
+            winrt::guid_of<decltype(operation)>(),
+            winrt::put_abi(operation)));
+        const auto verify_result = operation.get();
+        return verify_result == UserConsentVerificationResult::Verified;
+      },
+      std::chrono::seconds(15),
+      false);
+}
+
 void HandleMethodCall(
     const flutter::MethodCall<flutter::EncodableValue>& method_call,
     std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
@@ -117,7 +202,19 @@ void HandleMethodCall(
   const std::filesystem::path path = CacheFilePath();
 
   if (method == "isSupported") {
-    result->Success(flutter::EncodableValue(!path.empty()));
+    result->Success(flutter::EncodableValue(!path.empty() &&
+                                            IsWindowsHelloAvailable()));
+    return;
+  }
+
+  if (method == "hasWrappedDekCache") {
+    if (path.empty()) {
+      result->Success(flutter::EncodableValue(false));
+      return;
+    }
+    std::error_code error;
+    const bool exists = std::filesystem::exists(path, error) && !error;
+    result->Success(flutter::EncodableValue(exists));
     return;
   }
 
@@ -149,6 +246,10 @@ void HandleMethodCall(
       result->Success(flutter::EncodableValue());
       return;
     }
+    if (!VerifyWithWindowsHello(ResolveAuthWindow())) {
+      result->Success(flutter::EncodableValue());
+      return;
+    }
 
     const std::vector<uint8_t> plaintext = UnprotectBytes(protected_bytes);
     if (plaintext.empty()) {
@@ -176,6 +277,11 @@ class DeviceKeyStorePluginImpl : public flutter::Plugin {
             registrar->messenger(),
             "dev.codex.cipherbook/device_key_store",
             &flutter::StandardMethodCodec::GetInstance())) {
+    if (registrar != nullptr) {
+      if (auto* view = registrar->GetView(); view != nullptr) {
+        g_auth_window = view->GetNativeWindow();
+      }
+    }
     channel_->SetMethodCallHandler(HandleMethodCall);
   }
 

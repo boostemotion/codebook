@@ -42,6 +42,7 @@ class VaultController extends ChangeNotifier {
   bool _isUnlocked = false;
   bool _quickUnlockSupported = false;
   bool _quickUnlockEnabled = false;
+  bool _masterPasswordVerifiedThisLaunch = false;
   String? _message;
   VaultData _vaultData = VaultData.empty();
   EncryptedVaultDocument? _document;
@@ -54,6 +55,10 @@ class VaultController extends ChangeNotifier {
   bool get isUnlocked => _isUnlocked;
   bool get quickUnlockSupported => _quickUnlockSupported;
   bool get quickUnlockEnabled => _quickUnlockEnabled;
+  bool get canUseQuickUnlockNow =>
+      _quickUnlockSupported &&
+      _quickUnlockEnabled &&
+      _masterPasswordVerifiedThisLaunch;
   String? get message => _message;
   VaultData get vaultData => _vaultData;
 
@@ -64,6 +69,7 @@ class VaultController extends ChangeNotifier {
       _quickUnlockSupported = await _deviceKeyStore.isSupported();
       _quickUnlockEnabled =
           _quickUnlockSupported && await _deviceKeyStore.hasWrappedDekCache();
+      _masterPasswordVerifiedThisLaunch = !_hasVault;
     });
   }
 
@@ -77,7 +83,8 @@ class VaultController extends ChangeNotifier {
       _quickUnlockSupported = false;
 
       const debugPassword = 'debug-only-password';
-      final document = await _cryptoService.createVault(password: debugPassword);
+      final document =
+          await _cryptoService.createVault(password: debugPassword);
       await _repository.save(document);
       _document = document;
       _hasVault = true;
@@ -113,6 +120,7 @@ class VaultController extends ChangeNotifier {
         ),
         keyEncryptionKey: _requireSessionKek(),
       );
+      _masterPasswordVerifiedThisLaunch = true;
       _message = null;
     });
   }
@@ -125,6 +133,7 @@ class VaultController extends ChangeNotifier {
       _document = document;
       _hasVault = true;
       await _unlockDocument(document, password);
+      _masterPasswordVerifiedThisLaunch = true;
       await _syncQuickUnlockCache();
       _message = '已创建新的加密密码库。';
     });
@@ -138,12 +147,16 @@ class VaultController extends ChangeNotifier {
         throw const VaultUnlockException('未找到本地密码库。');
       }
       await _unlockDocument(document, password);
+      _masterPasswordVerifiedThisLaunch = true;
       _message = '密码库已解锁。';
     });
   }
 
   Future<void> unlockWithQuickUnlock() async {
     await _run(() async {
+      if (!_masterPasswordVerifiedThisLaunch) {
+        throw StateError('首次登录请使用主密码，之后可用 Windows Hello 快速解锁。');
+      }
       if (!_quickUnlockSupported || !_quickUnlockEnabled) {
         throw StateError('当前设备未开启快速解锁。');
       }
@@ -204,6 +217,7 @@ class VaultController extends ChangeNotifier {
         _isUnlocked = true;
         _restartAutoLockTimer();
         await _syncQuickUnlockCache();
+        _masterPasswordVerifiedThisLaunch = true;
         _message = '已导入为本地密码库。';
         return;
       }

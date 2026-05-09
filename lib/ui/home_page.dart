@@ -29,12 +29,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final FocusNode _searchFocusNode = FocusNode();
   final ScrollController _vaultScrollController = ScrollController();
   bool _searchKeyboardWasVisible = false;
+  bool _wasUnlocked = false;
+  bool _canSubmitMasterPassword = false;
 
   String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
+    _wasUnlocked = widget.controller.isUnlocked;
     WidgetsBinding.instance.addObserver(this);
     widget.controller.addListener(_handleControllerChanged);
     _searchFocusNode.addListener(_handleSearchFocusChanged);
@@ -57,12 +60,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.inactive ||
         state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached) {
+      _masterPasswordController.clear();
+      _importPasswordController.clear();
+      _canSubmitMasterPassword = false;
+      _searchFocusNode.unfocus();
       widget.controller.handleAppPaused();
     }
   }
 
   void _handleControllerChanged() {
+    final isUnlocked = widget.controller.isUnlocked;
+    if (_wasUnlocked != isUnlocked) {
+      if (!isUnlocked) {
+        _masterPasswordController.clear();
+        _canSubmitMasterPassword = false;
+      }
+      _wasUnlocked = isUnlocked;
+    }
+
     final message = widget.controller.message;
     if (!mounted || message == null || message.isEmpty) {
       return;
@@ -132,6 +149,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                   _masterPasswordController,
                               importPasswordController:
                                   _importPasswordController,
+                              canSubmitMasterPassword:
+                                  _canSubmitMasterPassword,
+                              onMasterPasswordChanged: (value) {
+                                final canSubmit = value.trim().isNotEmpty;
+                                if (canSubmit != _canSubmitMasterPassword) {
+                                  setState(() {
+                                    _canSubmitMasterPassword = canSubmit;
+                                  });
+                                }
+                              },
                             ),
                     ),
                   ),
@@ -214,11 +241,15 @@ class _LockedView extends StatelessWidget {
     required this.controller,
     required this.masterPasswordController,
     required this.importPasswordController,
+    required this.canSubmitMasterPassword,
+    required this.onMasterPasswordChanged,
   });
 
   final VaultController controller;
   final TextEditingController masterPasswordController;
   final TextEditingController importPasswordController;
+  final bool canSubmitMasterPassword;
+  final ValueChanged<String> onMasterPasswordChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -250,11 +281,15 @@ class _LockedView extends StatelessWidget {
                 TextField(
                   controller: masterPasswordController,
                   obscureText: true,
+                  onChanged: onMasterPasswordChanged,
                   decoration: const InputDecoration(
                     labelText: '主密码',
                     prefixIcon: Icon(Icons.key_rounded),
                   ),
                   onSubmitted: (_) {
+                    if (controller.hasVault && !canSubmitMasterPassword) {
+                      return;
+                    }
                     if (controller.hasVault) {
                       controller.unlock(masterPasswordController.text);
                     } else {
@@ -264,13 +299,15 @@ class _LockedView extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 FilledButton.icon(
-                  onPressed: () {
-                    if (controller.hasVault) {
-                      controller.unlock(masterPasswordController.text);
-                    } else {
-                      controller.createVault(masterPasswordController.text);
-                    }
-                  },
+                  onPressed: (!controller.hasVault || canSubmitMasterPassword)
+                      ? () {
+                          if (controller.hasVault) {
+                            controller.unlock(masterPasswordController.text);
+                          } else {
+                            controller.createVault(masterPasswordController.text);
+                          }
+                        }
+                      : null,
                   icon: Icon(
                     controller.hasVault
                         ? Icons.lock_open_rounded
@@ -278,9 +315,7 @@ class _LockedView extends StatelessWidget {
                   ),
                   label: Text(controller.hasVault ? '解锁' : '创建密码库'),
                 ),
-                if (controller.quickUnlockSupported &&
-                    controller.quickUnlockEnabled &&
-                    controller.hasVault) ...[
+                if (controller.canUseQuickUnlockNow && controller.hasVault) ...[
                   const SizedBox(height: 10),
                   OutlinedButton.icon(
                     onPressed: controller.unlockWithQuickUnlock,
