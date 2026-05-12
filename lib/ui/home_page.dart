@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -8,6 +10,47 @@ import '../state/vault_controller.dart';
 
 const TotpService _totpService = TotpService();
 const Color _kDialogBarrierColor = Color(0x4A140A11);
+final _GlassPerfBus _glassPerfBus = _GlassPerfBus();
+
+enum _GlassQualityTier {
+  high(1.0, 1.0),
+  medium(0.78, 0.76),
+  low(0.56, 0.52);
+
+  const _GlassQualityTier(this.blurScale, this.shaderStrength);
+  final double blurScale;
+  final double shaderStrength;
+}
+
+class _GlassPerfBus extends ChangeNotifier {
+  _GlassQualityTier _tier = _GlassQualityTier.high;
+  Timer? _idleTimer;
+
+  _GlassQualityTier get tier => _tier;
+
+  void reset() {
+    _idleTimer?.cancel();
+    _idleTimer = null;
+    _setTier(_GlassQualityTier.high);
+  }
+
+  void pulse({bool heavy = false}) {
+    _idleTimer?.cancel();
+    _setTier(heavy ? _GlassQualityTier.low : _GlassQualityTier.medium);
+    _idleTimer = Timer(
+      Duration(milliseconds: heavy ? 360 : 220),
+      () => _setTier(_GlassQualityTier.high),
+    );
+  }
+
+  void _setTier(_GlassQualityTier next) {
+    if (_tier == next) {
+      return;
+    }
+    _tier = next;
+    notifyListeners();
+  }
+}
 
 class HomePage extends StatefulWidget {
   const HomePage({
@@ -50,6 +93,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     widget.controller.removeListener(_handleControllerChanged);
     _searchFocusNode.removeListener(_handleSearchFocusChanged);
+    _glassPerfBus.reset();
     _vaultScrollController.dispose();
     _masterPasswordController.dispose();
     _importPasswordController.dispose();
@@ -96,6 +140,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (!mounted) {
       return;
     }
+    _glassPerfBus.pulse();
     setState(() {});
   }
 
@@ -107,6 +152,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final keyboardVisible = View.of(context).viewInsets.bottom > 0;
     if (keyboardVisible) {
       _searchKeyboardWasVisible = true;
+      _glassPerfBus.pulse(heavy: true);
       return;
     }
     if (_searchKeyboardWasVisible && _searchFocusNode.hasFocus) {
@@ -220,9 +266,9 @@ class _GlassBackground extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Color(0xFFF7F1F2),
-                  Color(0xFFF1E8EC),
-                  Color(0xFFEDE3E8),
+                  Color(0xFFF0E5EA),
+                  Color(0xFFE5D7DF),
+                  Color(0xFFDCCDD6),
                 ],
               ),
             ),
@@ -238,7 +284,7 @@ class _GlassBackground extends StatelessWidget {
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
-                  colors: [Color(0x66E7BBCB), Color(0x00E7BBCB)],
+                  colors: [Color(0x7ACF9FB2), Color(0x00CF9FB2)],
                 ),
               ),
             ),
@@ -254,7 +300,7 @@ class _GlassBackground extends StatelessWidget {
               decoration: const BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
-                  colors: [Color(0x55E4C4D0), Color(0x00E4C4D0)],
+                  colors: [Color(0x66C9B0BD), Color(0x00C9B0BD)],
                 ),
               ),
             ),
@@ -395,7 +441,27 @@ class _LockedView extends StatelessWidget {
   }
 }
 
-class _VaultView extends StatelessWidget {
+enum _VaultTab { passwords, add, importVault, exportVault, settings }
+
+extension on _VaultTab {
+  String get label => switch (this) {
+        _VaultTab.passwords => '密码',
+        _VaultTab.add => '新增',
+        _VaultTab.importVault => '导入',
+        _VaultTab.exportVault => '导出',
+        _VaultTab.settings => '设置',
+      };
+
+  IconData get icon => switch (this) {
+        _VaultTab.passwords => Icons.lock_outline_rounded,
+        _VaultTab.add => Icons.add_circle_outline_rounded,
+        _VaultTab.importVault => Icons.download_rounded,
+        _VaultTab.exportVault => Icons.upload_file_rounded,
+        _VaultTab.settings => Icons.settings_rounded,
+      };
+}
+
+class _VaultView extends StatefulWidget {
   const _VaultView({
     required this.controller,
     required this.searchController,
@@ -419,6 +485,49 @@ class _VaultView extends StatelessWidget {
   final ValueChanged<_SortMode> onSortModeChanged;
 
   @override
+  State<_VaultView> createState() => _VaultViewState();
+}
+
+class _VaultViewState extends State<_VaultView> {
+  _VaultTab _tab = _VaultTab.passwords;
+  final TextEditingController _addTitleController = TextEditingController();
+  final TextEditingController _addUsernameController = TextEditingController();
+  final TextEditingController _addPasswordController = TextEditingController();
+  final TextEditingController _addUrlController = TextEditingController();
+  final TextEditingController _addNotesController = TextEditingController();
+  final TextEditingController _addTagsController = TextEditingController();
+  final TextEditingController _addTotpController = TextEditingController();
+  final TextEditingController _addLengthController = TextEditingController(
+    text: '20',
+  );
+  final TextEditingController _importPasswordController =
+      TextEditingController();
+  final TextEditingController _exportPasswordController =
+      TextEditingController();
+  final TextEditingController _oldPasswordController = TextEditingController();
+  final TextEditingController _newPasswordController = TextEditingController();
+
+  ImportPlan? _pendingImportPlan;
+  ImportMergeSummary? _importSummary;
+
+  @override
+  void dispose() {
+    _addTitleController.dispose();
+    _addUsernameController.dispose();
+    _addPasswordController.dispose();
+    _addUrlController.dispose();
+    _addNotesController.dispose();
+    _addTagsController.dispose();
+    _addTotpController.dispose();
+    _addLengthController.dispose();
+    _importPasswordController.dispose();
+    _exportPasswordController.dispose();
+    _oldPasswordController.dispose();
+    _newPasswordController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final viewportWidth = MediaQuery.sizeOf(context).width;
@@ -426,11 +535,13 @@ class _VaultView extends StatelessWidget {
     final isDesktopPlatform = platform == TargetPlatform.windows ||
         platform == TargetPlatform.macOS ||
         platform == TargetPlatform.linux;
-    final shouldHideDock =
-        keyboardVisible || (!isDesktopPlatform && isSearchFocused);
+    final shouldHideDock = keyboardVisible ||
+        (!isDesktopPlatform &&
+            widget.isSearchFocused &&
+            _tab == _VaultTab.passwords);
     final dockMaxWidth = isDesktopPlatform ? 980.0 : double.infinity;
-    final items = controller.vaultData.activeItems.where((item) {
-      if (searchQuery.isEmpty) {
+    final items = widget.controller.vaultData.activeItems.where((item) {
+      if (widget.searchQuery.isEmpty) {
         return true;
       }
       final haystack = [
@@ -440,10 +551,10 @@ class _VaultView extends StatelessWidget {
         item.notes,
         item.tags.join(' '),
       ].join(' ').toLowerCase();
-      return haystack.contains(searchQuery);
+      return haystack.contains(widget.searchQuery);
     }).toList()
       ..sort((a, b) {
-        if (sortMode == _SortMode.alphabetical) {
+        if (widget.sortMode == _SortMode.alphabetical) {
           return a.title.toLowerCase().compareTo(b.title.toLowerCase());
         }
         final byUpdatedAt = b.updatedAt.compareTo(a.updatedAt);
@@ -459,7 +570,7 @@ class _VaultView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (isDesktopPlatform)
+              if (isDesktopPlatform && _tab == _VaultTab.passwords)
                 Padding(
                   key: const ValueKey('vault-header'),
                   padding: const EdgeInsets.only(bottom: 8),
@@ -473,73 +584,36 @@ class _VaultView extends StatelessWidget {
                         ),
                   ),
                 ),
-              _SearchField(
-                key: const ValueKey('vault-toolbar'),
-                controller: searchController,
-                focusNode: searchFocusNode,
-                onChanged: onSearchChanged,
-                sortMode: sortMode,
-                onClear: () {
-                  searchController.clear();
-                  onSearchChanged('');
-                },
-                onSortModeChanged: onSortModeChanged,
-              ),
+              if (_tab == _VaultTab.passwords)
+                _SearchField(
+                  key: const ValueKey('vault-toolbar'),
+                  controller: widget.searchController,
+                  focusNode: widget.searchFocusNode,
+                  onChanged: (value) {
+                    _glassPerfBus.pulse();
+                    widget.onSearchChanged(value);
+                  },
+                  sortMode: widget.sortMode,
+                  onClear: () {
+                    widget.searchController.clear();
+                    _glassPerfBus.pulse();
+                    widget.onSearchChanged('');
+                  },
+                  onSortModeChanged: (value) {
+                    _glassPerfBus.pulse();
+                    widget.onSortModeChanged(value);
+                  },
+                )
+              else
+                _ActionPageTitle(
+                  title: _tab.label,
+                  subtitle: '切换到页面模式，操作不再使用弹出框',
+                ),
               const SizedBox(height: 8),
               Expanded(
-                child: items.isEmpty
-                    ? _FrostedSurface(
-                        key: const ValueKey('vault-empty'),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 22,
-                        ),
-                        child: Center(
-                          child: Text(
-                            searchQuery.isEmpty ? '还没有条目' : '没有匹配条目',
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                      )
-                    : ListView.separated(
-                        key: const ValueKey('vault-list'),
-                        controller: scrollController,
-                        itemCount: items.length,
-                        padding: EdgeInsets.fromLTRB(
-                          0,
-                          0,
-                          0,
-                          isDesktopPlatform ? 96 : 116,
-                        ),
-                        separatorBuilder: (_, __) => const SizedBox(height: 7),
-                        itemBuilder: (context, index) {
-                          final item = items[index];
-                          final accountInfo = [
-                            item.username.trim(),
-                            item.url.trim(),
-                          ].where((part) => part.isNotEmpty).join(' · ');
-                          return RepaintBoundary(
-                            child: _EntryCard(
-                              item: item,
-                              accountInfo: accountInfo,
-                              isDesktop: isDesktopPlatform,
-                              onView: () => _showItemDetails(
-                                context,
-                                controller: controller,
-                                item: item,
-                              ),
-                              onCopy: () =>
-                                  controller.copySecret(item.password),
-                              onEdit: () => _showItemEditor(
-                                context,
-                                controller: controller,
-                                item: item,
-                              ),
-                              onDelete: () => controller.deleteItem(item.id),
-                            ),
-                          );
-                        },
-                      ),
+                child: _tab == _VaultTab.passwords
+                    ? _buildPasswordsPage(items, isDesktopPlatform)
+                    : _buildActionPage(context),
               ),
             ],
           ),
@@ -570,7 +644,13 @@ class _VaultView extends StatelessWidget {
                           key: ValueKey('liquid-dock-hidden'))
                       : _BottomActionDock(
                           key: const ValueKey('liquid-dock'),
-                          controller: controller,
+                          activeIndex: _tab.index,
+                          onIndexChanged: (index) {
+                            _glassPerfBus.pulse(heavy: true);
+                            setState(() {
+                              _tab = _VaultTab.values[index];
+                            });
+                          },
                         ),
                 ),
               ),
@@ -578,6 +658,384 @@ class _VaultView extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPasswordsPage(List<VaultItem> items, bool isDesktopPlatform) {
+    if (items.isEmpty) {
+      return _FrostedSurface(
+        key: const ValueKey('vault-empty'),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 22),
+        child: Center(
+          child: Text(
+            widget.searchQuery.isEmpty ? '还没有条目' : '没有匹配条目',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ),
+      );
+    }
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification is ScrollStartNotification ||
+            notification is ScrollUpdateNotification ||
+            notification is UserScrollNotification) {
+          _glassPerfBus.pulse(heavy: true);
+        } else if (notification is ScrollEndNotification) {
+          _glassPerfBus.pulse();
+        }
+        return false;
+      },
+      child: ListView.separated(
+        key: const ValueKey('vault-list'),
+        controller: widget.scrollController,
+        itemCount: items.length,
+        padding: EdgeInsets.fromLTRB(0, 0, 0, isDesktopPlatform ? 96 : 116),
+        separatorBuilder: (_, __) => const SizedBox(height: 7),
+        itemBuilder: (context, index) {
+          final item = items[index];
+          final accountInfo = [
+            item.username.trim(),
+            item.url.trim(),
+          ].where((part) => part.isNotEmpty).join(' · ');
+          return RepaintBoundary(
+            child: _EntryCard(
+              item: item,
+              accountInfo: accountInfo,
+              isDesktop: isDesktopPlatform,
+              onView: () => _showItemDetails(
+                context,
+                controller: widget.controller,
+                item: item,
+              ),
+              onCopy: () => widget.controller.copySecret(item.password),
+              onEdit: () => _showItemEditor(
+                context,
+                controller: widget.controller,
+                item: item,
+              ),
+              onDelete: () => widget.controller.deleteItem(item.id),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildActionPage(BuildContext context) {
+    switch (_tab) {
+      case _VaultTab.add:
+        return _buildAddPage();
+      case _VaultTab.importVault:
+        return _buildImportPage();
+      case _VaultTab.exportVault:
+        return _buildExportPage();
+      case _VaultTab.settings:
+        return _buildSettingsPage();
+      case _VaultTab.passwords:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildAddPage() {
+    return _FrostedSurface(
+      key: const ValueKey('vault-page-add'),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            TextField(
+              controller: _addTitleController,
+              decoration: const InputDecoration(labelText: '名称'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _addUsernameController,
+              decoration: const InputDecoration(labelText: '账号'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _addPasswordController,
+              decoration: const InputDecoration(labelText: '密码'),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _addLengthController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: '自动密码长度'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FilledButton.tonalIcon(
+                  onPressed: () {
+                    final length =
+                        int.tryParse(_addLengthController.text) ?? 20;
+                    _addPasswordController.text =
+                        widget.controller.generatePassword(length: length);
+                    _glassPerfBus.pulse();
+                  },
+                  icon: const Icon(Icons.password_outlined),
+                  label: const Text('生成密码'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _addUrlController,
+              decoration: const InputDecoration(labelText: '网址'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _addTotpController,
+              decoration: const InputDecoration(labelText: 'TOTP 密钥 / URI'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _addTagsController,
+              decoration: const InputDecoration(labelText: '标签（逗号分隔）'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _addNotesController,
+              maxLines: 4,
+              decoration: const InputDecoration(labelText: '备注'),
+            ),
+            const SizedBox(height: 14),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: widget.controller.busy
+                    ? null
+                    : () async {
+                        final tags = _addTagsController.text
+                            .split(',')
+                            .map((value) => value.trim())
+                            .where((value) => value.isNotEmpty)
+                            .toList();
+                        await widget.controller.addOrUpdateItem(
+                          title: _addTitleController.text,
+                          username: _addUsernameController.text,
+                          password: _addPasswordController.text,
+                          url: _addUrlController.text,
+                          notes: _addNotesController.text,
+                          tags: tags,
+                          totpSecret: _addTotpController.text,
+                        );
+                        _glassPerfBus.pulse(heavy: true);
+                        _addTitleController.clear();
+                        _addUsernameController.clear();
+                        _addPasswordController.clear();
+                        _addUrlController.clear();
+                        _addNotesController.clear();
+                        _addTagsController.clear();
+                        _addTotpController.clear();
+                      },
+                icon: const Icon(Icons.check_rounded),
+                label: const Text('保存条目'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImportPage() {
+    return _FrostedSurface(
+      key: const ValueKey('vault-page-import'),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _importPasswordController,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: '导入文件密码'),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: widget.controller.busy
+                      ? null
+                      : () async {
+                          final plan = await widget.controller
+                              .previewImport(_importPasswordController.text);
+                          if (!mounted || plan == null) {
+                            return;
+                          }
+                          setState(() {
+                            _pendingImportPlan = plan;
+                            _importSummary = plan.summary;
+                          });
+                        },
+                  icon: const Icon(Icons.search_rounded),
+                  label: const Text('预览导入'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed:
+                      (_pendingImportPlan == null || widget.controller.busy)
+                          ? null
+                          : () async {
+                              await widget.controller.applyImportPlan(
+                                _pendingImportPlan!,
+                              );
+                              if (!mounted) {
+                                return;
+                              }
+                              setState(() {
+                                _pendingImportPlan = null;
+                                _importSummary = null;
+                              });
+                            },
+                  icon: const Icon(Icons.download_done_rounded),
+                  label: const Text('确认导入'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _importSummary == null
+                ? const Center(child: Text('先点击“预览导入”，再确认导入'))
+                : _ImportSummaryView(summary: _importSummary!),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExportPage() {
+    return _FrostedSurface(
+      key: const ValueKey('vault-page-export'),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _exportPasswordController,
+            obscureText: true,
+            decoration: const InputDecoration(
+              labelText: '导出密码（可选）',
+              helperText: '留空表示沿用当前密码库加密',
+            ),
+          ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: widget.controller.busy
+                ? null
+                : () => widget.controller.exportVault(
+                      exportPassword: _exportPasswordController.text,
+                    ),
+            icon: const Icon(Icons.upload_rounded),
+            label: const Text('导出加密备份'),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '导出时会弹出文件选择器页面，导出完成后会给出消息提示。',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSettingsPage() {
+    final enabled = widget.controller.quickUnlockEnabled;
+    final supported = widget.controller.quickUnlockSupported;
+    return _FrostedSurface(
+      key: const ValueKey('vault-page-settings'),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _oldPasswordController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: '当前主密码'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _newPasswordController,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: '新主密码'),
+            ),
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: widget.controller.busy
+                  ? null
+                  : () => widget.controller.changeMasterPassword(
+                        oldPassword: _oldPasswordController.text,
+                        newPassword: _newPasswordController.text,
+                      ),
+              icon: const Icon(Icons.key_rounded),
+              label: const Text('修改主密码'),
+            ),
+            const SizedBox(height: 14),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              value: enabled,
+              onChanged: !supported || widget.controller.busy
+                  ? null
+                  : (value) async {
+                      if (value) {
+                        await widget.controller.enableQuickUnlock();
+                      } else {
+                        await widget.controller.disableQuickUnlock();
+                      }
+                      if (mounted) {
+                        setState(() {});
+                      }
+                    },
+              title: const Text('快速解锁'),
+              subtitle: Text(
+                supported ? '使用系统认证保护会话密钥' : '当前设备不支持',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionPageTitle extends StatelessWidget {
+  const _ActionPageTitle({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return _FrostedSurface(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      borderRadius: BorderRadius.circular(18),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              subtitle,
+              style: Theme.of(context).textTheme.bodySmall,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -682,6 +1140,7 @@ class _SortPill extends StatelessWidget {
             child: InkWell(
               borderRadius: BorderRadius.circular(24),
               onTap: () async {
+                _glassPerfBus.pulse();
                 final next = await _showSortModePicker(context, mode);
                 if (next != null) {
                   onChanged(next);
@@ -801,42 +1260,52 @@ Future<_SortMode?> _showSortModePicker(
 class _BottomActionDock extends StatefulWidget {
   const _BottomActionDock({
     super.key,
-    required this.controller,
+    required this.activeIndex,
+    required this.onIndexChanged,
   });
 
-  final VaultController controller;
+  final int activeIndex;
+  final ValueChanged<int> onIndexChanged;
 
   @override
   State<_BottomActionDock> createState() => _BottomActionDockState();
 }
 
-class _BottomActionDockState extends State<_BottomActionDock> {
+class _BottomActionDockState extends State<_BottomActionDock>
+    with SingleTickerProviderStateMixin {
   int _activeIndex = 0;
+  int _fromIndex = 0;
+  int _toIndex = 0;
+  double _flowDirection = 1;
+  late final AnimationController _morphController;
+
+  @override
+  void initState() {
+    super.initState();
+    _activeIndex = widget.activeIndex;
+    _fromIndex = widget.activeIndex;
+    _toIndex = widget.activeIndex;
+    _morphController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _BottomActionDock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _activeIndex = widget.activeIndex;
+  }
+
+  @override
+  void dispose() {
+    _morphController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final items = <_DockActionData>[
-      _DockActionData(
-        icon: Icons.add_circle_outline_rounded,
-        label: '新增',
-        onTap: () => _showItemEditor(context, controller: widget.controller),
-      ),
-      _DockActionData(
-        icon: Icons.download_rounded,
-        label: '导入',
-        onTap: () => _showImportDialog(context, widget.controller),
-      ),
-      _DockActionData(
-        icon: Icons.upload_file_rounded,
-        label: '导出',
-        onTap: () => _showExportDialog(context, widget.controller),
-      ),
-      _DockActionData(
-        icon: Icons.settings_rounded,
-        label: '设置',
-        onTap: () => _openSettingsMenu(context),
-      ),
-    ];
+    final items = _VaultTab.values;
 
     return _FrostedSurface(
       sigma: 20,
@@ -848,51 +1317,78 @@ class _BottomActionDockState extends State<_BottomActionDock> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final slotWidth = constraints.maxWidth / items.length;
+          final baseWidth = slotWidth - 6;
           return SizedBox(
             height: 58,
             child: Stack(
               children: [
-                AnimatedPositioned(
-                  duration: const Duration(milliseconds: 260),
-                  curve: Curves.easeOutCubic,
-                  left: (slotWidth * _activeIndex) + 3,
-                  top: 2,
-                  bottom: 2,
-                  width: slotWidth - 6,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(30),
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xA3FFFFFF),
-                          Color(0x52FFFFFF),
-                        ],
-                      ),
-                      border: Border.all(color: const Color(0xD6FFFFFF)),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x304A303A),
-                          blurRadius: 10,
-                          offset: Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: const DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.all(Radius.circular(30)),
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Color(0x6EFFFFFF),
-                            Color(0x00FFFFFF),
+                AnimatedBuilder(
+                  animation: _morphController,
+                  builder: (context, _) {
+                    final t =
+                        Curves.easeOutCubic.transform(_morphController.value);
+                    final fromLeft = (slotWidth * _fromIndex) + 3;
+                    final toLeft = (slotWidth * _toIndex) + 3;
+                    final centerLeft = lerpDouble(
+                          fromLeft + baseWidth / 2,
+                          toLeft + baseWidth / 2,
+                          t,
+                        ) ??
+                        (toLeft + baseWidth / 2);
+                    final travel = (_toIndex - _fromIndex).abs().toDouble();
+                    final unionWave = math.sin(math.pi * t);
+                    final morphWidth = baseWidth +
+                        (slotWidth * 0.24 * unionWave * (1 + travel * 0.15));
+                    final highlightLeft = centerLeft - morphWidth / 2;
+
+                    final begin = _flowDirection > 0
+                        ? const Alignment(-0.95, -0.55)
+                        : const Alignment(0.95, -0.55);
+                    final end = _flowDirection > 0
+                        ? const Alignment(0.95, 0.85)
+                        : const Alignment(-0.95, 0.85);
+
+                    return Positioned(
+                      left: highlightLeft,
+                      top: 2,
+                      bottom: 2,
+                      width: morphWidth,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(30),
+                          gradient: LinearGradient(
+                            begin: begin,
+                            end: end,
+                            colors: const [
+                              Color(0x7AFFF9FD),
+                              Color(0x40FFFFFF),
+                            ],
+                          ),
+                          border: Border.all(color: const Color(0xABFFFFFF)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x233B222E),
+                              blurRadius: 12,
+                              offset: Offset(0, 3),
+                            ),
                           ],
                         ),
+                        child: const DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.all(Radius.circular(30)),
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Color(0x38FFFFFF),
+                                Color(0x00FFFFFF),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
                 Row(
                   children: [
@@ -903,10 +1399,20 @@ class _BottomActionDockState extends State<_BottomActionDock> {
                           label: items[i].label,
                           active: i == _activeIndex,
                           onTap: () {
+                            if (i != _activeIndex) {
+                              _fromIndex = _activeIndex;
+                              _toIndex = i;
+                              _flowDirection = i > _activeIndex ? 1 : -1;
+                            } else {
+                              _fromIndex = i;
+                              _toIndex = i;
+                            }
+                            _glassPerfBus.pulse(heavy: true);
                             setState(() {
                               _activeIndex = i;
                             });
-                            items[i].onTap();
+                            _morphController.forward(from: 0);
+                            widget.onIndexChanged(i);
                           },
                         ),
                       ),
@@ -919,83 +1425,6 @@ class _BottomActionDockState extends State<_BottomActionDock> {
       ),
     );
   }
-
-  Future<void> _openSettingsMenu(BuildContext context) async {
-    final action = await showModalBottomSheet<_DockSettingAction>(
-      context: context,
-      builder: (context) {
-        final enabled = widget.controller.quickUnlockEnabled;
-        final supported = widget.controller.quickUnlockSupported;
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.key_rounded),
-                  title: const Text('修改主密码'),
-                  onTap: () {
-                    Navigator.of(context)
-                        .pop(_DockSettingAction.changePassword);
-                  },
-                ),
-                ListTile(
-                  leading: Icon(
-                    enabled
-                        ? Icons.phonelink_lock_outlined
-                        : Icons.fingerprint_rounded,
-                  ),
-                  title: Text(enabled ? '关闭快速解锁' : '开启快速解锁'),
-                  subtitle: Text(supported ? '使用系统认证保护会话密钥' : '当前设备不支持'),
-                  enabled: supported,
-                  onTap: !supported
-                      ? null
-                      : () {
-                          Navigator.of(context).pop(
-                            enabled
-                                ? _DockSettingAction.disableQuickUnlock
-                                : _DockSettingAction.enableQuickUnlock,
-                          );
-                        },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    if (!context.mounted || action == null) {
-      return;
-    }
-    switch (action) {
-      case _DockSettingAction.changePassword:
-        await _showChangePasswordDialog(context, widget.controller);
-      case _DockSettingAction.enableQuickUnlock:
-        await widget.controller.enableQuickUnlock();
-      case _DockSettingAction.disableQuickUnlock:
-        await widget.controller.disableQuickUnlock();
-    }
-  }
-}
-
-class _DockActionData {
-  const _DockActionData({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-}
-
-enum _DockSettingAction {
-  changePassword,
-  enableQuickUnlock,
-  disableQuickUnlock,
 }
 
 class _DockActionButton extends StatelessWidget {
@@ -1236,57 +1665,12 @@ Future<T?> _showGlassDialog<T>({
   required BuildContext context,
   required WidgetBuilder builder,
 }) {
+  _glassPerfBus.pulse(heavy: true);
   return showDialog<T>(
     context: context,
     barrierColor: _kDialogBarrierColor,
     builder: (context) => _DockPopupEntrance(child: builder(context)),
-  );
-}
-
-Future<void> _showImportDialog(
-  BuildContext context,
-  VaultController controller,
-) async {
-  final passwordController = TextEditingController();
-  final confirmedPassword = await _showGlassDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('输入导入文件密码'),
-      content: TextField(
-        controller: passwordController,
-        obscureText: true,
-        decoration: const InputDecoration(
-          labelText: '导入文件密码',
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('继续'),
-        ),
-      ],
-    ),
-  );
-
-  if (confirmedPassword != true || !context.mounted) {
-    passwordController.dispose();
-    return;
-  }
-
-  final plan = await controller.previewImport(passwordController.text);
-  passwordController.dispose();
-  if (plan == null || !context.mounted) {
-    return;
-  }
-
-  final confirmedImport = await _showImportSummaryDialog(context, plan.summary);
-  if (confirmedImport == true && context.mounted) {
-    await controller.applyImportPlan(plan);
-  }
+  ).whenComplete(_glassPerfBus.pulse);
 }
 
 Future<bool?> _showImportSummaryDialog(
@@ -1313,89 +1697,6 @@ Future<bool?> _showImportSummaryDialog(
       ],
     ),
   );
-}
-
-Future<void> _showExportDialog(
-  BuildContext context,
-  VaultController controller,
-) async {
-  final passwordController = TextEditingController();
-  final confirmed = await _showGlassDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('导出加密备份'),
-      content: TextField(
-        controller: passwordController,
-        obscureText: true,
-        decoration: const InputDecoration(
-          labelText: '导出密码（可选）',
-          helperText: '留空表示沿用当前密码库加密。',
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('导出'),
-        ),
-      ],
-    ),
-  );
-  if (confirmed == true && context.mounted) {
-    await controller.exportVault(exportPassword: passwordController.text);
-  }
-  passwordController.dispose();
-}
-
-Future<void> _showChangePasswordDialog(
-  BuildContext context,
-  VaultController controller,
-) async {
-  final oldPasswordController = TextEditingController();
-  final newPasswordController = TextEditingController();
-  final confirmed = await _showGlassDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('修改主密码'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: oldPasswordController,
-            obscureText: true,
-            decoration: const InputDecoration(labelText: '当前主密码'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: newPasswordController,
-            obscureText: true,
-            decoration: const InputDecoration(labelText: '新主密码'),
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('保存'),
-        ),
-      ],
-    ),
-  );
-  if (confirmed == true && context.mounted) {
-    await controller.changeMasterPassword(
-      oldPassword: oldPasswordController.text,
-      newPassword: newPasswordController.text,
-    );
-  }
-  oldPasswordController.dispose();
-  newPasswordController.dispose();
 }
 
 Future<void> _showItemEditor(
@@ -1820,43 +2121,160 @@ class _FrostedSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final decorated = Container(
+    return _LiquidGlassSurface(
       padding: padding,
-      decoration: BoxDecoration(
-        borderRadius: borderRadius,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            (tint ?? const Color(0xCCFFFFFF)).withValues(alpha: 0.52),
-            (tint ?? const Color(0x88FFFFFF)).withValues(alpha: 0.34),
-          ],
-        ),
-        border: Border.all(
-          color: borderColor ?? const Color(0x9AFFFFFF),
-          width: 1.1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: shadowColor ?? const Color(0x201D1116),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
+      borderRadius: borderRadius,
+      sigma: sigma,
+      tint: tint,
+      borderColor: borderColor,
+      shadowColor: shadowColor,
+      enableBlur: enableBlur,
       child: child,
     );
+  }
+}
 
-    if (!enableBlur) {
-      return decorated;
-    }
+class _LiquidGlassSurface extends StatelessWidget {
+  const _LiquidGlassSurface({
+    required this.child,
+    this.padding = const EdgeInsets.all(10),
+    this.borderRadius = const BorderRadius.all(Radius.circular(18)),
+    this.sigma = 14,
+    this.tint,
+    this.borderColor,
+    this.shadowColor,
+    this.enableBlur = true,
+  });
 
-    return ClipRRect(
-      borderRadius: borderRadius,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-        child: decorated,
-      ),
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final BorderRadius borderRadius;
+  final double sigma;
+  final Color? tint;
+  final Color? borderColor;
+  final Color? shadowColor;
+  final bool enableBlur;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _glassPerfBus,
+      builder: (context, _) {
+        final tier = _glassPerfBus.tier;
+        final effectiveSigma = (sigma * tier.blurScale).clamp(4.0, 26.0);
+
+        final decorated = Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            borderRadius: borderRadius,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                (tint ?? const Color(0x8CF6EBEF)).withValues(alpha: 0.36),
+                (tint ?? const Color(0x4CE7DAE1)).withValues(alpha: 0.20),
+              ],
+            ),
+            border: Border.all(
+              color: borderColor ?? const Color(0x8AF7EEF2),
+              width: 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: shadowColor ?? const Color(0x26110810),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: child,
+        );
+
+        if (!enableBlur) {
+          return decorated;
+        }
+
+        return FutureBuilder<FragmentProgram?>(
+          future: _LiquidShaderProgramLoader.load(),
+          builder: (context, snapshot) {
+            return ClipRRect(
+              borderRadius: borderRadius,
+              child: BackdropFilter(
+                filter: ImageFilter.blur(
+                  sigmaX: effectiveSigma,
+                  sigmaY: effectiveSigma,
+                ),
+                child: CustomPaint(
+                  foregroundPainter: _LiquidSpecularPainter(
+                    program: snapshot.data,
+                    borderRadius: borderRadius,
+                    strength: tier.shaderStrength,
+                  ),
+                  child: decorated,
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
+  }
+}
+
+class _LiquidShaderProgramLoader {
+  static Future<FragmentProgram?>? _cachedProgram;
+
+  static Future<FragmentProgram?> load() {
+    return _cachedProgram ??= FragmentProgram.fromAsset(
+      'shaders/liquid_glass.frag',
+    ).then<FragmentProgram?>((value) => value).catchError((_) => null);
+  }
+}
+
+class _LiquidSpecularPainter extends CustomPainter {
+  const _LiquidSpecularPainter({
+    required this.program,
+    required this.borderRadius,
+    required this.strength,
+  });
+
+  final FragmentProgram? program;
+  final BorderRadius borderRadius;
+  final double strength;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) {
+      return;
+    }
+    final rect = Offset.zero & size;
+    if (program == null) {
+      final fallbackPaint = Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0x12FFFFFF), Color(0x00FFFFFF)],
+        ).createShader(rect)
+        ..blendMode = BlendMode.softLight;
+      canvas.drawRRect(borderRadius.toRRect(rect), fallbackPaint);
+      return;
+    }
+    final shader = program!.fragmentShader();
+    shader
+      ..setFloat(0, size.width)
+      ..setFloat(1, size.height)
+      ..setFloat(2, strength);
+
+    final paint = Paint()
+      ..shader = shader
+      ..blendMode = BlendMode.softLight;
+    canvas.drawRRect(borderRadius.toRRect(rect), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _LiquidSpecularPainter oldDelegate) {
+    return oldDelegate.program != program ||
+        oldDelegate.strength != strength ||
+        oldDelegate.borderRadius != borderRadius;
   }
 }

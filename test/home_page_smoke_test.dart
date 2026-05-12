@@ -132,7 +132,7 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('settings action opens bottom sheet', (tester) async {
+  testWidgets('settings action switches to settings page', (tester) async {
     final controller = _buildController();
     await controller.bootstrap();
     await controller.createVault('master-pass');
@@ -142,7 +142,8 @@ void main() {
     await tester.tap(find.byIcon(Icons.settings_rounded));
     await tester.pumpAndSettle();
 
-    expect(find.byType(BottomSheet), findsOneWidget);
+    expect(find.byKey(const ValueKey('vault-page-settings')), findsOneWidget);
+    expect(find.byType(BottomSheet), findsNothing);
 
     controller.dispose();
   });
