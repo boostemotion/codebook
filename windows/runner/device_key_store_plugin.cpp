@@ -241,22 +241,29 @@ void HandleMethodCall(
   }
 
   if (method == "readWrappedDek") {
-    const std::vector<uint8_t> protected_bytes = ReadFileBytes(path);
-    if (protected_bytes.empty()) {
-      result->Success(flutter::EncodableValue());
-      return;
-    }
-    if (!VerifyWithWindowsHello(ResolveAuthWindow())) {
-      result->Success(flutter::EncodableValue());
-      return;
-    }
+    auto async_result = std::move(result);
+    const auto auth_window = ResolveAuthWindow();
+    std::thread(
+        [path, auth_window, result = std::move(async_result)]() mutable {
+          const std::vector<uint8_t> protected_bytes = ReadFileBytes(path);
+          if (protected_bytes.empty()) {
+            result->Success(flutter::EncodableValue());
+            return;
+          }
+          if (!VerifyWithWindowsHello(auth_window)) {
+            result->Success(flutter::EncodableValue());
+            return;
+          }
 
-    const std::vector<uint8_t> plaintext = UnprotectBytes(protected_bytes);
-    if (plaintext.empty()) {
-      result->Success(flutter::EncodableValue());
-      return;
-    }
-    result->Success(flutter::EncodableValue(plaintext));
+          const std::vector<uint8_t> plaintext =
+              UnprotectBytes(protected_bytes);
+          if (plaintext.empty()) {
+            result->Success(flutter::EncodableValue());
+            return;
+          }
+          result->Success(flutter::EncodableValue(plaintext));
+        })
+        .detach();
     return;
   }
 

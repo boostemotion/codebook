@@ -1,4 +1,4 @@
-import 'dart:ui';
+﻿import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
@@ -290,7 +290,7 @@ class _LockedView extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  controller.hasVault ? '解锁密码本' : '创建密码本',
+                  controller.hasVault ? '瑙ｉ攣瀵嗙爜鏈? : '鍒涘缓瀵嗙爜鏈?,
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0.2,
@@ -299,8 +299,8 @@ class _LockedView extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   controller.hasVault
-                      ? '输入主密码进入本地加密库。'
-                      : '设置主密码后，所有数据会保存在本地加密库中。',
+                      ? '杈撳叆涓诲瘑鐮佽繘鍏ユ湰鍦板姞瀵嗗簱銆?
+                      : '璁剧疆涓诲瘑鐮佸悗锛屾墍鏈夋暟鎹細淇濆瓨鍦ㄦ湰鍦板姞瀵嗗簱涓€?,
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 16),
@@ -309,7 +309,7 @@ class _LockedView extends StatelessWidget {
                   obscureText: true,
                   onChanged: onMasterPasswordChanged,
                   decoration: const InputDecoration(
-                    labelText: '主密码',
+                    labelText: '涓诲瘑鐮?,
                     prefixIcon: Icon(Icons.key_rounded),
                   ),
                   onSubmitted: (_) {
@@ -339,14 +339,14 @@ class _LockedView extends StatelessWidget {
                         ? Icons.lock_open_rounded
                         : Icons.verified_user_rounded,
                   ),
-                  label: Text(controller.hasVault ? '解锁' : '创建密码库'),
+                  label: Text(controller.hasVault ? '瑙ｉ攣' : '鍒涘缓瀵嗙爜搴?),
                 ),
                 if (controller.canUseQuickUnlockNow && controller.hasVault) ...[
                   const SizedBox(height: 10),
                   OutlinedButton.icon(
                     onPressed: controller.unlockWithQuickUnlock,
                     icon: const Icon(Icons.fingerprint_rounded),
-                    label: const Text('快速解锁（系统认证）'),
+                    label: const Text('蹇€熻В閿侊紙绯荤粺璁よ瘉锛?),
                   ),
                 ],
                 if (!controller.hasVault) ...[
@@ -357,8 +357,8 @@ class _LockedView extends StatelessWidget {
                     controller: importPasswordController,
                     obscureText: true,
                     decoration: const InputDecoration(
-                      labelText: '导入文件密码',
-                      helperText: '首次使用时，也可以直接导入已有加密备份。',
+                      labelText: '瀵煎叆鏂囦欢瀵嗙爜',
+                      helperText: '棣栨浣跨敤鏃讹紝涔熷彲浠ョ洿鎺ュ鍏ュ凡鏈夊姞瀵嗗浠姐€?,
                       prefixIcon: Icon(Icons.file_open_rounded),
                     ),
                   ),
@@ -379,7 +379,7 @@ class _LockedView extends StatelessWidget {
                       }
                     },
                     icon: const Icon(Icons.download_rounded),
-                    label: const Text('导入并合并备份'),
+                    label: const Text('瀵煎叆骞跺悎骞跺浠?),
                   ),
                 ],
               ],
@@ -422,9 +422,9 @@ class _VaultView extends StatelessWidget {
     final isDesktopPlatform = platform == TargetPlatform.windows ||
         platform == TargetPlatform.macOS ||
         platform == TargetPlatform.linux;
+    final dockMaxWidth = isDesktopPlatform ? 980.0 : double.infinity;
     final shouldHideDock =
         keyboardVisible || (!isDesktopPlatform && isSearchFocused);
-    final dockMaxWidth = isDesktopPlatform ? 980.0 : double.infinity;
     final items = controller.vaultData.activeItems.where((item) {
       if (searchQuery.isEmpty) {
         return true;
@@ -459,7 +459,7 @@ class _VaultView extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
-                    '共 ${items.length} 条',
+                    '鍏?${items.length} 鏉?,
                     textAlign: TextAlign.right,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: const Color(0xA54A373F),
@@ -478,6 +478,7 @@ class _VaultView extends StatelessWidget {
                   onSearchChanged('');
                 },
                 onSortModeChanged: onSortModeChanged,
+                isDesktop: isDesktopPlatform,
               ),
               const SizedBox(height: 8),
               Expanded(
@@ -489,7 +490,7 @@ class _VaultView extends StatelessWidget {
                         ),
                         child: Center(
                           child: Text(
-                            searchQuery.isEmpty ? '还没有条目' : '没有匹配条目',
+                            searchQuery.isEmpty ? '杩樻病鏈夋潯鐩? : '娌℃湁鍖归厤鏉＄洰',
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                         ),
@@ -509,7 +510,7 @@ class _VaultView extends StatelessWidget {
                           final accountInfo = [
                             item.username.trim(),
                             item.url.trim(),
-                          ].where((part) => part.isNotEmpty).join(' · ');
+                          ].where((part) => part.isNotEmpty).join(' 路 ');
                           return RepaintBoundary(
                             child: _EntryCard(
                               item: item,
@@ -577,17 +578,19 @@ class _SearchField extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.onChanged,
-    required this.sortMode,
     required this.onClear,
+    required this.sortMode,
     required this.onSortModeChanged,
+    required this.isDesktop,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueChanged<String> onChanged;
-  final _SortMode sortMode;
   final VoidCallback onClear;
+  final _SortMode sortMode;
   final ValueChanged<_SortMode> onSortModeChanged;
+  final bool isDesktop;
 
   @override
   Widget build(BuildContext context) {
@@ -595,11 +598,12 @@ class _SearchField extends StatelessWidget {
       children: [
         Expanded(
           child: _FrostedSurface(
-            sigma: 12,
-            borderRadius: BorderRadius.circular(22),
+            sigma: 16,
+            borderRadius: BorderRadius.circular(24),
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            tint: const Color(0x18FFFFFF),
-            borderColor: const Color(0x90FFFFFF),
+            tint: const Color(0x12FFFFFF),
+            borderColor: const Color(0x92FFFFFF),
+            shadowColor: const Color(0x1A2A1B22),
             child: TextField(
               controller: controller,
               focusNode: focusNode,
@@ -612,23 +616,30 @@ class _SearchField extends StatelessWidget {
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
-                prefixIcon: const Icon(Icons.search_rounded),
+                prefixIcon: const Icon(
+                  Icons.search_rounded,
+                  color: Color(0xC45F4A53),
+                ),
                 hintText: '\u641c\u7d22\u6761\u76ee',
                 hintStyle: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0x8A6E5A63),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0x9A6E5A63),
                 ),
-                suffixIcon: controller.text.isEmpty
-                    ? null
-                    : IconButton(
+                suffixIcon: controller.text.isNotEmpty
+                    ? IconButton(
                         onPressed: onClear,
-                        icon: const Icon(Icons.close_rounded),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Color(0xCC5F4A53),
+                        ),
                         tooltip: '\u6e05\u7a7a\u641c\u7d22',
-                      ),
+                        splashRadius: 18,
+                      )
+                    : null,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 10,
+                  vertical: 11,
                 ),
               ),
             ),
@@ -636,64 +647,136 @@ class _SearchField extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         _SortPill(
-          mode: sortMode,
-          onChanged: onSortModeChanged,
+          sortMode: sortMode,
+          onSortModeChanged: onSortModeChanged,
+          isDesktop: isDesktop,
         ),
       ],
     );
   }
 }
 
-class _SortPill extends StatelessWidget {
+class _SortPill extends StatefulWidget {
   const _SortPill({
-    required this.mode,
-    required this.onChanged,
+    required this.sortMode,
+    required this.onSortModeChanged,
+    required this.isDesktop,
   });
 
-  final _SortMode mode;
-  final ValueChanged<_SortMode> onChanged;
+  final _SortMode sortMode;
+  final ValueChanged<_SortMode> onSortModeChanged;
+  final bool isDesktop;
+
+  @override
+  State<_SortPill> createState() => _SortPillState();
+}
+
+class _SortPillState extends State<_SortPill> {
+  bool _menuOpen = false;
+
+  Future<void> _openSortMenu() async {
+    if (_menuOpen) {
+      return;
+    }
+    setState(() {
+      _menuOpen = true;
+    });
+
+    final box = context.findRenderObject();
+    if (box is! RenderBox) {
+      setState(() {
+        _menuOpen = false;
+      });
+      return;
+    }
+
+    final origin = box.localToGlobal(Offset.zero);
+    final pillSize = box.size;
+    final screenSize = MediaQuery.of(context).size;
+    const menuWidth = 220.0;
+    final rawLeft = origin.dx + pillSize.width - menuWidth;
+    final maxLeft = (screenSize.width - menuWidth - 8).clamp(8.0, double.infinity);
+    final left = rawLeft.clamp(8.0, maxLeft).toDouble();
+    final top = origin.dy + pillSize.height + 10;
+
+    final selected = await showGeneralDialog<_SortMode>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '\u5173\u95ed\u6392\u5e8f\u83dc\u5355',
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 360),
+      pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        return Material(
+          type: MaterialType.transparency,
+          child: Stack(
+            children: [
+              Positioned(
+                left: left,
+                top: top,
+                width: menuWidth,
+                child: _SortBubbleMenu(
+                  animation: animation,
+                  selectedMode: widget.sortMode,
+                  onSelected: (mode) => Navigator.of(dialogContext).pop(mode),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) =>
+          child,
+    );
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _menuOpen = false;
+    });
+    if (selected != null && selected != widget.sortMode) {
+      widget.onSortModeChanged(selected);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return _FrostedSurface(
-      sigma: 12,
-      borderRadius: BorderRadius.circular(22),
+      sigma: 16,
+      borderRadius: BorderRadius.circular(24),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      tint: const Color(0x18FFFFFF),
-      borderColor: const Color(0x90FFFFFF),
-      child: PopupMenuButton<_SortMode>(
-        tooltip: '\u6392\u5e8f\u65b9\u5f0f',
-        initialValue: mode,
-        onSelected: onChanged,
-        padding: EdgeInsets.zero,
-        itemBuilder: (context) => const [
-          PopupMenuItem<_SortMode>(
-            value: _SortMode.frequent,
-            child: Text('\u5e38\u7528\u6392\u5e8f'),
-          ),
-          PopupMenuItem<_SortMode>(
-            value: _SortMode.alphabetical,
-            child: Text('\u5b57\u6bcd\u6392\u5e8f'),
-          ),
-        ],
+      tint: const Color(0x12FFFFFF),
+      borderColor: const Color(0x92FFFFFF),
+      shadowColor: const Color(0x1A2A1B22),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: _openSortMenu,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.isDesktop ? 12 : 10,
+            vertical: 11,
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                mode.shortLabel,
+                widget.sortMode.chipLabel,
                 style: const TextStyle(
-                  fontSize: 14,
+                  fontSize: 13,
                   fontWeight: FontWeight.w700,
                   color: Color(0xFF5F4A53),
                 ),
               ),
-              const SizedBox(width: 3),
-              const Icon(
-                Icons.unfold_more_rounded,
-                size: 16,
-                color: Color(0xCC5F4A53),
+              const SizedBox(width: 4),
+              AnimatedRotation(
+                turns: _menuOpen ? 0.5 : 0,
+                duration: const Duration(milliseconds: 260),
+                curve: Curves.easeOutCubic,
+                child: const Icon(
+                  Icons.unfold_more_rounded,
+                  size: 16,
+                  color: Color(0xCC5F4A53),
+                ),
               ),
             ],
           ),
@@ -703,13 +786,142 @@ class _SortPill extends StatelessWidget {
   }
 }
 
-enum _SortMode {
-  frequent('\u5e38\u7528\u6392\u5e8f', '\u5e38\u7528'),
-  alphabetical('\u5b57\u6bcd\u6392\u5e8f', '\u5b57\u6bcd');
+class _SortBubbleMenu extends StatelessWidget {
+  const _SortBubbleMenu({
+    required this.animation,
+    required this.selectedMode,
+    required this.onSelected,
+  });
 
-  const _SortMode(this.label, this.shortLabel);
+  final Animation<double> animation;
+  final _SortMode selectedMode;
+  final ValueChanged<_SortMode> onSelected;
+
+  double _interval(double value, double start, double end) {
+    final normalized = (value - start) / (end - start);
+    return normalized.clamp(0.0, 1.0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, child) {
+        final t = Curves.easeOutCubic.transform(animation.value);
+        final first = Curves.easeOutCubic.transform(_interval(t, 0.10, 0.85));
+        final second = Curves.easeOutCubic.transform(_interval(t, 0.22, 1.0));
+
+        return Opacity(
+          opacity: t,
+          child: Transform.scale(
+            scale: 0.92 + (0.08 * t),
+            alignment: Alignment.topRight,
+            child: _FrostedSurface(
+              sigma: 16,
+              borderRadius: BorderRadius.circular(28),
+              padding: const EdgeInsets.all(8),
+              tint: const Color(0x32FFFFFF),
+              borderColor: const Color(0x95FFFFFF),
+              shadowColor: const Color(0x33281B21),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Transform.translate(
+                    offset: Offset(-18 * (1 - first), 8 * (1 - first)),
+                    child: Opacity(
+                      opacity: first,
+                      child: _SortBubbleOption(
+                        label: _SortMode.frequent.label,
+                        selected: selectedMode == _SortMode.frequent,
+                        onTap: () => onSelected(_SortMode.frequent),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Transform.translate(
+                    offset: Offset(18 * (1 - second), 8 * (1 - second)),
+                    child: Opacity(
+                      opacity: second,
+                      child: _SortBubbleOption(
+                        label: _SortMode.alphabetical.label,
+                        selected: selectedMode == _SortMode.alphabetical,
+                        onTap: () => onSelected(_SortMode.alphabetical),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SortBubbleOption extends StatelessWidget {
+  const _SortBubbleOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
   final String label;
-  final String shortLabel;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            color: selected
+                ? const Color(0x5AFFFFFF)
+                : const Color(0x2BFFFFFF),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xE0FFFFFF)
+                  : const Color(0x96FFFFFF),
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x221F151A),
+                blurRadius: 6,
+                offset: Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+              color: const Color(0xFF5F4A53),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _SortMode {
+  frequent('\u5e38\u7528\u6392\u5e8f'),
+  alphabetical('\u5b57\u6bcd\u6392\u5e8f');
+
+  const _SortMode(this.label);
+  final String label;
+
+  String get chipLabel =>
+      this == _SortMode.frequent ? '\u5e38\u7528' : '\u5b57\u6bcd';
 }
 
 class _BottomActionDock extends StatefulWidget {
@@ -732,46 +944,46 @@ class _BottomActionDockState extends State<_BottomActionDock> {
     final items = <_DockActionData>[
       _DockActionData(
         icon: Icons.add_circle_outline_rounded,
-        label: '新增',
+        label: '鏂板',
         onTap: () => _showItemEditor(context, controller: widget.controller),
       ),
       _DockActionData(
         icon: Icons.download_rounded,
-        label: '导入',
+        label: '瀵煎叆',
         onTap: () => _showImportDialog(context, widget.controller),
       ),
       _DockActionData(
         icon: Icons.upload_file_rounded,
-        label: '导出',
+        label: '瀵煎嚭',
         onTap: () => _showExportDialog(context, widget.controller),
       ),
       _DockActionData(
         icon: Icons.settings_rounded,
-        label: '设置',
+        label: '璁剧疆',
         onTap: () => _openSettingsMenu(context),
       ),
     ];
 
     return _FrostedSurface(
-      sigma: 16,
+      sigma: 14,
       borderRadius: BorderRadius.circular(34),
-      padding: const EdgeInsets.fromLTRB(6, 6, 6, 5),
-      tint: const Color(0x20FFFFFF),
-      borderColor: const Color(0x90FFFFFF),
-      shadowColor: const Color(0x2A291B21),
+      padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+      tint: const Color(0x35FFFFFF),
+      borderColor: const Color(0x80FFFFFF),
+      shadowColor: const Color(0x33291B21),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final slotWidth = constraints.maxWidth / items.length;
           return SizedBox(
-            height: 58,
+            height: 62,
             child: Stack(
               children: [
                 AnimatedPositioned(
                   duration: const Duration(milliseconds: 260),
                   curve: Curves.easeOutCubic,
                   left: (slotWidth * _activeIndex) + 3,
-                  top: 2,
-                  bottom: 2,
+                  top: 0,
+                  bottom: 0,
                   width: slotWidth - 6,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
@@ -780,16 +992,16 @@ class _BottomActionDockState extends State<_BottomActionDock> {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Color(0xA3FFFFFF),
-                          Color(0x52FFFFFF),
+                          Color(0x82FFFFFF),
+                          Color(0x4DFFFFFF),
                         ],
                       ),
-                      border: Border.all(color: const Color(0xD6FFFFFF)),
+                      border: Border.all(color: const Color(0xC5FFFFFF)),
                       boxShadow: const [
                         BoxShadow(
-                          color: Color(0x304A303A),
-                          blurRadius: 10,
-                          offset: Offset(0, 3),
+                          color: Color(0x2A4A303A),
+                          blurRadius: 14,
+                          offset: Offset(0, 4),
                         ),
                       ],
                     ),
@@ -800,7 +1012,7 @@ class _BottomActionDockState extends State<_BottomActionDock> {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Color(0x6EFFFFFF),
+                            Color(0x66FFFFFF),
                             Color(0x00FFFFFF),
                           ],
                         ),
@@ -848,7 +1060,7 @@ class _BottomActionDockState extends State<_BottomActionDock> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.key_rounded),
-                  title: const Text('修改主密码'),
+                  title: const Text('淇敼涓诲瘑鐮?),
                   onTap: () {
                     Navigator.of(context).pop(_DockSettingAction.changePassword);
                   },
@@ -859,8 +1071,8 @@ class _BottomActionDockState extends State<_BottomActionDock> {
                         ? Icons.phonelink_lock_outlined
                         : Icons.fingerprint_rounded,
                   ),
-                  title: Text(enabled ? '关闭快速解锁' : '开启快速解锁'),
-                  subtitle: Text(supported ? '使用系统认证保护会话密钥' : '当前设备不支持'),
+                  title: Text(enabled ? '鍏抽棴蹇€熻В閿? : '寮€鍚揩閫熻В閿?),
+                  subtitle: Text(supported ? '浣跨敤绯荤粺璁よ瘉淇濇姢浼氳瘽瀵嗛挜' : '褰撳墠璁惧涓嶆敮鎸?),
                   enabled: supported,
                   onTap: !supported
                       ? null
@@ -933,12 +1145,12 @@ class _DockActionButton extends StatelessWidget {
         borderRadius: BorderRadius.circular(26),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 5),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 20, color: color),
-              const SizedBox(height: 2),
+              Icon(icon, size: 22, color: color),
+              const SizedBox(height: 3),
               SizedBox(
                 width: double.infinity,
                 child: Text(
@@ -949,7 +1161,7 @@ class _DockActionButton extends StatelessWidget {
                   style: TextStyle(
                     color: color,
                     fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-                    fontSize: 13,
+                    fontSize: 14,
                   ),
                 ),
               ),
@@ -991,14 +1203,13 @@ class _EntryCardState extends State<_EntryCard> {
   Widget build(BuildContext context) {
     final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w900,
-          fontSize: 18,
+          fontSize: 20,
           height: 1.0,
           letterSpacing: -0.15,
           color: const Color(0xFF241A1E),
         );
     final accountStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
           fontWeight: FontWeight.w500,
-          fontSize: 12,
           color: const Color(0xFF5B4A51),
         );
 
@@ -1018,7 +1229,7 @@ class _EntryCardState extends State<_EntryCard> {
           tint: tint,
           borderColor: border,
           borderRadius: BorderRadius.circular(14),
-          padding: const EdgeInsets.fromLTRB(9, 5, 4, 5),
+          padding: const EdgeInsets.fromLTRB(10, 7, 6, 7),
           child: Row(
             children: [
               Expanded(
@@ -1104,11 +1315,11 @@ class _MiniActionButtonState extends State<_MiniActionButton> {
           onPressed: widget.onTap,
           icon: Icon(widget.icon, color: const Color(0xFF3C2C32)),
           tooltip: widget.tooltip,
-          iconSize: 15,
-          splashRadius: 14,
+          iconSize: 16,
+          splashRadius: 15,
           visualDensity: VisualDensity.compact,
-          constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-          padding: const EdgeInsets.all(3),
+          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+          padding: const EdgeInsets.all(4),
         ),
       ),
     );
@@ -1152,22 +1363,22 @@ Future<void> _showImportDialog(
     context: context,
     builder: (context) => _DockPopupEntrance(
       child: AlertDialog(
-        title: const Text('输入导入文件密码'),
+        title: const Text('杈撳叆瀵煎叆鏂囦欢瀵嗙爜'),
         content: TextField(
           controller: passwordController,
           obscureText: true,
           decoration: const InputDecoration(
-            labelText: '导入文件密码',
+            labelText: '瀵煎叆鏂囦欢瀵嗙爜',
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: const Text('鍙栨秷'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('继续'),
+            child: const Text('缁х画'),
           ),
         ],
       ),
@@ -1199,7 +1410,7 @@ Future<bool?> _showImportSummaryDialog(
     context: context,
     builder: (context) => _DockPopupEntrance(
       child: AlertDialog(
-        title: const Text('导入预览'),
+        title: const Text('瀵煎叆棰勮'),
         content: SizedBox(
           width: 380,
           child: _ImportSummaryView(summary: summary),
@@ -1207,11 +1418,11 @@ Future<bool?> _showImportSummaryDialog(
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: const Text('鍙栨秷'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('确认导入'),
+            child: const Text('纭瀵煎叆'),
           ),
         ],
       ),
@@ -1228,23 +1439,23 @@ Future<void> _showExportDialog(
     context: context,
     builder: (context) => _DockPopupEntrance(
       child: AlertDialog(
-        title: const Text('导出加密备份'),
+        title: const Text('瀵煎嚭鍔犲瘑澶囦唤'),
         content: TextField(
           controller: passwordController,
           obscureText: true,
           decoration: const InputDecoration(
-            labelText: '导出密码（可选）',
-            helperText: '留空表示沿用当前密码库加密。',
+            labelText: '瀵煎嚭瀵嗙爜锛堝彲閫夛級',
+            helperText: '鐣欑┖琛ㄧず娌跨敤褰撳墠瀵嗙爜搴撳姞瀵嗐€?,
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: const Text('鍙栨秷'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('导出'),
+            child: const Text('瀵煎嚭'),
           ),
         ],
       ),
@@ -1265,31 +1476,31 @@ Future<void> _showChangePasswordDialog(
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('修改主密码'),
+      title: const Text('淇敼涓诲瘑鐮?),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TextField(
             controller: oldPasswordController,
             obscureText: true,
-            decoration: const InputDecoration(labelText: '当前主密码'),
+            decoration: const InputDecoration(labelText: '褰撳墠涓诲瘑鐮?),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: newPasswordController,
             obscureText: true,
-            decoration: const InputDecoration(labelText: '新主密码'),
+            decoration: const InputDecoration(labelText: '鏂颁富瀵嗙爜'),
           ),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
+          child: const Text('鍙栨秷'),
         ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('保存'),
+          child: const Text('淇濆瓨'),
         ),
       ],
     ),
@@ -1323,7 +1534,7 @@ Future<void> _showItemEditor(
     context: context,
     builder: (context) => _DockPopupEntrance(
       child: AlertDialog(
-        title: Text(item == null ? '新增条目' : '编辑条目'),
+        title: Text(item == null ? '鏂板鏉＄洰' : '缂栬緫鏉＄洰'),
         content: SizedBox(
           width: 480,
           child: SingleChildScrollView(
@@ -1332,17 +1543,17 @@ Future<void> _showItemEditor(
               children: [
                 TextField(
                   controller: titleController,
-                  decoration: const InputDecoration(labelText: '名称'),
+                  decoration: const InputDecoration(labelText: '鍚嶇О'),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: usernameController,
-                  decoration: const InputDecoration(labelText: '账号'),
+                  decoration: const InputDecoration(labelText: '璐﹀彿'),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: passwordController,
-                  decoration: const InputDecoration(labelText: '密码'),
+                  decoration: const InputDecoration(labelText: '瀵嗙爜'),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -1351,7 +1562,7 @@ Future<void> _showItemEditor(
                       child: TextField(
                         controller: lengthController,
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: '自动密码长度'),
+                        decoration: const InputDecoration(labelText: '鑷姩瀵嗙爜闀垮害'),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -1362,32 +1573,32 @@ Future<void> _showItemEditor(
                             controller.generatePassword(length: length);
                       },
                       icon: const Icon(Icons.password_outlined),
-                      label: const Text('生成密码'),
+                      label: const Text('鐢熸垚瀵嗙爜'),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: urlController,
-                  decoration: const InputDecoration(labelText: '网址'),
+                  decoration: const InputDecoration(labelText: '缃戝潃'),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: totpController,
                   decoration: const InputDecoration(
-                    labelText: 'TOTP 密钥 / otpauth URI',
+                    labelText: 'TOTP 瀵嗛挜 / otpauth URI',
                   ),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: tagsController,
-                  decoration: const InputDecoration(labelText: '标签（逗号分隔）'),
+                  decoration: const InputDecoration(labelText: '鏍囩锛堥€楀彿鍒嗛殧锛?),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: notesController,
                   maxLines: 5,
-                  decoration: const InputDecoration(labelText: '备注'),
+                  decoration: const InputDecoration(labelText: '澶囨敞'),
                 ),
               ],
             ),
@@ -1396,11 +1607,11 @@ Future<void> _showItemEditor(
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
+            child: const Text('鍙栨秷'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('保存'),
+            child: const Text('淇濆瓨'),
           ),
         ],
       ),
@@ -1451,21 +1662,21 @@ Future<void> _showItemDetails(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _DetailRow(
-                label: '账号',
+                label: '璐﹀彿',
                 value: item.username,
                 onCopy: item.username.isEmpty
                     ? null
                     : () => controller.copySecret(item.username),
               ),
               _DetailRow(
-                label: '密码',
+                label: '瀵嗙爜',
                 value: item.password,
                 onCopy: item.password.isEmpty
                     ? null
                     : () => controller.copySecret(item.password),
               ),
-              _DetailRow(label: '网址', value: item.url),
-              _DetailRow(label: '标签', value: item.tags.join(', ')),
+              _DetailRow(label: '缃戝潃', value: item.url),
+              _DetailRow(label: '鏍囩', value: item.tags.join(', ')),
               if ((item.totpSecret?.trim().isNotEmpty ?? false))
                 _TotpPanel(
                   secretOrUri: item.totpSecret!,
@@ -1482,7 +1693,7 @@ Future<void> _showItemDetails(
       actions: [
         FilledButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('关闭'),
+          child: const Text('鍏抽棴'),
         ),
       ],
     ),
@@ -1516,7 +1727,7 @@ class _DetailRow extends StatelessWidget {
             IconButton(
               onPressed: onCopy,
               icon: const Icon(Icons.copy_outlined),
-              tooltip: '复制',
+              tooltip: '澶嶅埗',
             ),
         ],
       ),
@@ -1536,14 +1747,14 @@ class _ImportSummaryView extends StatelessWidget {
         .toList();
 
     final lines = <String>[
-      '导入条目总数：${summary.incomingItems}',
-      '新增：${summary.newItems}',
-      '更新：${summary.updatedItems}',
-      '删除：${summary.deletedItems}',
-      '未变化：${summary.unchangedItems}',
+      '瀵煎叆鏉＄洰鎬绘暟锛?{summary.incomingItems}',
+      '鏂板锛?{summary.newItems}',
+      '鏇存柊锛?{summary.updatedItems}',
+      '鍒犻櫎锛?{summary.deletedItems}',
+      '鏈彉鍖栵細${summary.unchangedItems}',
     ];
     if (summary.replacesLocalVault) {
-      lines.insert(0, '当前没有本地密码库，导入文件将作为本地密码库。');
+      lines.insert(0, '褰撳墠娌℃湁鏈湴瀵嗙爜搴擄紝瀵煎叆鏂囦欢灏嗕綔涓烘湰鍦板瘑鐮佸簱銆?);
     }
 
     return Column(
@@ -1559,7 +1770,7 @@ class _ImportSummaryView extends StatelessWidget {
           const Divider(),
           const SizedBox(height: 8),
           Text(
-            '变更明细',
+            '鍙樻洿鏄庣粏',
             style: Theme.of(context).textTheme.titleSmall,
           ),
           const SizedBox(height: 8),
@@ -1570,12 +1781,12 @@ class _ImportSummaryView extends StatelessWidget {
               separatorBuilder: (_, __) => const Divider(height: 12),
               itemBuilder: (context, index) {
                 final detail = changedDetails[index];
-                final title = detail.title.trim().isEmpty ? '（未命名）' : detail.title;
+                final title = detail.title.trim().isEmpty ? '锛堟湭鍛藉悕锛? : detail.title;
                 final subtitleParts = <String>[
                   'ID: ${detail.id}',
-                  '导入更新时间: ${detail.incomingUpdatedAt.toIso8601String()}',
+                  '瀵煎叆鏇存柊鏃堕棿: ${detail.incomingUpdatedAt.toIso8601String()}',
                   if (detail.localUpdatedAt != null)
-                    '本地更新时间: ${detail.localUpdatedAt!.toIso8601String()}',
+                    '鏈湴鏇存柊鏃堕棿: ${detail.localUpdatedAt!.toIso8601String()}',
                 ];
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1613,13 +1824,13 @@ class _ImportSummaryView extends StatelessWidget {
   String _kindLabel(ImportChangeKind kind) {
     switch (kind) {
       case ImportChangeKind.newItem:
-        return '新增';
+        return '鏂板';
       case ImportChangeKind.updatedItem:
-        return '更新';
+        return '鏇存柊';
       case ImportChangeKind.deletedItem:
-        return '删除';
+        return '鍒犻櫎';
       case ImportChangeKind.unchangedItem:
-        return '未变';
+        return '鏈彉';
     }
   }
 }
@@ -1651,13 +1862,13 @@ class _TotpPanel extends StatelessWidget {
             if (resultSnapshot.hasError) {
               return const _DetailRow(
                 label: 'TOTP',
-                value: 'TOTP 解析失败',
+                value: 'TOTP 瑙ｆ瀽澶辫触',
               );
             }
             if (!resultSnapshot.hasData) {
               return const _DetailRow(
                 label: 'TOTP',
-                value: '正在生成...',
+                value: '姝ｅ湪鐢熸垚...',
               );
             }
             final result = resultSnapshot.data!;
@@ -1679,7 +1890,7 @@ class _TotpPanel extends StatelessWidget {
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
                         Text(
-                          '${result.secondsRemaining} 秒后刷新',
+                          '${result.secondsRemaining} 绉掑悗鍒锋柊',
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                       ],
@@ -1690,7 +1901,7 @@ class _TotpPanel extends StatelessWidget {
                       onCopy(result.code);
                     },
                     icon: const Icon(Icons.copy_outlined),
-                    tooltip: '复制当前 TOTP',
+                    tooltip: '澶嶅埗褰撳墠 TOTP',
                   ),
                 ],
               ),
@@ -1726,30 +1937,61 @@ class _FrostedSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final decorated = Container(
-      padding: padding,
       decoration: BoxDecoration(
         borderRadius: borderRadius,
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            (tint ?? const Color(0xAAFFFFFF)).withValues(alpha: 0.78),
-            (tint ?? const Color(0x74FFFFFF)).withValues(alpha: 0.62),
-          ],
-        ),
-        border: Border.all(
-          color: borderColor ?? const Color(0x9AFFFFFF),
-          width: 1,
-        ),
         boxShadow: [
           BoxShadow(
-            color: shadowColor ?? const Color(0x261D1116),
+            color: shadowColor ?? const Color(0x221D1116),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
         ],
       ),
-      child: child,
+      child: ClipRRect(
+        borderRadius: borderRadius,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      (tint ?? const Color(0x66FFFFFF)).withValues(alpha: 0.34),
+                      (tint ?? const Color(0x34FFFFFF)).withValues(alpha: 0.20),
+                    ],
+                  ),
+                  border: Border.all(
+                    color: borderColor ?? const Color(0xB0FFFFFF),
+                    width: 1,
+                  ),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        const Color(0x66FFFFFF).withValues(alpha: 0.22),
+                        const Color(0x00FFFFFF),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: padding,
+              child: child,
+            ),
+          ],
+        ),
+      ),
     );
 
     if (!enableBlur) {
@@ -1759,9 +2001,10 @@ class _FrostedSurface extends StatelessWidget {
     return ClipRRect(
       borderRadius: borderRadius,
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+        filter: ImageFilter.blur(sigmaX: sigma + 2, sigmaY: sigma + 2),
         child: decorated,
       ),
     );
   }
 }
+
