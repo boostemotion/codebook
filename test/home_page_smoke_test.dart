@@ -27,7 +27,8 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('unlocked view shows search and liquid dock actions', (tester) async {
+  testWidgets('unlocked view shows search and liquid dock actions',
+      (tester) async {
     final controller = _buildController();
     await controller.bootstrap();
     await controller.createVault('master-pass');
@@ -44,6 +45,8 @@ void main() {
 
     expect(find.byIcon(Icons.search_rounded), findsOneWidget);
     expect(find.byIcon(Icons.add_circle_outline_rounded), findsOneWidget);
+    expect(find.byTooltip('排序方式'), findsOneWidget);
+    expect(find.byKey(const ValueKey('vault-toolbar')), findsOneWidget);
     expect(find.byKey(const ValueKey('liquid-dock')), findsOneWidget);
 
     controller.dispose();
@@ -85,6 +88,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('liquid-dock')), findsOneWidget);
     expect(find.byIcon(Icons.search_rounded), findsOneWidget);
+    expect(find.byKey(const ValueKey('vault-list')), findsOneWidget);
 
     await tester.drag(find.byType(ListView).first, const Offset(0, -260));
     await tester.pumpAndSettle();
@@ -92,13 +96,66 @@ void main() {
 
     expect(find.byKey(const ValueKey('liquid-dock')), findsOneWidget);
     expect(find.byIcon(Icons.search_rounded), findsOneWidget);
+    expect(find.byKey(const ValueKey('vault-list')), findsOneWidget);
+
+    controller.dispose();
+  });
+
+  testWidgets('search focus hides dock on mobile but keeps dock on windows',
+      (tester) async {
+    final controller = _buildController();
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await controller.addOrUpdateItem(
+      title: 'Alpha',
+      username: 'alice',
+      password: 'pw',
+      url: '',
+      notes: '',
+      tags: const [],
+    );
+
+    await tester.pumpWidget(_buildApp(controller));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(TextField).first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('liquid-dock-hidden')), findsOneWidget);
+
+    await tester.pumpWidget(
+      _buildApp(controller, platform: TargetPlatform.windows),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(TextField).first);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('liquid-dock')), findsOneWidget);
+
+    controller.dispose();
+  });
+
+  testWidgets('settings action opens bottom sheet', (tester) async {
+    final controller = _buildController();
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+
+    await tester.pumpWidget(_buildApp(controller));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.settings_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BottomSheet), findsOneWidget);
 
     controller.dispose();
   });
 }
 
-Widget _buildApp(VaultController controller) {
-  return MaterialApp(home: HomePage(controller: controller));
+Widget _buildApp(
+  VaultController controller, {
+  TargetPlatform platform = TargetPlatform.android,
+}) {
+  return MaterialApp(
+    theme: ThemeData(useMaterial3: true, platform: platform),
+    home: HomePage(controller: controller),
+  );
 }
 
 VaultController _buildController({CryptoService? cryptoService}) {

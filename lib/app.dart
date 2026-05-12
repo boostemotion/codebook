@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -93,24 +93,25 @@ ThemeData _buildTheme() {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: const Color(0xD9FFFFFF),
+      fillColor: const Color(0xBFFFFFFF),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: const BorderSide(color: Color(0x26A56B82)),
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: Color(0x3BA56B82)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         borderSide: BorderSide(color: scheme.primary, width: 1.2),
       ),
       labelStyle: const TextStyle(color: Color(0xFF6A5A60)),
       prefixIconColor: const Color(0xFF5F5057),
     ),
     dialogTheme: DialogThemeData(
-      backgroundColor: const Color(0xFFF7EFF2),
+      backgroundColor: const Color(0xE8FFFFFF),
+      surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
       ),
@@ -122,10 +123,9 @@ ThemeData _buildTheme() {
       behavior: SnackBarBehavior.floating,
     ),
     bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: Color(0xFFF7EFF2),
+      backgroundColor: Color(0xE8FFFFFF),
       surfaceTintColor: Colors.transparent,
       showDragHandle: true,
     ),
   );
 }
-

@@ -7,6 +7,7 @@ import '../services/totp_service.dart';
 import '../state/vault_controller.dart';
 
 const TotpService _totpService = TotpService();
+const Color _kDialogBarrierColor = Color(0x4A140A11);
 
 class HomePage extends StatefulWidget {
   const HomePage({
@@ -138,18 +139,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                     platform == TargetPlatform.windows ||
                                         platform == TargetPlatform.macOS ||
                                         platform == TargetPlatform.linux;
-                                final maxWidth =
-                                    isDesktopPlatform ? 1240.0 : double.infinity;
+                                final maxWidth = isDesktopPlatform
+                                    ? 1240.0
+                                    : double.infinity;
 
                                 return Align(
                                   alignment: Alignment.topCenter,
                                   child: ConstrainedBox(
-                                    constraints: BoxConstraints(maxWidth: maxWidth),
+                                    constraints:
+                                        BoxConstraints(maxWidth: maxWidth),
                                     child: _VaultView(
                                       controller: widget.controller,
                                       searchController: _searchController,
                                       searchFocusNode: _searchFocusNode,
-                                      isSearchFocused: _searchFocusNode.hasFocus,
+                                      isSearchFocused:
+                                          _searchFocusNode.hasFocus,
                                       scrollController: _vaultScrollController,
                                       searchQuery: _searchQuery,
                                       sortMode: _sortMode,
@@ -175,8 +179,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                   _masterPasswordController,
                               importPasswordController:
                                   _importPasswordController,
-                              canSubmitMasterPassword:
-                                  _canSubmitMasterPassword,
+                              canSubmitMasterPassword: _canSubmitMasterPassword,
                               onMasterPasswordChanged: (value) {
                                 final canSubmit = value.trim().isNotEmpty;
                                 if (canSubmit != _canSubmitMasterPassword) {
@@ -330,7 +333,8 @@ class _LockedView extends StatelessWidget {
                           if (controller.hasVault) {
                             controller.unlock(masterPasswordController.text);
                           } else {
-                            controller.createVault(masterPasswordController.text);
+                            controller
+                                .createVault(masterPasswordController.text);
                           }
                         }
                       : null,
@@ -457,6 +461,7 @@ class _VaultView extends StatelessWidget {
             children: [
               if (isDesktopPlatform)
                 Padding(
+                  key: const ValueKey('vault-header'),
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     '共 ${items.length} 条',
@@ -469,6 +474,7 @@ class _VaultView extends StatelessWidget {
                   ),
                 ),
               _SearchField(
+                key: const ValueKey('vault-toolbar'),
                 controller: searchController,
                 focusNode: searchFocusNode,
                 onChanged: onSearchChanged,
@@ -483,6 +489,7 @@ class _VaultView extends StatelessWidget {
               Expanded(
                 child: items.isEmpty
                     ? _FrostedSurface(
+                        key: const ValueKey('vault-empty'),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 22,
@@ -495,6 +502,7 @@ class _VaultView extends StatelessWidget {
                         ),
                       )
                     : ListView.separated(
+                        key: const ValueKey('vault-list'),
                         controller: scrollController,
                         itemCount: items.length,
                         padding: EdgeInsets.fromLTRB(
@@ -520,7 +528,8 @@ class _VaultView extends StatelessWidget {
                                 controller: controller,
                                 item: item,
                               ),
-                              onCopy: () => controller.copySecret(item.password),
+                              onCopy: () =>
+                                  controller.copySecret(item.password),
                               onEdit: () => _showItemEditor(
                                 context,
                                 controller: controller,
@@ -557,7 +566,8 @@ class _VaultView extends StatelessWidget {
                     );
                   },
                   child: shouldHideDock
-                      ? const SizedBox.shrink(key: ValueKey('liquid-dock-hidden'))
+                      ? const SizedBox.shrink(
+                          key: ValueKey('liquid-dock-hidden'))
                       : _BottomActionDock(
                           key: const ValueKey('liquid-dock'),
                           controller: controller,
@@ -574,6 +584,7 @@ class _VaultView extends StatelessWidget {
 
 class _SearchField extends StatelessWidget {
   const _SearchField({
+    super.key,
     required this.controller,
     required this.focusNode,
     required this.onChanged,
@@ -595,11 +606,11 @@ class _SearchField extends StatelessWidget {
       children: [
         Expanded(
           child: _FrostedSurface(
-            sigma: 12,
-            borderRadius: BorderRadius.circular(22),
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            tint: const Color(0x18FFFFFF),
-            borderColor: const Color(0x90FFFFFF),
+            sigma: 16,
+            borderRadius: BorderRadius.circular(24),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            tint: const Color(0x20FFFFFF),
+            borderColor: const Color(0xA6FFFFFF),
             child: TextField(
               controller: controller,
               focusNode: focusNode,
@@ -628,7 +639,7 @@ class _SearchField extends StatelessWidget {
                       ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 12,
-                  vertical: 10,
+                  vertical: 11,
                 ),
               ),
             ),
@@ -656,46 +667,50 @@ class _SortPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _FrostedSurface(
-      sigma: 12,
-      borderRadius: BorderRadius.circular(22),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      tint: const Color(0x18FFFFFF),
-      borderColor: const Color(0x90FFFFFF),
-      child: PopupMenuButton<_SortMode>(
-        tooltip: '\u6392\u5e8f\u65b9\u5f0f',
-        initialValue: mode,
-        onSelected: onChanged,
-        padding: EdgeInsets.zero,
-        itemBuilder: (context) => const [
-          PopupMenuItem<_SortMode>(
-            value: _SortMode.frequent,
-            child: Text('\u5e38\u7528\u6392\u5e8f'),
-          ),
-          PopupMenuItem<_SortMode>(
-            value: _SortMode.alphabetical,
-            child: Text('\u5b57\u6bcd\u6392\u5e8f'),
-          ),
-        ],
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                mode.shortLabel,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF5F4A53),
+      sigma: 16,
+      borderRadius: BorderRadius.circular(24),
+      padding: EdgeInsets.zero,
+      tint: const Color(0x20FFFFFF),
+      borderColor: const Color(0xA6FFFFFF),
+      child: Tooltip(
+        message: '排序方式',
+        child: Semantics(
+          button: true,
+          label: '排序方式',
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(24),
+              onTap: () async {
+                final next = await _showSortModePicker(context, mode);
+                if (next != null) {
+                  onChanged(next);
+                }
+              },
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      mode.shortLabel,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF5F4A53),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.unfold_more_rounded,
+                      size: 16,
+                      color: Color(0xCC5F4A53),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 3),
-              const Icon(
-                Icons.unfold_more_rounded,
-                size: 16,
-                color: Color(0xCC5F4A53),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -710,6 +725,77 @@ enum _SortMode {
   const _SortMode(this.label, this.shortLabel);
   final String label;
   final String shortLabel;
+}
+
+Future<_SortMode?> _showSortModePicker(
+  BuildContext context,
+  _SortMode mode,
+) {
+  return _showGlassDialog<_SortMode>(
+    context: context,
+    builder: (context) {
+      Widget option(_SortMode item) {
+        final active = item == mode;
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: () => Navigator.of(context).pop(item),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                color: active ? const Color(0x2EFFFFFF) : Colors.transparent,
+                border: Border.all(
+                  color: active
+                      ? const Color(0xC4FFFFFF)
+                      : const Color(0x74FFFFFF),
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      item.label,
+                      style: TextStyle(
+                        fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                        color: const Color(0xFF3B2932),
+                      ),
+                    ),
+                  ),
+                  if (active)
+                    const Icon(
+                      Icons.check_rounded,
+                      size: 18,
+                      color: Color(0xFF563842),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+        child: _FrostedSurface(
+          sigma: 18,
+          borderRadius: BorderRadius.circular(24),
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+          tint: const Color(0x24FFFFFF),
+          borderColor: const Color(0xAAFFFFFF),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              option(_SortMode.frequent),
+              option(_SortMode.alphabetical),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _BottomActionDock extends StatefulWidget {
@@ -753,11 +839,11 @@ class _BottomActionDockState extends State<_BottomActionDock> {
     ];
 
     return _FrostedSurface(
-      sigma: 16,
+      sigma: 20,
       borderRadius: BorderRadius.circular(34),
       padding: const EdgeInsets.fromLTRB(6, 6, 6, 5),
-      tint: const Color(0x20FFFFFF),
-      borderColor: const Color(0x90FFFFFF),
+      tint: const Color(0x1FFFFFFF),
+      borderColor: const Color(0xB2FFFFFF),
       shadowColor: const Color(0x2A291B21),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -850,7 +936,8 @@ class _BottomActionDockState extends State<_BottomActionDock> {
                   leading: const Icon(Icons.key_rounded),
                   title: const Text('修改主密码'),
                   onTap: () {
-                    Navigator.of(context).pop(_DockSettingAction.changePassword);
+                    Navigator.of(context)
+                        .pop(_DockSettingAction.changePassword);
                   },
                 ),
                 ListTile(
@@ -991,7 +1078,7 @@ class _EntryCardState extends State<_EntryCard> {
   Widget build(BuildContext context) {
     final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w900,
-          fontSize: 18,
+          fontSize: 19,
           height: 1.0,
           letterSpacing: -0.15,
           color: const Color(0xFF241A1E),
@@ -1091,8 +1178,10 @@ class _MiniActionButtonState extends State<_MiniActionButton> {
         platform == TargetPlatform.linux;
 
     return MouseRegion(
-      onEnter: isDesktopPlatform ? (_) => setState(() => _hovered = true) : null,
-      onExit: isDesktopPlatform ? (_) => setState(() => _hovered = false) : null,
+      onEnter:
+          isDesktopPlatform ? (_) => setState(() => _hovered = true) : null,
+      onExit:
+          isDesktopPlatform ? (_) => setState(() => _hovered = false) : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
         curve: Curves.easeOutCubic,
@@ -1143,34 +1232,43 @@ class _DockPopupEntrance extends StatelessWidget {
   }
 }
 
+Future<T?> _showGlassDialog<T>({
+  required BuildContext context,
+  required WidgetBuilder builder,
+}) {
+  return showDialog<T>(
+    context: context,
+    barrierColor: _kDialogBarrierColor,
+    builder: (context) => _DockPopupEntrance(child: builder(context)),
+  );
+}
+
 Future<void> _showImportDialog(
   BuildContext context,
   VaultController controller,
 ) async {
   final passwordController = TextEditingController();
-  final confirmedPassword = await showDialog<bool>(
+  final confirmedPassword = await _showGlassDialog<bool>(
     context: context,
-    builder: (context) => _DockPopupEntrance(
-      child: AlertDialog(
-        title: const Text('输入导入文件密码'),
-        content: TextField(
-          controller: passwordController,
-          obscureText: true,
-          decoration: const InputDecoration(
-            labelText: '导入文件密码',
-          ),
+    builder: (context) => AlertDialog(
+      title: const Text('输入导入文件密码'),
+      content: TextField(
+        controller: passwordController,
+        obscureText: true,
+        decoration: const InputDecoration(
+          labelText: '导入文件密码',
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('继续'),
-          ),
-        ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('继续'),
+        ),
+      ],
     ),
   );
 
@@ -1195,26 +1293,24 @@ Future<bool?> _showImportSummaryDialog(
   BuildContext context,
   ImportMergeSummary summary,
 ) {
-  return showDialog<bool>(
+  return _showGlassDialog<bool>(
     context: context,
-    builder: (context) => _DockPopupEntrance(
-      child: AlertDialog(
-        title: const Text('导入预览'),
-        content: SizedBox(
-          width: 380,
-          child: _ImportSummaryView(summary: summary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('确认导入'),
-          ),
-        ],
+    builder: (context) => AlertDialog(
+      title: const Text('导入预览'),
+      content: SizedBox(
+        width: 380,
+        child: _ImportSummaryView(summary: summary),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('确认导入'),
+        ),
+      ],
     ),
   );
 }
@@ -1224,30 +1320,28 @@ Future<void> _showExportDialog(
   VaultController controller,
 ) async {
   final passwordController = TextEditingController();
-  final confirmed = await showDialog<bool>(
+  final confirmed = await _showGlassDialog<bool>(
     context: context,
-    builder: (context) => _DockPopupEntrance(
-      child: AlertDialog(
-        title: const Text('导出加密备份'),
-        content: TextField(
-          controller: passwordController,
-          obscureText: true,
-          decoration: const InputDecoration(
-            labelText: '导出密码（可选）',
-            helperText: '留空表示沿用当前密码库加密。',
-          ),
+    builder: (context) => AlertDialog(
+      title: const Text('导出加密备份'),
+      content: TextField(
+        controller: passwordController,
+        obscureText: true,
+        decoration: const InputDecoration(
+          labelText: '导出密码（可选）',
+          helperText: '留空表示沿用当前密码库加密。',
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('导出'),
-          ),
-        ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('导出'),
+        ),
+      ],
     ),
   );
   if (confirmed == true && context.mounted) {
@@ -1262,7 +1356,7 @@ Future<void> _showChangePasswordDialog(
 ) async {
   final oldPasswordController = TextEditingController();
   final newPasswordController = TextEditingController();
-  final confirmed = await showDialog<bool>(
+  final confirmed = await _showGlassDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('修改主密码'),
@@ -1319,91 +1413,89 @@ Future<void> _showItemEditor(
   final totpController = TextEditingController(text: item?.totpSecret ?? '');
   final lengthController = TextEditingController(text: '20');
 
-  final saved = await showDialog<bool>(
+  final saved = await _showGlassDialog<bool>(
     context: context,
-    builder: (context) => _DockPopupEntrance(
-      child: AlertDialog(
-        title: Text(item == null ? '新增条目' : '编辑条目'),
-        content: SizedBox(
-          width: 480,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(labelText: '名称'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: usernameController,
-                  decoration: const InputDecoration(labelText: '账号'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: passwordController,
-                  decoration: const InputDecoration(labelText: '密码'),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: lengthController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(labelText: '自动密码长度'),
-                      ),
+    builder: (context) => AlertDialog(
+      title: Text(item == null ? '新增条目' : '编辑条目'),
+      content: SizedBox(
+        width: 480,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(labelText: '名称'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: usernameController,
+                decoration: const InputDecoration(labelText: '账号'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: passwordController,
+                decoration: const InputDecoration(labelText: '密码'),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: lengthController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: '自动密码长度'),
                     ),
-                    const SizedBox(width: 12),
-                    FilledButton.tonalIcon(
-                      onPressed: () {
-                        final length = int.tryParse(lengthController.text) ?? 20;
-                        passwordController.text =
-                            controller.generatePassword(length: length);
-                      },
-                      icon: const Icon(Icons.password_outlined),
-                      label: const Text('生成密码'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: urlController,
-                  decoration: const InputDecoration(labelText: '网址'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: totpController,
-                  decoration: const InputDecoration(
-                    labelText: 'TOTP 密钥 / otpauth URI',
                   ),
+                  const SizedBox(width: 12),
+                  FilledButton.tonalIcon(
+                    onPressed: () {
+                      final length = int.tryParse(lengthController.text) ?? 20;
+                      passwordController.text =
+                          controller.generatePassword(length: length);
+                    },
+                    icon: const Icon(Icons.password_outlined),
+                    label: const Text('生成密码'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: urlController,
+                decoration: const InputDecoration(labelText: '网址'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: totpController,
+                decoration: const InputDecoration(
+                  labelText: 'TOTP 密钥 / otpauth URI',
                 ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: tagsController,
-                  decoration: const InputDecoration(labelText: '标签（逗号分隔）'),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: notesController,
-                  maxLines: 5,
-                  decoration: const InputDecoration(labelText: '备注'),
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: tagsController,
+                decoration: const InputDecoration(labelText: '标签（逗号分隔）'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: notesController,
+                maxLines: 5,
+                decoration: const InputDecoration(labelText: '备注'),
+              ),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('保存'),
-          ),
-        ],
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('保存'),
+        ),
+      ],
     ),
   );
 
@@ -1434,12 +1526,13 @@ Future<void> _showItemEditor(
   totpController.dispose();
   lengthController.dispose();
 }
+
 Future<void> _showItemDetails(
   BuildContext context, {
   required VaultController controller,
   required VaultItem item,
 }) {
-  return showDialog<void>(
+  return _showGlassDialog<void>(
     context: context,
     builder: (context) => AlertDialog(
       title: Text(item.title),
@@ -1570,7 +1663,8 @@ class _ImportSummaryView extends StatelessWidget {
               separatorBuilder: (_, __) => const Divider(height: 12),
               itemBuilder: (context, index) {
                 final detail = changedDetails[index];
-                final title = detail.title.trim().isEmpty ? '（未命名）' : detail.title;
+                final title =
+                    detail.title.trim().isEmpty ? '（未命名）' : detail.title;
                 final subtitleParts = <String>[
                   'ID: ${detail.id}',
                   '导入更新时间: ${detail.incomingUpdatedAt.toIso8601String()}',
@@ -1704,6 +1798,7 @@ class _TotpPanel extends StatelessWidget {
 
 class _FrostedSurface extends StatelessWidget {
   const _FrostedSurface({
+    super.key,
     required this.child,
     this.padding = const EdgeInsets.all(10),
     this.borderRadius = const BorderRadius.all(Radius.circular(18)),
@@ -1733,19 +1828,19 @@ class _FrostedSurface extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            (tint ?? const Color(0xAAFFFFFF)).withValues(alpha: 0.78),
-            (tint ?? const Color(0x74FFFFFF)).withValues(alpha: 0.62),
+            (tint ?? const Color(0xCCFFFFFF)).withValues(alpha: 0.52),
+            (tint ?? const Color(0x88FFFFFF)).withValues(alpha: 0.34),
           ],
         ),
         border: Border.all(
           color: borderColor ?? const Color(0x9AFFFFFF),
-          width: 1,
+          width: 1.1,
         ),
         boxShadow: [
           BoxShadow(
-            color: shadowColor ?? const Color(0x261D1116),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
+            color: shadowColor ?? const Color(0x201D1116),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
