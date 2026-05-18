@@ -685,39 +685,86 @@ class _VaultViewState extends State<_VaultView> {
         }
         return false;
       },
-      child: ListView.separated(
-        key: const ValueKey('vault-list'),
-        controller: widget.scrollController,
-        itemCount: items.length,
-        padding: EdgeInsets.fromLTRB(0, 0, 0, isDesktopPlatform ? 96 : 116),
-        separatorBuilder: (_, __) => const SizedBox(height: 7),
-        itemBuilder: (context, index) {
-          final item = items[index];
-          final accountInfo = [
-            item.username.trim(),
-            item.url.trim(),
-          ].where((part) => part.isNotEmpty).join(' · ');
-          return RepaintBoundary(
-            child: _EntryCard(
-              item: item,
-              accountInfo: accountInfo,
-              isDesktop: isDesktopPlatform,
-              onView: () => _showItemDetails(
-                context,
-                controller: widget.controller,
-                item: item,
+      child: isDesktopPlatform
+          ? GridView.builder(
+              key: const ValueKey('vault-list'),
+              controller: widget.scrollController,
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 310,
+                mainAxisExtent: 82,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
               ),
-              onCopy: () => widget.controller.copySecret(item.password),
-              onEdit: () => _showItemEditor(
-                context,
-                controller: widget.controller,
-                item: item,
-              ),
-              onDelete: () => widget.controller.deleteItem(item.id),
+              itemCount: items.length,
+              padding: const EdgeInsets.fromLTRB(0, 0, 0, 96),
+              itemBuilder: (context, index) {
+                final item = items[index];
+                final accountInfo = [
+                  item.username.trim(),
+                  item.url.trim(),
+                ].where((part) => part.isNotEmpty).join(' · ');
+                return RepaintBoundary(
+                  child: _EntryCard(
+                    item: item,
+                    accountInfo: accountInfo,
+                    isDesktop: true,
+                    onView: () => _showItemDetails(
+                      context,
+                      controller: widget.controller,
+                      item: item,
+                    ),
+                    onCopy: () => widget.controller.copySecret(item.password),
+                    onEdit: () => _showItemEditor(
+                      context,
+                      controller: widget.controller,
+                      item: item,
+                    ),
+                    onDelete: () => _confirmDeleteItem(
+                      context,
+                      controller: widget.controller,
+                      item: item,
+                    ),
+                  ),
+                );
+              },
+            )
+          : ListView.separated(
+              key: const ValueKey('vault-list'),
+              controller: widget.scrollController,
+              itemCount: items.length,
+              padding: const EdgeInsets.fromLTRB(0, 0, 0, 116),
+              separatorBuilder: (_, __) => const SizedBox(height: 7),
+              itemBuilder: (context, index) {
+                final item = items[index];
+                final accountInfo = [
+                  item.username.trim(),
+                  item.url.trim(),
+                ].where((part) => part.isNotEmpty).join(' · ');
+                return RepaintBoundary(
+                  child: _EntryCard(
+                    item: item,
+                    accountInfo: accountInfo,
+                    isDesktop: false,
+                    onView: () => _showItemDetails(
+                      context,
+                      controller: widget.controller,
+                      item: item,
+                    ),
+                    onCopy: () => widget.controller.copySecret(item.password),
+                    onEdit: () => _showItemEditor(
+                      context,
+                      controller: widget.controller,
+                      item: item,
+                    ),
+                    onDelete: () => _confirmDeleteItem(
+                      context,
+                      controller: widget.controller,
+                      item: item,
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 
@@ -1505,21 +1552,34 @@ class _EntryCardState extends State<_EntryCard> {
 
   @override
   Widget build(BuildContext context) {
+    final desktopSpacing = widget.isDesktop;
+    final title = widget.item.title.trim().isEmpty ? '未命名' : widget.item.title;
+    final leadingText = title.isEmpty ? '•' : title[0].toUpperCase();
+    final subtitleText = widget.accountInfo.isNotEmpty
+        ? widget.accountInfo
+        : (widget.item.notes.trim().isNotEmpty
+            ? widget.item.notes.trim()
+            : '点击查看详情');
     final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w900,
-          fontSize: 19,
-          height: 1.0,
+          fontSize: desktopSpacing ? 17 : 19,
+          height: desktopSpacing ? 1.02 : 1.0,
           letterSpacing: -0.15,
           color: const Color(0xFF241A1E),
         );
     final accountStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
           fontWeight: FontWeight.w500,
-          fontSize: 12,
+          fontSize: desktopSpacing ? 11 : 12,
           color: const Color(0xFF5B4A51),
         );
 
-    final tint = _hovered ? const Color(0x1EFFFFFF) : const Color(0x12FFFFFF);
-    final border = _hovered ? const Color(0xBCFFFFFF) : const Color(0x95FFFFFF);
+    final tint = desktopSpacing
+        ? (_hovered ? const Color(0x0EDFD2D9) : const Color(0x08D9CBD3))
+        : (_hovered ? const Color(0x16F4EBEF) : const Color(0x10EFE4E8));
+    final border = desktopSpacing
+        ? (_hovered ? const Color(0x72D8C8D1) : const Color(0x5CCFBFC8))
+        : (_hovered ? const Color(0x8FEFE3E8) : const Color(0x73E9DBE1));
+    final radius = desktopSpacing ? 28.0 : 14.0;
 
     return MouseRegion(
       onEnter: widget.isDesktop ? (_) => setState(() => _hovered = true) : null,
@@ -1527,53 +1587,119 @@ class _EntryCardState extends State<_EntryCard> {
       child: AnimatedScale(
         duration: const Duration(milliseconds: 160),
         curve: Curves.easeOutCubic,
-        scale: _hovered ? 1.006 : 1.0,
-        child: _FrostedSurface(
-          sigma: 12,
-          enableBlur: true,
-          tint: tint,
-          borderColor: border,
-          borderRadius: BorderRadius.circular(14),
-          padding: const EdgeInsets.fromLTRB(9, 5, 4, 5),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text.rich(
-                  TextSpan(
+        scale: _hovered ? 1.003 : 1.0,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: desktopSpacing ? 62 : 0),
+          child: _FrostedSurface(
+            sigma: 10,
+            enableBlur: true,
+            tint: tint,
+            borderColor: border,
+            shadowColor: desktopSpacing
+                ? (_hovered ? const Color(0x1A110A0E) : const Color(0x160D0609))
+                : (_hovered
+                    ? const Color(0x16150C10)
+                    : const Color(0x120E070A)),
+            specularStrength: 0,
+            borderRadius: BorderRadius.circular(radius),
+            padding: EdgeInsets.fromLTRB(
+              desktopSpacing ? 12 : 9,
+              desktopSpacing ? 8 : 5,
+              desktopSpacing ? 8 : 4,
+              desktopSpacing ? 8 : 5,
+            ),
+            child: desktopSpacing
+                ? Row(
                     children: [
-                      TextSpan(text: widget.item.title, style: titleStyle),
-                      if (widget.accountInfo.isNotEmpty)
-                        TextSpan(
-                          text: '   ${widget.accountInfo}',
-                          style: accountStyle,
+                      Container(
+                        width: 34,
+                        height: 34,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: const Color(0x18FFFFFF),
+                          borderRadius: BorderRadius.circular(17),
+                          border: Border.all(color: const Color(0x66E8DAE1)),
                         ),
+                        child: Text(
+                          leadingText,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF241A1E),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: titleStyle,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              subtitleText,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: accountStyle,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      _DesktopActionCluster(
+                        onView: widget.onView,
+                        onCopy: widget.onCopy,
+                        onEdit: widget.onEdit,
+                        onDelete: widget.onDelete,
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(text: title, style: titleStyle),
+                              if (widget.accountInfo.isNotEmpty)
+                                TextSpan(
+                                  text: '   ${widget.accountInfo}',
+                                  style: accountStyle,
+                                ),
+                            ],
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      _MiniActionButton(
+                        icon: Icons.visibility_outlined,
+                        tooltip: '查看',
+                        onTap: widget.onView,
+                      ),
+                      _MiniActionButton(
+                        icon: Icons.copy_outlined,
+                        tooltip: '复制密码',
+                        onTap: widget.onCopy,
+                      ),
+                      _MiniActionButton(
+                        icon: Icons.edit_outlined,
+                        tooltip: '编辑',
+                        onTap: widget.onEdit,
+                      ),
+                      _MiniActionButton(
+                        icon: Icons.delete_outline,
+                        tooltip: '删除',
+                        onTap: widget.onDelete,
+                      ),
                     ],
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              _MiniActionButton(
-                icon: Icons.visibility_outlined,
-                tooltip: '查看',
-                onTap: widget.onView,
-              ),
-              _MiniActionButton(
-                icon: Icons.copy_outlined,
-                tooltip: '复制密码',
-                onTap: widget.onCopy,
-              ),
-              _MiniActionButton(
-                icon: Icons.edit_outlined,
-                tooltip: '编辑',
-                onTap: widget.onEdit,
-              ),
-              _MiniActionButton(
-                icon: Icons.delete_outline,
-                tooltip: '删除',
-                onTap: widget.onDelete,
-              ),
-            ],
           ),
         ),
       ),
@@ -1581,13 +1707,100 @@ class _EntryCardState extends State<_EntryCard> {
   }
 }
 
+class _DesktopActionCluster extends StatelessWidget {
+  const _DesktopActionCluster({
+    required this.onView,
+    required this.onCopy,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final VoidCallback onView;
+  final VoidCallback onCopy;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 96,
+      height: 60,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0x0CD0C2CB),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0x58D8C8D1)),
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _MiniActionButton(
+                    large: true,
+                    boxed: true,
+                    icon: Icons.visibility_outlined,
+                    tooltip: '查看',
+                    onTap: onView,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: _MiniActionButton(
+                    large: true,
+                    boxed: true,
+                    icon: Icons.copy_outlined,
+                    tooltip: '复制密码',
+                    onTap: onCopy,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _MiniActionButton(
+                    large: true,
+                    boxed: true,
+                    icon: Icons.edit_outlined,
+                    tooltip: '编辑',
+                    onTap: onEdit,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: _MiniActionButton(
+                    large: true,
+                    boxed: true,
+                    icon: Icons.delete_outline,
+                    tooltip: '删除',
+                    onTap: onDelete,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MiniActionButton extends StatefulWidget {
   const _MiniActionButton({
+    this.large = false,
+    this.boxed = false,
     required this.icon,
     required this.tooltip,
     required this.onTap,
   });
 
+  final bool large;
+  final bool boxed;
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
@@ -1605,6 +1818,11 @@ class _MiniActionButtonState extends State<_MiniActionButton> {
     final isDesktopPlatform = platform == TargetPlatform.windows ||
         platform == TargetPlatform.macOS ||
         platform == TargetPlatform.linux;
+    final iconSize = widget.large ? 17.0 : 15.0;
+    final splashRadius = widget.large ? 18.0 : 14.0;
+    final minSize = widget.boxed ? 26.0 : (widget.large ? 29.0 : 24.0);
+    final radius = widget.large ? 14.0 : 12.0;
+    final padding = widget.boxed ? 2.0 : (widget.large ? 5.0 : 3.0);
 
     return MouseRegion(
       onEnter:
@@ -1615,18 +1833,20 @@ class _MiniActionButtonState extends State<_MiniActionButton> {
         duration: const Duration(milliseconds: 140),
         curve: Curves.easeOutCubic,
         decoration: BoxDecoration(
-          color: _hovered ? const Color(0x2BFFFFFF) : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
+          color: widget.boxed
+              ? (_hovered ? const Color(0x18FFFFFF) : const Color(0x0AFFFFFF))
+              : (_hovered ? const Color(0x16FFFFFF) : Colors.transparent),
+          borderRadius: BorderRadius.circular(radius),
         ),
         child: IconButton(
           onPressed: widget.onTap,
           icon: Icon(widget.icon, color: const Color(0xFF3C2C32)),
           tooltip: widget.tooltip,
-          iconSize: 15,
-          splashRadius: 14,
+          iconSize: iconSize,
+          splashRadius: splashRadius,
           visualDensity: VisualDensity.compact,
-          constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-          padding: const EdgeInsets.all(3),
+          constraints: BoxConstraints(minWidth: minSize, minHeight: minSize),
+          padding: EdgeInsets.all(padding),
         ),
       ),
     );
@@ -1673,28 +1893,129 @@ Future<T?> _showGlassDialog<T>({
   ).whenComplete(_glassPerfBus.pulse);
 }
 
+class _GlassDialogActionBar extends StatelessWidget {
+  const _GlassDialogActionBar({
+    required this.children,
+  });
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: children,
+    );
+  }
+}
+
+class _GlassDialogButton extends StatelessWidget {
+  const _GlassDialogButton({
+    required this.label,
+    required this.onTap,
+    this.primary = false,
+    this.destructive = false,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+  final bool primary;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = destructive
+        ? const Color(0xFF8C3348)
+        : (primary ? const Color(0xFF241A1E) : const Color(0xFF6D5660));
+    final tint = destructive
+        ? const Color(0x22F3C9D4)
+        : (primary ? const Color(0x28F7D4E1) : const Color(0x18F7EEF2));
+    final border = destructive
+        ? const Color(0x88E4B5C3)
+        : (primary ? const Color(0x8CD6A7B9) : const Color(0x7ADFD1D8));
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 8),
+      child: _FrostedSurface(
+        sigma: 14,
+        borderRadius: BorderRadius.circular(20),
+        tint: tint,
+        borderColor: border,
+        shadowColor: const Color(0x140E070A),
+        specularStrength: 0,
+        padding: EdgeInsets.zero,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(20),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: foreground,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 Future<bool?> _showImportSummaryDialog(
   BuildContext context,
   ImportMergeSummary summary,
 ) {
   return _showGlassDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('导入预览'),
-      content: SizedBox(
-        width: 380,
-        child: _ImportSummaryView(summary: summary),
+    builder: (context) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+      child: _FrostedSurface(
+        sigma: 18,
+        borderRadius: BorderRadius.circular(24),
+        tint: const Color(0x14F7EEF2),
+        borderColor: const Color(0x7FE7D9E1),
+        shadowColor: const Color(0x22110810),
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
+        child: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '导入预览',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF241A1E),
+                    ),
+              ),
+              const SizedBox(height: 12),
+              _ImportSummaryView(summary: summary),
+              const SizedBox(height: 14),
+              _GlassDialogActionBar(
+                children: [
+                  _GlassDialogButton(
+                    label: '取消',
+                    onTap: () => Navigator.of(context).pop(false),
+                  ),
+                  _GlassDialogButton(
+                    label: '确认导入',
+                    primary: true,
+                    onTap: () => Navigator.of(context).pop(true),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('确认导入'),
-        ),
-      ],
     ),
   );
 }
@@ -1716,88 +2037,173 @@ Future<void> _showItemEditor(
 
   final saved = await _showGlassDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(item == null ? '新增条目' : '编辑条目'),
-      content: SizedBox(
-        width: 480,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleController,
-                decoration: const InputDecoration(labelText: '名称'),
+    builder: (context) {
+      final viewportHeight = MediaQuery.sizeOf(context).height;
+      final dialogHeight = (viewportHeight - 80).clamp(420.0, 760.0);
+      return Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+        child: _FrostedSurface(
+          sigma: 20,
+          borderRadius: BorderRadius.circular(28),
+          tint: const Color(0x14F7EEF2),
+          borderColor: const Color(0x7FE7D9E1),
+          shadowColor: const Color(0x24110810),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+          child: SizedBox(
+            width: 540,
+            height: dialogHeight,
+            child: Theme(
+              data: Theme.of(context).copyWith(
+                inputDecorationTheme:
+                    Theme.of(context).inputDecorationTheme.copyWith(
+                          filled: true,
+                          fillColor: const Color(0x26F7EEF2),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 16,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(22),
+                            borderSide: BorderSide.none,
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(22),
+                            borderSide: const BorderSide(
+                              color: Color(0x76E5D6DE),
+                              width: 1,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(22),
+                            borderSide: const BorderSide(
+                              color: Color(0xB4906174),
+                              width: 1.2,
+                            ),
+                          ),
+                          labelStyle: const TextStyle(
+                            color: Color(0xFF72636A),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: usernameController,
-                decoration: const InputDecoration(labelText: '账号'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: passwordController,
-                decoration: const InputDecoration(labelText: '密码'),
-              ),
-              const SizedBox(height: 8),
-              Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  Text(
+                    item == null ? '新增条目' : '编辑条目',
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          height: 1.12,
+                          color: const Color(0xFF241A1E),
+                        ),
+                  ),
+                  const SizedBox(height: 14),
                   Expanded(
-                    child: TextField(
-                      controller: lengthController,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: '自动密码长度'),
+                    child: Scrollbar(
+                      thumbVisibility: true,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.only(
+                            top: 10, right: 14, bottom: 4),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextField(
+                              controller: titleController,
+                              decoration:
+                                  const InputDecoration(labelText: '名称'),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: usernameController,
+                              decoration:
+                                  const InputDecoration(labelText: '账号'),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: passwordController,
+                              decoration:
+                                  const InputDecoration(labelText: '密码'),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextField(
+                                    controller: lengthController,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: '自动密码长度',
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                FilledButton.tonalIcon(
+                                  onPressed: () {
+                                    final length =
+                                        int.tryParse(lengthController.text) ??
+                                            20;
+                                    passwordController.text = controller
+                                        .generatePassword(length: length);
+                                  },
+                                  icon: const Icon(Icons.password_outlined),
+                                  label: const Text('生成密码'),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: urlController,
+                              decoration:
+                                  const InputDecoration(labelText: '网址'),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: totpController,
+                              decoration: const InputDecoration(
+                                labelText: 'TOTP 密钥 / otpauth URI',
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: tagsController,
+                              decoration: const InputDecoration(
+                                labelText: '标签（逗号分隔）',
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            TextField(
+                              controller: notesController,
+                              maxLines: 5,
+                              decoration:
+                                  const InputDecoration(labelText: '备注'),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  FilledButton.tonalIcon(
-                    onPressed: () {
-                      final length = int.tryParse(lengthController.text) ?? 20;
-                      passwordController.text =
-                          controller.generatePassword(length: length);
-                    },
-                    icon: const Icon(Icons.password_outlined),
-                    label: const Text('生成密码'),
+                  const SizedBox(height: 14),
+                  _GlassDialogActionBar(
+                    children: [
+                      _GlassDialogButton(
+                        label: '取消',
+                        onTap: () => Navigator.of(context).pop(false),
+                      ),
+                      _GlassDialogButton(
+                        label: '保存',
+                        primary: true,
+                        onTap: () => Navigator.of(context).pop(true),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: urlController,
-                decoration: const InputDecoration(labelText: '网址'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: totpController,
-                decoration: const InputDecoration(
-                  labelText: 'TOTP 密钥 / otpauth URI',
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: tagsController,
-                decoration: const InputDecoration(labelText: '标签（逗号分隔）'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: notesController,
-                maxLines: 5,
-                decoration: const InputDecoration(labelText: '备注'),
-              ),
-            ],
+            ),
           ),
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('取消'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('保存'),
-        ),
-      ],
-    ),
+      );
+    },
   );
 
   if (saved == true && context.mounted) {
@@ -1828,6 +2234,68 @@ Future<void> _showItemEditor(
   lengthController.dispose();
 }
 
+Future<void> _confirmDeleteItem(
+  BuildContext context, {
+  required VaultController controller,
+  required VaultItem item,
+}) async {
+  final confirmed = await _showGlassDialog<bool>(
+    context: context,
+    builder: (context) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+      child: _FrostedSurface(
+        sigma: 18,
+        borderRadius: BorderRadius.circular(24),
+        tint: const Color(0x12F6EBEF),
+        borderColor: const Color(0x74E6D7DE),
+        shadowColor: const Color(0x22110810),
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
+        child: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '删除条目',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF241A1E),
+                    ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                '确认删除“${item.title.trim().isEmpty ? '未命名条目' : item.title}”？',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: const Color(0xFF4A3B41),
+                    ),
+              ),
+              const SizedBox(height: 16),
+              _GlassDialogActionBar(
+                children: [
+                  _GlassDialogButton(
+                    label: '取消',
+                    onTap: () => Navigator.of(context).pop(false),
+                  ),
+                  _GlassDialogButton(
+                    label: '确认删除',
+                    destructive: true,
+                    onTap: () => Navigator.of(context).pop(true),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+  if (confirmed == true) {
+    await controller.deleteItem(item.id);
+  }
+}
+
 Future<void> _showItemDetails(
   BuildContext context, {
   required VaultController controller,
@@ -1835,50 +2303,79 @@ Future<void> _showItemDetails(
 }) {
   return _showGlassDialog<void>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(item.title),
-      content: SizedBox(
-        width: 500,
-        child: SingleChildScrollView(
+    builder: (context) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+      child: _FrostedSurface(
+        sigma: 18,
+        borderRadius: BorderRadius.circular(24),
+        tint: const Color(0x14F7EEF2),
+        borderColor: const Color(0x7FE7D9E1),
+        shadowColor: const Color(0x22110810),
+        padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
+        child: SizedBox(
+          width: 520,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _DetailRow(
-                label: '账号',
-                value: item.username,
-                onCopy: item.username.isEmpty
-                    ? null
-                    : () => controller.copySecret(item.username),
+              Text(
+                item.title,
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF241A1E),
+                    ),
               ),
-              _DetailRow(
-                label: '密码',
-                value: item.password,
-                onCopy: item.password.isEmpty
-                    ? null
-                    : () => controller.copySecret(item.password),
+              const SizedBox(height: 12),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _DetailRow(
+                        label: '账号',
+                        value: item.username,
+                        onCopy: item.username.isEmpty
+                            ? null
+                            : () => controller.copySecret(item.username),
+                      ),
+                      _DetailRow(
+                        label: '密码',
+                        value: item.password,
+                        onCopy: item.password.isEmpty
+                            ? null
+                            : () => controller.copySecret(item.password),
+                      ),
+                      _DetailRow(label: '网址', value: item.url),
+                      _DetailRow(label: '标签', value: item.tags.join(', ')),
+                      if ((item.totpSecret?.trim().isNotEmpty ?? false))
+                        _TotpPanel(
+                          secretOrUri: item.totpSecret!,
+                          onCopy: controller.copySecret,
+                        )
+                      else
+                        const _DetailRow(label: 'TOTP', value: ''),
+                      const SizedBox(height: 10),
+                      SelectableText(item.notes),
+                    ],
+                  ),
+                ),
               ),
-              _DetailRow(label: '网址', value: item.url),
-              _DetailRow(label: '标签', value: item.tags.join(', ')),
-              if ((item.totpSecret?.trim().isNotEmpty ?? false))
-                _TotpPanel(
-                  secretOrUri: item.totpSecret!,
-                  onCopy: controller.copySecret,
-                )
-              else
-                const _DetailRow(label: 'TOTP', value: ''),
-              const SizedBox(height: 10),
-              SelectableText(item.notes),
+              const SizedBox(height: 14),
+              _GlassDialogActionBar(
+                children: [
+                  _GlassDialogButton(
+                    label: '关闭',
+                    primary: true,
+                    onTap: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
       ),
-      actions: [
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('关闭'),
-        ),
-      ],
     ),
   );
 }
@@ -2108,6 +2605,7 @@ class _FrostedSurface extends StatelessWidget {
     this.borderColor,
     this.shadowColor,
     this.enableBlur = true,
+    this.specularStrength = 1,
   });
 
   final Widget child;
@@ -2118,6 +2616,7 @@ class _FrostedSurface extends StatelessWidget {
   final Color? borderColor;
   final Color? shadowColor;
   final bool enableBlur;
+  final double specularStrength;
 
   @override
   Widget build(BuildContext context) {
@@ -2129,6 +2628,7 @@ class _FrostedSurface extends StatelessWidget {
       borderColor: borderColor,
       shadowColor: shadowColor,
       enableBlur: enableBlur,
+      specularStrength: specularStrength,
       child: child,
     );
   }
@@ -2144,6 +2644,7 @@ class _LiquidGlassSurface extends StatelessWidget {
     this.borderColor,
     this.shadowColor,
     this.enableBlur = true,
+    this.specularStrength = 1,
   });
 
   final Widget child;
@@ -2154,6 +2655,7 @@ class _LiquidGlassSurface extends StatelessWidget {
   final Color? borderColor;
   final Color? shadowColor;
   final bool enableBlur;
+  final double specularStrength;
 
   @override
   Widget build(BuildContext context) {
@@ -2206,9 +2708,9 @@ class _LiquidGlassSurface extends StatelessWidget {
                 ),
                 child: CustomPaint(
                   foregroundPainter: _LiquidSpecularPainter(
-                    program: snapshot.data,
+                    program: specularStrength <= 0 ? null : snapshot.data,
                     borderRadius: borderRadius,
-                    strength: tier.shaderStrength,
+                    strength: tier.shaderStrength * specularStrength,
                   ),
                   child: decorated,
                 ),
@@ -2245,6 +2747,9 @@ class _LiquidSpecularPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) {
+      return;
+    }
+    if (strength <= 0) {
       return;
     }
     final rect = Offset.zero & size;
