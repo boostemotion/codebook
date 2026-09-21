@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:file_selector/file_selector.dart';
 
 class ImportExportService {
+  static const int maxVaultImportFileBytes = 16 * 1024 * 1024;
   static const XTypeGroup vaultFileGroup = XTypeGroup(
     label: '密码本文件',
     extensions: <String>['pwv'],
@@ -30,7 +31,11 @@ class ImportExportService {
   }
 
   Future<Uint8List> readFile(String path) async {
-    return Uint8List.fromList(await File(path).readAsBytes());
+    final file = File(path);
+    if (await file.length() > maxVaultImportFileBytes) {
+      throw FormatException('导入文件超过支持的最大大小。');
+    }
+    return Uint8List.fromList(await file.readAsBytes());
   }
 
   Future<void> writeFile(String path, Uint8List bytes) async {

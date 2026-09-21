@@ -53,6 +53,42 @@ void main() {
       throwsA(isA<FormatException>()),
     );
   });
+
+  test('vault data can restore and permanently remove soft-deleted items', () {
+    final createdAt = DateTime.utc(2026, 1, 1);
+    final item = VaultItem(
+      id: 'recycle-me',
+      title: 'Recycle me',
+      username: '',
+      password: '',
+      url: '',
+      notes: '',
+      tags: const [],
+      createdAt: createdAt,
+      updatedAt: createdAt,
+    );
+    final deleted = VaultData(items: [item], updatedAt: createdAt).markDeleted(
+      item.id,
+      createdAt.add(const Duration(minutes: 1)),
+    );
+
+    expect(deleted.activeItems, isEmpty);
+    expect(deleted.deletedItems.single.id, item.id);
+
+    final restored = deleted.restoreItem(
+      item.id,
+      createdAt.add(const Duration(minutes: 2)),
+    );
+    expect(restored.activeItems.single.id, item.id);
+    expect(restored.deletedItems, isEmpty);
+
+    final removed = deleted.removePermanently(
+      item.id,
+      createdAt.add(const Duration(minutes: 3)),
+    );
+    expect(removed.items, isEmpty);
+    expect(removed.updatedAt, createdAt.add(const Duration(minutes: 3)));
+  });
 }
 
 Uint8List _encodeJson(Map<String, dynamic> map) =>

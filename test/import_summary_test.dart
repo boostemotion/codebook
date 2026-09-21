@@ -110,6 +110,15 @@ class _MemoryVaultRepository extends VaultRepository {
   Future<bool> exists() async => document != null;
 
   @override
+  Future<VaultLoadResult> inspect() async => document == null
+      ? const VaultLoadResult(state: VaultStorageState.absent)
+      : VaultLoadResult(
+          state: VaultStorageState.available,
+          document: document,
+          rawBytes: document!.encode(),
+        );
+
+  @override
   Future<EncryptedVaultDocument?> load() async => document;
 
   @override

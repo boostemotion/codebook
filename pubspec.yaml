@@ -1,5 +1,6 @@
 name: cipherbook
 description: Local-first encrypted password vault for Android and Windows.
+version: 1.0.0+1
 publish_to: none
 
 environment:
@@ -22,5 +23,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  shaders:
-    - shaders/liquid_glass.frag

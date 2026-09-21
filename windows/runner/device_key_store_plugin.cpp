@@ -1,15 +1,15 @@
 #include "device_key_store_plugin.h"
 
+#include <UserConsentVerifierInterop.h>
 #include <flutter/encodable_value.h>
 #include <flutter/method_channel.h>
 #include <flutter/method_result_functions.h>
 #include <flutter/standard_method_codec.h>
 #include <shlobj.h>
-#include <UserConsentVerifierInterop.h>
+#include <wincrypt.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Security.Credentials.UI.h>
 #include <windows.h>
-#include <wincrypt.h>
 
 #include <chrono>
 #include <filesystem>
@@ -24,8 +24,7 @@ namespace {
 
 constexpr wchar_t kAppDataDirectory[] = L"Cipherbook";
 constexpr wchar_t kCacheFileName[] = L"quick_unlock.dpapi";
-constexpr wchar_t kWindowsHelloPrompt[] =
-    L"Use Windows Hello to unlock Cipherbook";
+constexpr wchar_t kWindowsHelloPrompt[] = L"Use Windows Hello to unlock Cipherbook";
 HWND g_auth_window = nullptr;
 
 bool RunOnMtaBoolWithTimeout(const std::function<bool()>& work,
@@ -64,7 +63,6 @@ std::filesystem::path CacheFilePath() {
   if (FAILED(result) || local_app_data == nullptr) {
     return {};
   }
-
   std::filesystem::path path(local_app_data);
   CoTaskMemFree(local_app_data);
   return path / kAppDataDirectory / kCacheFileName;
@@ -77,13 +75,11 @@ bool WriteFileBytes(const std::filesystem::path& path,
   if (error) {
     return false;
   }
-
   HANDLE file = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr,
                             CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
   if (file == INVALID_HANDLE_VALUE) {
     return false;
   }
-
   DWORD written = 0;
   const BOOL ok = WriteFile(file, bytes.data(), static_cast<DWORD>(bytes.size()),
                             &written, nullptr);
@@ -97,36 +93,29 @@ std::vector<uint8_t> ReadFileBytes(const std::filesystem::path& path) {
   if (file == INVALID_HANDLE_VALUE) {
     return {};
   }
-
   LARGE_INTEGER size;
   if (!GetFileSizeEx(file, &size) || size.QuadPart <= 0 ||
       size.QuadPart > static_cast<LONGLONG>(1024 * 1024)) {
     CloseHandle(file);
     return {};
   }
-
   std::vector<uint8_t> bytes(static_cast<size_t>(size.QuadPart));
   DWORD read = 0;
   const BOOL ok = ReadFile(file, bytes.data(), static_cast<DWORD>(bytes.size()),
                            &read, nullptr);
   CloseHandle(file);
-  if (!ok || read != bytes.size()) {
-    return {};
-  }
-  return bytes;
+  return ok && read == bytes.size() ? bytes : std::vector<uint8_t>();
 }
 
 std::vector<uint8_t> ProtectBytes(const std::vector<uint8_t>& plaintext) {
   DATA_BLOB input{};
-  input.pbData = const_cast<BYTE*>(plaintext.data());
   input.cbData = static_cast<DWORD>(plaintext.size());
-
+  input.pbData = const_cast<BYTE*>(plaintext.data());
   DATA_BLOB output{};
   if (!CryptProtectData(&input, L"Cipherbook quick unlock key", nullptr,
                         nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &output)) {
     return {};
   }
-
   std::vector<uint8_t> protected_bytes(output.pbData,
                                        output.pbData + output.cbData);
   LocalFree(output.pbData);
@@ -135,15 +124,13 @@ std::vector<uint8_t> ProtectBytes(const std::vector<uint8_t>& plaintext) {
 
 std::vector<uint8_t> UnprotectBytes(const std::vector<uint8_t>& protected_bytes) {
   DATA_BLOB input{};
-  input.pbData = const_cast<BYTE*>(protected_bytes.data());
   input.cbData = static_cast<DWORD>(protected_bytes.size());
-
+  input.pbData = const_cast<BYTE*>(protected_bytes.data());
   DATA_BLOB output{};
   if (!CryptUnprotectData(&input, nullptr, nullptr, nullptr, nullptr,
                           CRYPTPROTECT_UI_FORBIDDEN, &output)) {
     return {};
   }
-
   std::vector<uint8_t> plaintext(output.pbData, output.pbData + output.cbData);
   LocalFree(output.pbData);
   return plaintext;
@@ -154,13 +141,11 @@ bool IsWindowsHelloAvailable() {
   using winrt::Windows::Security::Credentials::UI::
       UserConsentVerifierAvailability;
   return RunOnMtaBoolWithTimeout(
-      []() {
-        const auto availability =
-            UserConsentVerifier::CheckAvailabilityAsync().get();
-        return availability == UserConsentVerifierAvailability::Available;
+      [] {
+        return UserConsentVerifier::CheckAvailabilityAsync().get() ==
+               UserConsentVerifierAvailability::Available;
       },
-      std::chrono::milliseconds(2500),
-      false);
+      std::chrono::milliseconds(2500), false);
 }
 
 HWND ResolveAuthWindow() {
@@ -173,26 +158,24 @@ HWND ResolveAuthWindow() {
 bool VerifyWithWindowsHello(HWND window) {
   using winrt::Windows::Foundation::IAsyncOperation;
   using winrt::Windows::Security::Credentials::UI::UserConsentVerifier;
-  using winrt::Windows::Security::Credentials::UI::UserConsentVerificationResult;
+  using winrt::Windows::Security::Credentials::UI::
+      UserConsentVerificationResult;
   if (window == nullptr) {
     return false;
   }
   return RunOnMtaBoolWithTimeout(
-      [window]() {
-        auto interop = winrt::get_activation_factory<UserConsentVerifier,
-                                                     IUserConsentVerifierInterop>();
+      [window] {
+        auto interop = winrt::get_activation_factory<
+            UserConsentVerifier, IUserConsentVerifierInterop>();
         IAsyncOperation<UserConsentVerificationResult> operation{nullptr};
         winrt::check_hresult(interop->RequestVerificationForWindowAsync(
             window,
-            reinterpret_cast<HSTRING>(
-                winrt::get_abi(winrt::hstring(kWindowsHelloPrompt))),
-            winrt::guid_of<decltype(operation)>(),
-            winrt::put_abi(operation)));
-        const auto verify_result = operation.get();
-        return verify_result == UserConsentVerificationResult::Verified;
+            reinterpret_cast<HSTRING>(winrt::get_abi(
+                winrt::hstring(kWindowsHelloPrompt))),
+            winrt::guid_of<decltype(operation)>(), winrt::put_abi(operation)));
+        return operation.get() == UserConsentVerificationResult::Verified;
       },
-      std::chrono::seconds(15),
-      false);
+      std::chrono::seconds(15), false);
 }
 
 void HandleMethodCall(
@@ -206,23 +189,16 @@ void HandleMethodCall(
                                             IsWindowsHelloAvailable()));
     return;
   }
-
   if (method == "hasWrappedDekCache") {
-    if (path.empty()) {
-      result->Success(flutter::EncodableValue(false));
-      return;
-    }
     std::error_code error;
-    const bool exists = std::filesystem::exists(path, error) && !error;
-    result->Success(flutter::EncodableValue(exists));
+    result->Success(flutter::EncodableValue(
+        !path.empty() && std::filesystem::exists(path, error) && !error));
     return;
   }
-
   if (path.empty()) {
     result->Error("unavailable", "Windows LocalAppData is unavailable.");
     return;
   }
-
   if (method == "storeWrappedDek") {
     const auto* bytes =
         std::get_if<std::vector<uint8_t>>(method_call.arguments());
@@ -230,8 +206,7 @@ void HandleMethodCall(
       result->Error("invalid_argument", "Expected non-empty Uint8List.");
       return;
     }
-
-    const std::vector<uint8_t> protected_bytes = ProtectBytes(*bytes);
+    const auto protected_bytes = ProtectBytes(*bytes);
     if (protected_bytes.empty() || !WriteFileBytes(path, protected_bytes)) {
       result->Error("write_failed", "Failed to store quick unlock key.");
       return;
@@ -239,40 +214,27 @@ void HandleMethodCall(
     result->Success();
     return;
   }
-
   if (method == "readWrappedDek") {
     auto async_result = std::move(result);
     const auto auth_window = ResolveAuthWindow();
-    std::thread(
-        [path, auth_window, result = std::move(async_result)]() mutable {
-          const std::vector<uint8_t> protected_bytes = ReadFileBytes(path);
-          if (protected_bytes.empty()) {
-            result->Success(flutter::EncodableValue());
-            return;
-          }
-          if (!VerifyWithWindowsHello(auth_window)) {
-            result->Success(flutter::EncodableValue());
-            return;
-          }
-
-          const std::vector<uint8_t> plaintext =
-              UnprotectBytes(protected_bytes);
-          if (plaintext.empty()) {
-            result->Success(flutter::EncodableValue());
-            return;
-          }
-          result->Success(flutter::EncodableValue(plaintext));
-        })
-        .detach();
+    std::thread([path, auth_window, result = std::move(async_result)]() mutable {
+      const auto protected_bytes = ReadFileBytes(path);
+      if (protected_bytes.empty() || !VerifyWithWindowsHello(auth_window)) {
+        result->Success(flutter::EncodableValue());
+        return;
+      }
+      const auto plaintext = UnprotectBytes(protected_bytes);
+      result->Success(plaintext.empty()
+                          ? flutter::EncodableValue()
+                          : flutter::EncodableValue(plaintext));
+    }).detach();
     return;
   }
-
   if (method == "clear") {
     DeleteFileW(path.c_str());
     result->Success();
     return;
   }
-
   result->NotImplemented();
 }
 
@@ -284,10 +246,8 @@ class DeviceKeyStorePluginImpl : public flutter::Plugin {
             registrar->messenger(),
             "dev.codex.cipherbook/device_key_store",
             &flutter::StandardMethodCodec::GetInstance())) {
-    if (registrar != nullptr) {
-      if (auto* view = registrar->GetView(); view != nullptr) {
-        g_auth_window = view->GetNativeWindow();
-      }
+    if (registrar != nullptr && registrar->GetView() != nullptr) {
+      g_auth_window = registrar->GetView()->GetNativeWindow();
     }
     channel_->SetMethodCallHandler(HandleMethodCall);
   }

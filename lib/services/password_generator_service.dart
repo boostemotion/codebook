@@ -17,8 +17,8 @@ class PasswordGeneratorService {
     bool includeDigits = true,
     bool includeSymbols = true,
   }) {
-    if (length < 8) {
-      throw ArgumentError('密码长度至少为 8 位。');
+    if (length < 8 || length > 128) {
+      throw ArgumentError('密码长度必须在 8 到 128 位之间。');
     }
 
     final pools = <String>[_lower];

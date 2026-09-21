@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:cipherbook/models/vault_models.dart';
@@ -80,6 +82,88 @@ void main() {
     expect(session.vaultData.activeItems.single.title, 'Forum');
     await expectLater(
       cryptoService.openVault(document: rewrapped, password: 'old-pass'),
+      throwsA(isA<VaultUnlockException>()),
+    );
+  });
+
+  test('rejects KDF settings outside conservative Argon2 bounds', () {
+    for (final memoryKiB in [
+      minVaultKdfMemoryKiB - 1,
+      256 * 1024,
+    ]) {
+      expect(
+        () => KdfConfig.fromJson({
+          'algorithm': vaultKdfAlgorithmArgon2id,
+          'memoryKiB': memoryKiB,
+          'iterations': 3,
+          'parallelism': 1,
+          'salt': 'AAAAAAAAAAAAAAAAAAAAAA==',
+        }),
+        throwsA(isA<FormatException>()),
+      );
+    }
+  });
+
+  test('rejects direct out-of-bounds KDFs before deriving a key', () async {
+    final cryptoService = CryptoService();
+
+    await expectLater(
+      cryptoService.deriveKekBytes(
+        'test-password',
+        KdfConfig(
+          memoryKiB: minVaultKdfMemoryKiB - 1,
+          iterations: 3,
+          parallelism: 1,
+          salt: Uint8List(vaultKdfSaltLength),
+        ),
+      ),
+      throwsA(isA<FormatException>()),
+    );
+  });
+
+  test('rekeying rejects an old wrapped DEK with the new payload', () async {
+    final cryptoService = CryptoService();
+    final original = await cryptoService.createVault(password: 'old-pass');
+    final rekeyed = await cryptoService.rewrapMasterPassword(
+      document: original,
+      oldPassword: 'old-pass',
+      newPassword: 'new-pass',
+    );
+    final mixed = EncryptedVaultDocument(
+      version: rekeyed.version,
+      kdf: original.kdf,
+      wrappedDek: original.wrappedDek,
+      payload: rekeyed.payload,
+      metadata: rekeyed.metadata,
+    );
+
+    await expectLater(
+      cryptoService.openVault(document: mixed, password: 'old-pass'),
+      throwsA(isA<VaultUnlockException>()),
+    );
+  });
+
+  test('password-protected export has an independent DEK', () async {
+    final cryptoService = CryptoService();
+    final original = await cryptoService.createVault(password: 'master-pass');
+    final session = await cryptoService.openVault(
+      document: original,
+      password: 'master-pass',
+    );
+    final exported = await cryptoService.createPasswordProtectedExport(
+      vaultData: session.vaultData,
+      password: 'export-pass',
+    );
+    final mixed = EncryptedVaultDocument(
+      version: exported.version,
+      kdf: original.kdf,
+      wrappedDek: original.wrappedDek,
+      payload: exported.payload,
+      metadata: exported.metadata,
+    );
+
+    await expectLater(
+      cryptoService.openVault(document: mixed, password: 'master-pass'),
       throwsA(isA<VaultUnlockException>()),
     );
   });

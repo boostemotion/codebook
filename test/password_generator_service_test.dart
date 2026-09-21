@@ -17,11 +17,15 @@ void main() {
         password.contains(RegExp(r'[!@#\$%\^&*\(\)\-_=+\[\]\{\}\?]')), isTrue);
   });
 
-  test('rejects short generated passwords', () {
+  test('rejects generated passwords outside the supported length range', () {
     final generator = PasswordGeneratorService(random: Random(1));
 
     expect(
       () => generator.generate(length: 6),
+      throwsArgumentError,
+    );
+    expect(
+      () => generator.generate(length: 129),
       throwsArgumentError,
     );
   });

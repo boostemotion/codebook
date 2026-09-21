@@ -38,8 +38,8 @@ class _CipherbookAppState extends State<CipherbookApp> {
 
   Future<void> _initializeController() async {
     await _controller.bootstrap();
-    // Debug mode should not overwrite an existing local vault.
-    if (kDebugMode && !_controller.hasVault) {
+    const seedDebugVault = bool.fromEnvironment('CIPHERBOOK_SEED_DEBUG_VAULT');
+    if (kDebugMode && seedDebugVault && _controller.canCreateVault) {
       await _controller.prepareDebugSession(seedCount: 10);
     }
   }
@@ -59,20 +59,64 @@ class _CipherbookAppState extends State<CipherbookApp> {
         Locale('zh', 'CN'),
       ],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      themeMode: ThemeMode.light,
-      theme: _buildTheme(),
+      themeMode: defaultTargetPlatform == TargetPlatform.android
+          ? ThemeMode.system
+          : ThemeMode.light,
+      theme: _buildTheme(Brightness.light),
+      darkTheme: _buildTheme(Brightness.dark),
       home: HomePage(controller: _controller),
     );
   }
 }
 
-ThemeData _buildTheme() {
-  const background = Color(0xFFF3EDEF);
+ThemeData _buildTheme(Brightness brightness) {
   final scheme = ColorScheme.fromSeed(
-    seedColor: const Color(0xFFB16986),
-    brightness: Brightness.light,
+    seedColor: const Color(0xFF2563EB),
+    brightness: brightness,
   );
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    final isDark = brightness == Brightness.dark;
+    final androidBackground =
+        isDark ? const Color(0xFF0F172A) : const Color(0xFFF6F7F9);
+    final androidSurface =
+        isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF);
+    final androidBorder =
+        isDark ? const Color(0xFF334155) : const Color(0xFFE4E7EC);
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: androidBackground,
+      visualDensity: VisualDensity.standard,
+      appBarTheme: AppBarTheme(
+        centerTitle: false,
+        backgroundColor: androidBackground,
+        surfaceTintColor: Colors.transparent,
+      ),
+      cardTheme: CardThemeData(
+        color: androidSurface,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: androidBorder),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: scheme.surface,
+        surfaceTintColor: scheme.surfaceTint,
+        showDragHandle: true,
+      ),
+    );
+  }
 
+  const background = Color(0xFFF6F7F9);
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
@@ -80,11 +124,11 @@ ThemeData _buildTheme() {
     visualDensity: VisualDensity.standard,
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
-      foregroundColor: const Color(0xFF20181C),
+      foregroundColor: const Color(0xFF101828),
       elevation: 0,
       centerTitle: false,
       titleTextStyle: const TextStyle(
-        color: Color(0xFF20181C),
+        color: Color(0xFF101828),
         fontSize: 21,
         fontWeight: FontWeight.w800,
         letterSpacing: 0.2,
@@ -93,33 +137,33 @@ ThemeData _buildTheme() {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: const Color(0xBFFFFFFF),
+      fillColor: const Color(0xFFFFFFFF),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(8),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
-        borderSide: const BorderSide(color: Color(0x3BA56B82)),
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFFD9DEE5)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(8),
         borderSide: BorderSide(color: scheme.primary, width: 1.2),
       ),
-      labelStyle: const TextStyle(color: Color(0xFF6A5A60)),
-      prefixIconColor: const Color(0xFF5F5057),
+      labelStyle: const TextStyle(color: Color(0xFF475467)),
+      prefixIconColor: const Color(0xFF667085),
     ),
     dialogTheme: DialogThemeData(
       backgroundColor: const Color(0xE8FFFFFF),
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(12),
       ),
     ),
     snackBarTheme: SnackBarThemeData(
-      backgroundColor: const Color(0xFF3A2D33),
+      backgroundColor: const Color(0xFF1D2939),
       contentTextStyle: const TextStyle(color: Colors.white),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       behavior: SnackBarBehavior.floating,
     ),
     bottomSheetTheme: const BottomSheetThemeData(

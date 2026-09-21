@@ -1,11 +1,27 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-const int vaultDocumentVersion = 1;
+const int legacyVaultDocumentVersion = 1;
+const int vaultDocumentVersion = 2;
 const String vaultKdfAlgorithmArgon2id = 'argon2id';
 const int vaultKdfSaltLength = 16;
 const int xchacha20NonceLength = 24;
 const int poly1305MacLength = 16;
+const int minVaultKdfMemoryKiB = 16 * 1024;
+const int maxVaultKdfMemoryKiB = 128 * 1024;
+const int minVaultKdfIterations = 1;
+const int maxVaultKdfIterations = 10;
+const int minVaultKdfParallelism = 1;
+const int maxVaultKdfParallelism = 8;
+const int maxVaultCiphertextBytes = 8 * 1024 * 1024;
+const int maxVaultItems = 10000;
+const int maxVaultTitleLength = 512;
+const int maxVaultUsernameLength = 1024;
+const int maxVaultPasswordLength = 4096;
+const int maxVaultUrlLength = 4096;
+const int maxVaultNotesLength = 65536;
+const int maxVaultTagCount = 64;
+const int maxVaultTagLength = 128;
 
 class KdfConfig {
   const KdfConfig({
@@ -37,17 +53,33 @@ class KdfConfig {
     final iterations = _readPositiveInt(json, key: 'iterations');
     final parallelism = _readPositiveInt(json, key: 'parallelism');
     final salt = _readBase64Bytes(json, key: 'salt');
-    if (salt.length != vaultKdfSaltLength) {
-      throw FormatException(
-        'Invalid KDF salt length: ${salt.length}. Expected $vaultKdfSaltLength.',
-      );
-    }
-    return KdfConfig(
+    final config = KdfConfig(
       memoryKiB: memoryKiB,
       iterations: iterations,
       parallelism: parallelism,
       salt: salt,
     );
+    config.validate();
+    return config;
+  }
+
+  void validate() {
+    if (memoryKiB < minVaultKdfMemoryKiB || memoryKiB > maxVaultKdfMemoryKiB) {
+      throw FormatException('KDF memory is outside supported bounds.');
+    }
+    if (iterations < minVaultKdfIterations ||
+        iterations > maxVaultKdfIterations) {
+      throw FormatException('KDF iterations are outside supported bounds.');
+    }
+    if (parallelism < minVaultKdfParallelism ||
+        parallelism > maxVaultKdfParallelism) {
+      throw FormatException('KDF parallelism is outside supported bounds.');
+    }
+    if (salt.length != vaultKdfSaltLength) {
+      throw FormatException(
+        'Invalid KDF salt length: ${salt.length}. Expected $vaultKdfSaltLength.',
+      );
+    }
   }
 }
 
@@ -80,33 +112,72 @@ class CipherPayload {
   }
 }
 
+class VaultMetadata {
+  const VaultMetadata({
+    required this.vaultId,
+    required this.keyGeneration,
+    required this.revision,
+  });
+
+  final String vaultId;
+  final int keyGeneration;
+  final int revision;
+
+  Map<String, dynamic> toJson() => {
+        'vaultId': vaultId,
+        'keyGeneration': keyGeneration,
+        'revision': revision,
+      };
+
+  factory VaultMetadata.fromJson(Map<String, dynamic> json) {
+    final metadata = VaultMetadata(
+      vaultId: _readRequiredString(json, key: 'vaultId'),
+      keyGeneration: _readRequiredInt(json, key: 'keyGeneration'),
+      revision: _readRequiredInt(json, key: 'revision'),
+    );
+    if (metadata.vaultId.length > 128 ||
+        metadata.keyGeneration < 1 ||
+        metadata.revision < 0) {
+      throw FormatException('Invalid vault metadata.');
+    }
+    return metadata;
+  }
+}
+
 class EncryptedVaultDocument {
   const EncryptedVaultDocument({
     required this.version,
     required this.kdf,
     required this.wrappedDek,
     required this.payload,
+    this.metadata,
   });
 
   final int version;
   final KdfConfig kdf;
   final CipherPayload wrappedDek;
   final CipherPayload payload;
+  final VaultMetadata? metadata;
 
   Map<String, dynamic> toJson() => {
         'version': version,
         'kdf': kdf.toJson(),
         'wrappedDek': wrappedDek.toJson(),
         'payload': payload.toJson(),
+        if (metadata != null) 'metadata': metadata!.toJson(),
       };
 
   factory EncryptedVaultDocument.fromJson(Map<String, dynamic> json) {
+    final version = _readRequiredInt(json, key: 'version');
     final document = EncryptedVaultDocument(
-      version: _readRequiredInt(json, key: 'version'),
+      version: version,
       kdf: KdfConfig.fromJson(_readRequiredMap(json, key: 'kdf')),
       wrappedDek:
           CipherPayload.fromJson(_readRequiredMap(json, key: 'wrappedDek')),
       payload: CipherPayload.fromJson(_readRequiredMap(json, key: 'payload')),
+      metadata: version == vaultDocumentVersion
+          ? VaultMetadata.fromJson(_readRequiredMap(json, key: 'metadata'))
+          : null,
     );
     document._validate();
     return document;
@@ -114,17 +185,30 @@ class EncryptedVaultDocument {
 
   Uint8List encode() => Uint8List.fromList(utf8.encode(jsonEncode(toJson())));
 
-  factory EncryptedVaultDocument.decode(Uint8List bytes) =>
-      EncryptedVaultDocument.fromJson(
-        jsonDecode(utf8.decode(bytes)) as Map<String, dynamic>,
-      );
+  factory EncryptedVaultDocument.decode(Uint8List bytes) {
+    if (bytes.length > maxVaultCiphertextBytes + 1024 * 1024) {
+      throw FormatException('Vault document exceeds supported size.');
+    }
+    try {
+      final decoded = jsonDecode(utf8.decode(bytes));
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Vault document root must be an object.');
+      }
+      return EncryptedVaultDocument.fromJson(decoded);
+    } on FormatException {
+      rethrow;
+    } on Object {
+      throw const FormatException('Vault document is not valid UTF-8 JSON.');
+    }
+  }
 
   void _validate() {
-    if (version != vaultDocumentVersion) {
-      throw FormatException(
-        'Unsupported vault document version: $version. '
-        'Expected $vaultDocumentVersion.',
-      );
+    if (version != legacyVaultDocumentVersion &&
+        version != vaultDocumentVersion) {
+      throw FormatException('Unsupported vault document version: $version.');
+    }
+    if (version == vaultDocumentVersion && metadata == null) {
+      throw const FormatException('Missing vault metadata.');
     }
     _validatePayload(wrappedDek, fieldName: 'wrappedDek');
     _validatePayload(payload, fieldName: 'payload');
@@ -146,8 +230,9 @@ class EncryptedVaultDocument {
         'Expected $poly1305MacLength.',
       );
     }
-    if (payload.cipherText.isEmpty) {
-      throw FormatException('Invalid $fieldName ciphertext: empty.');
+    if (payload.cipherText.isEmpty ||
+        payload.cipherText.length > maxVaultCiphertextBytes) {
+      throw FormatException('Invalid $fieldName ciphertext length.');
     }
   }
 }
@@ -227,23 +312,39 @@ class VaultItem {
         'deletedAt': deletedAt?.toUtc().toIso8601String(),
       };
 
-  factory VaultItem.fromJson(Map<String, dynamic> json) => VaultItem(
-        id: json['id'] as String,
-        title: json['title'] as String? ?? '',
-        username: json['username'] as String? ?? '',
-        password: json['password'] as String? ?? '',
-        url: json['url'] as String? ?? '',
-        notes: json['notes'] as String? ?? '',
-        tags: (json['tags'] as List<dynamic>? ?? const [])
-            .map((tag) => tag as String)
-            .toList(),
-        totpSecret: json['totpSecret'] as String?,
-        createdAt: DateTime.parse(json['createdAt'] as String).toLocal(),
-        updatedAt: DateTime.parse(json['updatedAt'] as String).toLocal(),
-        deletedAt: json['deletedAt'] == null
-            ? null
-            : DateTime.parse(json['deletedAt'] as String).toLocal(),
-      );
+  factory VaultItem.fromJson(Map<String, dynamic> json) {
+    final item = VaultItem(
+      id: _readRequiredString(json, key: 'id'),
+      title: _readOptionalString(json, key: 'title'),
+      username: _readOptionalString(json, key: 'username'),
+      password: _readOptionalString(json, key: 'password'),
+      url: _readOptionalString(json, key: 'url'),
+      notes: _readOptionalString(json, key: 'notes'),
+      tags: _readStringList(json, key: 'tags'),
+      totpSecret: _readOptionalNullableString(json, key: 'totpSecret'),
+      createdAt: _readRequiredDateTime(json, key: 'createdAt'),
+      updatedAt: _readRequiredDateTime(json, key: 'updatedAt'),
+      deletedAt: json['deletedAt'] == null
+          ? null
+          : _readRequiredDateTime(json, key: 'deletedAt'),
+    );
+    item.validate();
+    return item;
+  }
+
+  void validate() {
+    if (id.length > 128 ||
+        title.length > maxVaultTitleLength ||
+        username.length > maxVaultUsernameLength ||
+        password.length > maxVaultPasswordLength ||
+        url.length > maxVaultUrlLength ||
+        notes.length > maxVaultNotesLength ||
+        tags.length > maxVaultTagCount ||
+        tags.any((tag) => tag.length > maxVaultTagLength) ||
+        (totpSecret?.length ?? 0) > 1024) {
+      throw const FormatException('Vault item exceeds supported limits.');
+    }
+  }
 }
 
 class VaultData {
@@ -265,19 +366,43 @@ class VaultData {
         'updatedAt': updatedAt.toUtc().toIso8601String(),
       };
 
-  factory VaultData.fromJson(Map<String, dynamic> json) => VaultData(
-        items: (json['items'] as List<dynamic>? ?? const [])
-            .map((item) => VaultItem.fromJson(item as Map<String, dynamic>))
-            .toList(),
-        updatedAt: json['updatedAt'] == null
-            ? DateTime.now()
-            : DateTime.parse(json['updatedAt'] as String).toLocal(),
-      );
+  factory VaultData.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'];
+    if (rawItems is! List<dynamic> || rawItems.length > maxVaultItems) {
+      throw const FormatException('Invalid vault item collection.');
+    }
+    final data = VaultData(
+      items: rawItems.map((item) {
+        if (item is! Map<String, dynamic>) {
+          throw const FormatException('Vault item must be an object.');
+        }
+        return VaultItem.fromJson(item);
+      }).toList(),
+      updatedAt: json['updatedAt'] == null
+          ? DateTime.now()
+          : _readRequiredDateTime(json, key: 'updatedAt'),
+    );
+    data.validate();
+    return data;
+  }
+
+  void validate() {
+    if (items.length > maxVaultItems) {
+      throw const FormatException('Vault contains too many items.');
+    }
+    for (final item in items) {
+      item.validate();
+    }
+  }
 
   List<VaultItem> get activeItems => items
       .where((item) => !item.isDeleted)
       .toList()
     ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+
+  List<VaultItem> get deletedItems =>
+      items.where((item) => item.isDeleted).toList()
+        ..sort((a, b) => b.deletedAt!.compareTo(a.deletedAt!));
 
   VaultData upsert(VaultItem item) {
     final nextItems = [
@@ -300,6 +425,21 @@ class VaultData {
     }).toList();
     return copyWith(items: nextItems, updatedAt: deletedAt);
   }
+
+  VaultData restoreItem(String id, DateTime restoredAt) {
+    final nextItems = items.map((item) {
+      if (item.id != id) {
+        return item;
+      }
+      return item.copyWith(deletedAt: null, updatedAt: restoredAt);
+    }).toList();
+    return copyWith(items: nextItems, updatedAt: restoredAt);
+  }
+
+  VaultData removePermanently(String id, DateTime removedAt) => copyWith(
+        items: items.where((item) => item.id != id).toList(),
+        updatedAt: removedAt,
+      );
 
   VaultData merge(VaultData incoming) {
     final byId = <String, VaultItem>{
@@ -399,6 +539,52 @@ String _readRequiredString(Map<String, dynamic> json, {required String key}) {
     return value;
   }
   throw FormatException('Invalid or missing string field: $key');
+}
+
+String _readOptionalString(Map<String, dynamic> json, {required String key}) {
+  final value = json[key];
+  if (value == null) {
+    return '';
+  }
+  if (value is String) {
+    return value;
+  }
+  throw FormatException('Invalid string field: $key');
+}
+
+String? _readOptionalNullableString(
+  Map<String, dynamic> json, {
+  required String key,
+}) {
+  final value = json[key];
+  if (value == null || value is String) {
+    return value as String?;
+  }
+  throw FormatException('Invalid nullable string field: $key');
+}
+
+List<String> _readStringList(Map<String, dynamic> json, {required String key}) {
+  final value = json[key];
+  if (value == null) {
+    return const [];
+  }
+  if (value is! List<dynamic> || value.length > maxVaultTagCount) {
+    throw FormatException('Invalid list field: $key');
+  }
+  if (value.any((entry) => entry is! String)) {
+    throw FormatException('Invalid list item in field: $key');
+  }
+  return value.cast<String>();
+}
+
+DateTime _readRequiredDateTime(Map<String, dynamic> json,
+    {required String key}) {
+  final value = _readRequiredString(json, key: key);
+  try {
+    return DateTime.parse(value).toLocal();
+  } on FormatException {
+    throw FormatException('Invalid date field: $key');
+  }
 }
 
 Map<String, dynamic> _readRequiredMap(

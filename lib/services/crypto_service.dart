@@ -50,6 +50,7 @@ class CryptoService {
       keyEncryptionKey: kekBytes,
       dataEncryptionKey: dek,
       kdf: kdf,
+      metadata: _newMetadata(),
     );
   }
 
@@ -59,15 +60,19 @@ class CryptoService {
   }) async {
     try {
       final kekBytes = await deriveKekBytes(password, document.kdf);
-      return openVaultWithKek(
+      return await openVaultWithKek(
         document: document,
         keyEncryptionKey: kekBytes,
       );
+    } on VaultUnlockException {
+      rethrow;
     } on SecretBoxAuthenticationError {
       throw const VaultUnlockException(
         '解锁失败：密码错误或密码库文件已被修改。',
       );
     } on FormatException {
+      throw const VaultUnlockException('密码库文件格式无效。');
+    } on Object {
       throw const VaultUnlockException('密码库文件格式无效。');
     }
   }
@@ -80,12 +85,12 @@ class CryptoService {
       final dekBytes = await _decryptBytes(
         document.wrappedDek,
         SecretKey(keyEncryptionKey),
-        aad: _dekWrapAad,
+        aad: _dekWrapAadFor(document),
       );
       final payloadBytes = await _decryptBytes(
         document.payload,
         SecretKey(dekBytes),
-        aad: _vaultPayloadAad,
+        aad: _vaultPayloadAadFor(document),
       );
       return _sessionFromPayload(
         payloadBytes: payloadBytes,
@@ -97,6 +102,8 @@ class CryptoService {
         '解锁失败：密码错误或密码库文件已被修改。',
       );
     } on FormatException {
+      throw const VaultUnlockException('密码库文件格式无效。');
+    } on Object {
       throw const VaultUnlockException('密码库文件格式无效。');
     }
   }
@@ -128,22 +135,34 @@ class CryptoService {
     required Uint8List keyEncryptionKey,
     required Uint8List dataEncryptionKey,
     required KdfConfig kdf,
+    VaultMetadata? metadata,
   }) async {
+    vaultData.validate();
+    kdf.validate();
+    final documentMetadata = metadata ?? _newMetadata();
+    final aadDocument = EncryptedVaultDocument(
+      version: currentVersion,
+      kdf: kdf,
+      metadata: documentMetadata,
+      wrappedDek: _placeholderPayload(),
+      payload: _placeholderPayload(),
+    );
     final wrappedDek = await _encryptBytes(
       dataEncryptionKey,
       SecretKey(keyEncryptionKey),
-      aad: _dekWrapAad,
+      aad: _dekWrapAadFor(aadDocument),
     );
     final payload = await _encryptBytes(
       Uint8List.fromList(utf8.encode(jsonEncode(vaultData.toJson()))),
       SecretKey(dataEncryptionKey),
-      aad: _vaultPayloadAad,
+      aad: _vaultPayloadAadFor(aadDocument),
     );
     return EncryptedVaultDocument(
       version: currentVersion,
       kdf: kdf,
       wrappedDek: wrappedDek,
       payload: payload,
+      metadata: documentMetadata,
     );
   }
 
@@ -153,15 +172,31 @@ class CryptoService {
     required String newPassword,
   }) async {
     final session = await openVault(document: document, password: oldPassword);
-    return saveVault(
+    final previous = document.metadata;
+    final metadata = VaultMetadata(
+      vaultId: previous?.vaultId ?? _newMetadata().vaultId,
+      keyGeneration: (previous?.keyGeneration ?? 0) + 1,
+      revision: (previous?.revision ?? 0) + 1,
+    );
+    final kdf = _newKdf();
+    final kekBytes = await deriveKekBytes(newPassword, kdf);
+    return saveVaultWithKek(
       vaultData: session.vaultData,
-      password: newPassword,
-      dataEncryptionKey: session.dataEncryptionKey,
-      kdfOverride: document.kdf,
+      keyEncryptionKey: kekBytes,
+      dataEncryptionKey: _randomBytes(_keyLength),
+      kdf: kdf,
+      metadata: metadata,
     );
   }
 
+  Future<EncryptedVaultDocument> createPasswordProtectedExport({
+    required VaultData vaultData,
+    required String password,
+  }) =>
+      createVault(password: password, vaultData: vaultData);
+
   Future<Uint8List> deriveKekBytes(String password, KdfConfig kdf) async {
+    kdf.validate();
     final argon = Argon2id(
       memory: kdf.memoryKiB,
       iterations: kdf.iterations,
@@ -226,6 +261,41 @@ class CryptoService {
           ? null
           : Uint8List.fromList(keyEncryptionKey),
     );
+  }
+
+  KdfConfig _newKdf() => KdfConfig(
+        memoryKiB: _argonMemoryKiB,
+        iterations: _argonIterations,
+        parallelism: _argonParallelism,
+        salt: _randomBytes(vaultKdfSaltLength),
+      );
+
+  VaultMetadata _newMetadata() => VaultMetadata(
+        vaultId: base64UrlEncode(_randomBytes(18)).replaceAll('=', ''),
+        keyGeneration: 1,
+        revision: 0,
+      );
+
+  CipherPayload _placeholderPayload() => CipherPayload(
+        nonce: Uint8List(xchacha20NonceLength),
+        cipherText: Uint8List.fromList([0]),
+        mac: Uint8List(poly1305MacLength),
+      );
+
+  String _dekWrapAadFor(EncryptedVaultDocument document) {
+    if (document.version == legacyVaultDocumentVersion) {
+      return _dekWrapAad;
+    }
+    final metadata = document.metadata!;
+    return '$_dekWrapAad:${metadata.vaultId}:${metadata.keyGeneration}:${metadata.revision}';
+  }
+
+  String _vaultPayloadAadFor(EncryptedVaultDocument document) {
+    if (document.version == legacyVaultDocumentVersion) {
+      return _vaultPayloadAad;
+    }
+    final metadata = document.metadata!;
+    return '$_vaultPayloadAad:${metadata.vaultId}:${metadata.keyGeneration}:${metadata.revision}';
   }
 
   Uint8List _randomBytes(int length) {

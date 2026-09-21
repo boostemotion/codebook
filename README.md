@@ -1,122 +1,154 @@
-# Cipherbook（密码本）
+# Cipherbook
 
-本项目是一个本地优先的多端密码库，当前重点支持 Android 与 Windows。  
-核心特性：本地加密存储、导入导出（`.pwv`）、合并预览、TOTP、自动锁定、快速解锁（生物/DPAPI）。
+Cipherbook 是一个本地优先的跨设备密码库，当前支持 Windows 和 Android。
+密码库始终保存在本机加密文件中，不依赖云端账号或后端服务。
 
-## 功能概览
+## 功能
 
-- 本地加密密码库（主密码解锁）
-- 条目管理：新增、编辑、删除、搜索、复制
-- TOTP（支持 Base32 密钥和 `otpauth://` URI）
-- 导入/导出加密备份（`.pwv`）
-- 导入预览与合并摘要
-- 主密码修改（重包裹 DEK）
-- 快速解锁
-  - Android：Biometric + Android Keystore
-  - Windows：DPAPI
+- 主密码解锁的本地加密密码库
+- 新增、编辑、搜索、复制和回收站
+- TOTP：支持 Base32 密钥和 `otpauth://` URI
+- 加密备份导入、导出与导入预览
+- Windows 与 Android 局域网配对和加密同步
+- 主密码修改与自动锁定
+- 快速解锁：Android 生物识别、Windows Hello + DPAPI
+- Windows 和 Android 使用统一的 Cipherbook 锁图标
+
+## 技术栈
+
+- Flutter / Dart：跨平台 UI、状态编排和业务逻辑
+- Argon2id：从主密码派生密钥加密密钥（KEK）
+- XChaCha20-Poly1305：加密实际密码库数据
+- Android Keystore + Biometric：Android 快速解锁
+- Windows Hello + DPAPI：Windows 快速解锁
+- UDP 发现 + HTTP 加密文档传输：局域网配对
+
+项目没有传统后端。`lib/services/` 负责加密、文件存储、导入导出和网络同步，
+`lib/state/` 负责会话与业务编排，`lib/ui/` 只负责界面交互。
 
 ## 项目结构
 
-- `lib/`：Flutter 业务代码
-- `lib/ui/`：界面与交互
-- `lib/state/`：状态与控制器
-- `lib/services/`：加密、存储、导入导出等服务
-- `test/`：单元与流程测试
-- `android/`：Android 宿主工程
-- `windows/`：Windows 宿主工程
+```text
+lib/models/       数据模型与校验
+lib/services/     加密、存储、导入导出、TOTP、局域网同步
+lib/state/        VaultController 和导入计划
+lib/ui/           Android / Windows 界面
+android/          Android 宿主、Keystore 和生物识别
+windows/          Windows 宿主、Windows Hello 和 DPAPI
+packaging/        Windows 安装器脚本
+tools/            图标和开发辅助脚本
+docs/             架构与维护说明
+test/             单元测试和界面流程测试
+```
 
-## 开发与验证
+## 开发环境
 
-在项目根目录执行：
+建议使用以下工具链，并将工具安装在 `D:\DevTools` 等独立目录：
+
+- Flutter 3.47+
+- Dart 3.13+
+- Android SDK、JDK 17
+- Windows 10/11 SDK
+
+安装依赖：
 
 ```powershell
+$env:PUB_CACHE = 'D:\DevTools\pub-cache'
 flutter pub get
+```
+
+检查和测试：
+
+```powershell
 flutter analyze lib test
 flutter test
 ```
 
-## Android 使用
+## Android
 
-### 构建
-
-```powershell
-flutter build apk --debug
-flutter build apk --release
-```
-
-输出：
-
-- `build/app/outputs/flutter-apk/app-debug.apk`
-- `build/app/outputs/flutter-apk/app-release.apk`
-
-### ADB 安装与启动
+构建 Release APK：
 
 ```powershell
-adb devices
-adb install -r build\app\outputs\flutter-apk\app-release.apk
-adb shell monkey -p com.example.cipherbook -c android.intent.category.LAUNCHER 1
+$env:JAVA_HOME = 'D:\DevTools\jdk-17'
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
+$env:PUB_CACHE = 'D:\DevTools\pub-cache'
+flutter build apk --release --no-pub
 ```
 
-### 首次使用建议
+输出：`build\app\outputs\flutter-apk\app-release.apk`
 
-1. 创建主密码（建议高强度随机密码）
-2. 立即导出一份 `.pwv` 备份
-3. 再开启快速解锁（可选）
+通过 ADB 安装并启动：
 
-## Windows 使用
+```powershell
+$adb = 'D:\DevTools\android-sdk\platform-tools\adb.exe'
+& $adb devices
+& $adb install -r build\app\outputs\flutter-apk\app-release.apk
+& $adb shell monkey -p com.example.cipherbook -c android.intent.category.LAUNCHER 1
+```
 
-### 运行与构建
+当前 Release 构建使用 debug 签名，只适合本地安装和测试，不应直接作为公开发布版本。
+
+## Windows
+
+运行：
 
 ```powershell
 flutter run -d windows
-flutter build windows --release
 ```
 
-输出目录：
+构建：
 
-- `build\windows\x64\runner\Release\`
+```powershell
+$env:PUB_CACHE = 'D:\DevTools\pub-cache'
+flutter clean
+flutter pub get
+flutter build windows --release --no-pub
+```
 
-## 加密设计（简述）
+输出目录：`build\windows\x64\runner\Release\`
 
-- KDF：Argon2id（当前参数：`memory=64MB, iterations=3, parallelism=1`）
-- 对称加密：XChaCha20-Poly1305（AEAD）
-- 分层密钥：
-  - 主密码 -> 派生 KEK
-  - 随机 DEK 加密实际数据
-  - DEK 使用 KEK 包裹存储
+生成安装包：
 
-说明：本设计能有效抵抗离线穷举，但安全性仍依赖主密码强度与设备安全。
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\windows\build_installer.ps1
+```
 
-## 已知事项
+安装包：`dist\Cipherbook-Setup.exe`
 
-### 1) 中文路径下的 Release 构建问题
+安装器首次安装时选择目录，后续会读取 `HKCU\Software\Cipherbook` 和已有快捷方式定位安装目录。
+安装前会检查 `cipherbook.exe` 是否正在运行，并等待 IExpress 输出完整后再返回。
 
-若工程路径包含中文，Flutter AOT 在少数环境会出现 `app.dill` 读取失败。  
-建议将构建副本放到纯英文路径（如 `C:\temp\cipherbook_release_build`）后再构建 release。
+## 局域网配对与同步
 
-### 2) Debug 模式数据保护
+配对只在局域网内进行：
 
-调试模式下的“测试数据 seed”已增加保护：若检测到本地已有密码库，不会覆盖现有数据。
+1. 来源设备在“设备配对与同步”中开启分享。
+2. 目标设备发现来源设备并输入一次性配对码。
+3. 目标设备先预览变更，再确认导入。
+4. 后续只在应用处于前台、密码库已解锁时低频发现和同步。
 
-## 安全建议
+传输内容是加密的 `.pwv` 文档，不传输明文密码、主密码或 KEK。已有密码库按条目更新时间合并，
+本地较新的条目不会被来源设备覆盖。锁定或进入后台后会停止网络监听。
 
-- 不要把主密码保存到聊天工具、截图或明文笔记
-- 导出备份建议至少保留 1 份离线副本
-- 主密码丢失后无法恢复数据（无后门）
-- 复制到剪贴板的数据应尽快清理（应用已做自动清理）
+## 安全说明
 
-## 常见问题
+- 主密码丢失后无法恢复数据，不存在后门。
+- 密码库写入使用临时文件、备份文件和校验恢复流程。
+- 不要把主密码、TOTP 密钥或导出密码写入日志、截图或提交记录。
+- Android 已禁用系统自动备份，并使用安全窗口标记减少最近任务和截图泄露。
+- 正式发布前必须配置唯一的 Android application ID 和正式签名密钥，签名文件不得提交到 Git。
 
-### 1) 解锁失败但确认密码正确
+## 当前限制
 
-- 先确认安装的是同一套数据对应的应用包
-- 如之前经历过 debug 覆盖，可重建新库并恢复备份
-- 无备份且库已被覆盖时，旧数据无法恢复
+- iOS 尚未加入工程。Flutter 业务代码可以复用，但需要 macOS/Xcode、iOS Keychain/Face ID 原生桥接、
+  本地网络权限和 Apple 签名配置；Windows 上不能直接完成 iOS 签名发布。
+- Android 局域网同步依赖前台运行，不能承诺像桌面端一样长期后台监听。
+- 当前没有云端同步和服务端冲突解决；同步以本地加密文档和条目更新时间合并为边界。
+- Android Release 目前是 debug 签名，仅用于本地测试。
 
-### 2) `adb` 不可用
+## 维护约定
 
-将 Android SDK `platform-tools` 加入 PATH，或使用完整路径执行 `adb.exe`。
+业务逻辑放在 `lib/services/` 和 `lib/state/`，不要在 Widget 中直接写文件或调用平台 API。
+涉及加密、存储、导入、同步或会话锁定的修改必须补充针对性测试。
 
-### 3) Release 比 Debug 更流畅吗？
-
-是。Debug 有额外调试开销，性能评估应以 Release 为准。
+更详细的边界说明见 [`docs/architecture.md`](docs/architecture.md)。

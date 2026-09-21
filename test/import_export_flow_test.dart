@@ -121,6 +121,7 @@ void main() {
         cipherText: tamperedCipherText,
         mac: original.payload.mac,
       ),
+      metadata: original.metadata,
     );
 
     final destinationImportExport = _MemoryImportExportService()
@@ -146,6 +147,15 @@ class _MemoryVaultRepository extends VaultRepository {
 
   @override
   Future<bool> exists() async => document != null;
+
+  @override
+  Future<VaultLoadResult> inspect() async => document == null
+      ? const VaultLoadResult(state: VaultStorageState.absent)
+      : VaultLoadResult(
+          state: VaultStorageState.available,
+          document: document,
+          rawBytes: document!.encode(),
+        );
 
   @override
   Future<EncryptedVaultDocument?> load() async => document;

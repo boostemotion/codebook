@@ -22,7 +22,21 @@ class ClipboardService {
     });
   }
 
+  Future<void> clearIfOwned() async {
+    _clearTimer?.cancel();
+    final ownedText = _lastCopiedText;
+    if (ownedText == null) {
+      return;
+    }
+    final current = await Clipboard.getData('text/plain');
+    if (current?.text == ownedText) {
+      await Clipboard.setData(const ClipboardData(text: ''));
+    }
+    _lastCopiedText = null;
+  }
+
   void dispose() {
     _clearTimer?.cancel();
+    unawaited(clearIfOwned());
   }
 }

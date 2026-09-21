@@ -52,14 +52,20 @@ class TotpService {
 
     if (trimmed.startsWith('otpauth://')) {
       final uri = Uri.parse(trimmed);
+      if (uri.host.toLowerCase() != 'totp') {
+        throw ArgumentError('仅支持 otpauth://totp URI。');
+      }
       final secret = uri.queryParameters['secret'];
       if (secret == null || secret.trim().isEmpty) {
         throw ArgumentError('TOTP URI 中缺少密钥。');
       }
       final digits = int.tryParse(uri.queryParameters['digits'] ?? '') ?? 6;
       final period = int.tryParse(uri.queryParameters['period'] ?? '') ?? 30;
-      if (digits <= 0 || period <= 0) {
-        throw ArgumentError('TOTP 位数和刷新周期必须大于 0。');
+      if (digits != 6 && digits != 8) {
+        throw ArgumentError('TOTP 位数仅支持 6 或 8。');
+      }
+      if (period < 15 || period > 120) {
+        throw ArgumentError('TOTP 刷新周期必须在 15 到 120 秒之间。');
       }
       final algorithmName =
           (uri.queryParameters['algorithm'] ?? 'SHA1').toUpperCase();
@@ -89,6 +95,9 @@ class TotpService {
     if (cleaned.isEmpty) {
       throw ArgumentError('Base32 密钥格式无效。');
     }
+    if (const {1, 3, 6}.contains(cleaned.length % 8)) {
+      throw ArgumentError('Base32 密钥长度无效。');
+    }
 
     var buffer = 0;
     var bitsLeft = 0;
@@ -107,6 +116,12 @@ class TotpService {
       }
     }
 
+    if (bytes.isEmpty) {
+      throw ArgumentError('Base32 密钥格式无效。');
+    }
+    if (bitsLeft > 0 && (buffer & ((1 << bitsLeft) - 1)) != 0) {
+      throw ArgumentError('Base32 密钥填充位无效。');
+    }
     return Uint8List.fromList(bytes);
   }
 
