@@ -3,6 +3,51 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:cipherbook/models/vault_models.dart';
 
 void main() {
+  test('merge keeps items created independently on both devices', () {
+    final createdAt = DateTime(2026, 1, 1);
+    final local = VaultData(
+      items: [
+        VaultItem(
+          id: 'device-a-entry',
+          title: 'A entry',
+          username: 'a',
+          password: 'a-secret',
+          url: '',
+          notes: '',
+          tags: const [],
+          createdAt: createdAt,
+          updatedAt: createdAt,
+        ),
+      ],
+      updatedAt: createdAt,
+    );
+    final remote = VaultData(
+      items: [
+        VaultItem(
+          id: 'device-b-entry',
+          title: 'B entry',
+          username: 'b',
+          password: 'b-secret',
+          url: '',
+          notes: '',
+          tags: const [],
+          createdAt: createdAt,
+          updatedAt: createdAt,
+        ),
+      ],
+      updatedAt: createdAt,
+    );
+
+    final merged = local.merge(remote);
+
+    expect(
+        merged.items.map((item) => item.id),
+        containsAll([
+          'device-a-entry',
+          'device-b-entry',
+        ]));
+  });
+
   test('merge keeps latest item update', () {
     final original = VaultData(
       items: [

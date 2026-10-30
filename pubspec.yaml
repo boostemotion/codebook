@@ -1,6 +1,8 @@
 name: cipherbook
 description: Local-first encrypted password vault for Android and Windows.
-version: 1.0.0+1
+# App version (major.minor.patch) + monotonically increasing build number.
+# Android and Windows both inherit this value. See README.md for release rules.
+version: 1.2.1+4
 publish_to: none
 
 environment:

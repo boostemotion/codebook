@@ -11,11 +11,120 @@ import 'package:cipherbook/services/clipboard_service.dart';
 import 'package:cipherbook/services/crypto_service.dart';
 import 'package:cipherbook/services/device_key_store.dart';
 import 'package:cipherbook/services/import_export_service.dart';
+import 'package:cipherbook/services/lan_pairing_store.dart';
+import 'package:cipherbook/services/lan_sync_service.dart';
 import 'package:cipherbook/services/password_generator_service.dart';
 import 'package:cipherbook/services/vault_repository.dart';
 import 'package:cipherbook/state/vault_controller.dart';
 
 void main() {
+  test(
+      'one password sync merges phone, imported tablet and independent peer both ways',
+      () async {
+    final directories = <Directory>[];
+    final controllers = <VaultController>[];
+    final repositories = <_MemoryVaultRepository>[];
+    final hosts = <LanSyncHost>[];
+    addTearDown(() async {
+      for (final controller in controllers) {
+        await controller.stopLanSyncShare();
+        controller.dispose();
+      }
+      for (final directory in directories) {
+        await directory.delete(recursive: true);
+      }
+    });
+    for (var index = 0; index < 3; index++) {
+      final directory =
+          await Directory.systemTemp.createTemp('cipherbook-all-sync-');
+      directories.add(directory);
+      final store = LanPairingStore(directory: directory);
+      final repository = _MemoryVaultRepository();
+      repositories.add(repository);
+      final controller = _controller(
+        repository: repository,
+        pairingStore: store,
+        lanSyncService: _LocalPeersService(store, hosts),
+      );
+      controllers.add(controller);
+      await controller.bootstrap();
+      if (index == 1) {
+        final plan = await controller.previewImportBytes(
+          repositories.first.document!.encode(),
+          'shared-password',
+        );
+        expect(plan, isNotNull);
+        expect((await controller.applyImportPlan(plan!)).succeeded, isTrue);
+      } else {
+        expect((await controller.createVault('shared-password')).succeeded,
+            isTrue);
+      }
+    }
+    for (var index = 0; index < controllers.length; index++) {
+      await controllers[index].addOrUpdateItem(
+        title: 'Device $index entry',
+        username: 'user',
+        password: 'secret',
+        url: '',
+        notes: '',
+        tags: const [],
+      );
+      expect((await controllers[index].startLanSyncShare()).succeeded, isTrue);
+      hosts.add(controllers[index].lanSyncHost!);
+    }
+    expect(repositories[0].document!.metadata!.vaultId,
+        repositories[1].document!.metadata!.vaultId);
+    expect(repositories[0].document!.metadata!.vaultId,
+        isNot(repositories[2].document!.metadata!.vaultId));
+    final rejected =
+        await controllers.first.syncLanWithPassword('wrong-password');
+    expect(rejected.succeeded, isFalse);
+    expect(controllers.first.vaultData.activeItems, hasLength(1));
+
+    final result =
+        await controllers.first.syncLanWithPassword('shared-password');
+    expect(result.succeeded, isTrue, reason: controllers.first.message);
+    expect(controllers.first.lanSyncPeers, hasLength(2));
+    expect(controllers.first.message, contains('2 台设备'));
+    final ids =
+        controllers.first.vaultData.activeItems.map((item) => item.id).toSet();
+    expect(ids, hasLength(3));
+    for (final controller in controllers) {
+      expect(
+          controller.vaultData.activeItems.map((item) => item.id).toSet(), ids);
+    }
+    final revisions =
+        repositories.map((repo) => repo.document!.metadata!.revision).toList();
+    expect(
+        (await controllers[1].syncLanWithPassword('shared-password')).succeeded,
+        isTrue);
+    expect(
+        repositories.map((repo) => repo.document!.metadata!.revision).toList(),
+        revisions);
+
+    await controllers.first.addOrUpdateItem(
+      title: 'Added on phone after first sync',
+      username: 'new',
+      password: 'new-secret',
+      url: '',
+      notes: '',
+      tags: const [],
+    );
+    repositories[2].failNextSave = true;
+    final partial = await controllers[1].syncLanWithPassword('shared-password');
+    expect(partial.succeeded, isTrue);
+    expect(controllers[1].message, contains('1 台设备未完成'));
+    expect(controllers[1].vaultData.activeItems, hasLength(4));
+    expect(controllers[2].vaultData.activeItems, hasLength(3));
+    final retry = await controllers[1].syncLanWithPassword('shared-password');
+    expect(retry.succeeded, isTrue);
+    for (final controller in controllers) {
+      expect(controller.vaultData.activeItems, hasLength(4));
+      expect(controller.vaultData.activeItems.map((item) => item.title),
+          contains('Added on phone after first sync'));
+    }
+  });
+
   test('quick unlock can reopen and continue saving', () async {
     final repository = _MemoryVaultRepository();
     final deviceKeyStore = _MemoryDeviceKeyStore();
@@ -719,6 +828,8 @@ VaultController _controller({
   ImportExportService? importExportService,
   DeviceKeyStore? deviceKeyStore,
   ClipboardService? clipboardService,
+  LanPairingStore? pairingStore,
+  LanSyncService? lanSyncService,
 }) =>
     VaultController(
       repository: repository,
@@ -727,7 +838,31 @@ VaultController _controller({
       deviceKeyStore: deviceKeyStore ?? _MemoryDeviceKeyStore(),
       passwordGeneratorService: PasswordGeneratorService(random: Random(4)),
       clipboardService: clipboardService ?? _MemoryClipboardService(),
+      pairingStore: pairingStore,
+      lanSyncService: lanSyncService,
     );
+
+class _LocalPeersService extends LanSyncService {
+  _LocalPeersService(LanPairingStore store, this.hosts)
+      : super(pairingStore: store);
+  final List<LanSyncHost> hosts;
+
+  @override
+  Future<List<LanSyncPeer>> discover(
+          {Duration timeout = const Duration(seconds: 2)}) async =>
+      [
+        for (final host in hosts)
+          LanSyncPeer(
+              address: '127.0.0.1',
+              port: host.port,
+              deviceName: host.deviceName,
+              deviceId: host.deviceId,
+              vaultId: host.vaultId,
+              revision: host.revision,
+              kdf: host.kdf,
+              challenge: host.challenge),
+      ];
+}
 
 class _ControllableCryptoService extends CryptoService {
   Completer<void>? _createGate;

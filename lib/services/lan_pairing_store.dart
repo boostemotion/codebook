@@ -4,6 +4,8 @@ import 'dart:math';
 
 import 'package:path_provider/path_provider.dart';
 
+const String pendingLanPeerName = '已配对设备';
+
 class LanPairingIdentity {
   const LanPairingIdentity({required this.deviceId, required this.accessToken});
 
@@ -76,7 +78,7 @@ class LanPairingRecord {
         address is! String ||
         address.isEmpty ||
         port is! int ||
-        port < 1 ||
+        port < 0 ||
         port > 65535 ||
         vaultId is! String ||
         vaultId.isEmpty ||
@@ -98,6 +100,26 @@ class LanPairingRecord {
       lastSeen: DateTime.parse(lastSeen).toLocal(),
     );
   }
+
+  LanPairingRecord copyWith({
+    String? deviceName,
+    String? address,
+    int? port,
+    String? vaultId,
+    String? accessToken,
+    int? revision,
+    DateTime? lastSeen,
+  }) =>
+      LanPairingRecord(
+        deviceId: deviceId,
+        deviceName: deviceName ?? this.deviceName,
+        address: address ?? this.address,
+        port: port ?? this.port,
+        vaultId: vaultId ?? this.vaultId,
+        accessToken: accessToken ?? this.accessToken,
+        revision: revision ?? this.revision,
+        lastSeen: lastSeen ?? this.lastSeen,
+      );
 }
 
 class LanPairingStore {
@@ -153,10 +175,27 @@ class LanPairingStore {
 
   Future<void> savePeer(LanPairingRecord record) async {
     final peers = await loadPeers();
+    final existing =
+        peers.where((peer) => peer.deviceId == record.deviceId).firstOrNull;
+    final nextRecord = existing == null
+        ? record
+        : existing.copyWith(
+            deviceName: record.deviceName == pendingLanPeerName
+                ? existing.deviceName
+                : record.deviceName,
+            address: record.address,
+            port: record.port == 0 ? existing.port : record.port,
+            vaultId: record.vaultId,
+            accessToken: record.accessToken,
+            revision: record.revision > existing.revision
+                ? record.revision
+                : existing.revision,
+            lastSeen: record.lastSeen,
+          );
     final next = [
       for (final peer in peers)
         if (peer.deviceId != record.deviceId) peer,
-      record,
+      nextRecord,
     ];
     final file = await _file('lan-peers.json');
     await file.parent.create(recursive: true);
@@ -186,4 +225,8 @@ class LanPairingStore {
   String _token(int byteCount) => base64UrlEncode(
         List<int>.generate(byteCount, (_) => _random.nextInt(256)),
       ).replaceAll('=', '');
+}
+
+extension<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
 }

@@ -5,8 +5,16 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+$pubspec = Get-Content -LiteralPath (Join-Path $RepositoryRoot 'pubspec.yaml') -Raw
+$versionMatch = [regex]::Match($pubspec, '(?m)^version:\s*(\d+\.\d+\.\d+)\+(\d+)\s*$')
+if (-not $versionMatch.Success) {
+    throw 'pubspec.yaml must declare version: major.minor.patch+build.'
+}
+$appVersion = $versionMatch.Groups[1].Value
+$buildNumber = $versionMatch.Groups[2].Value
+
 if ([string]::IsNullOrWhiteSpace($OutputPath)) {
-    $OutputPath = Join-Path $RepositoryRoot 'dist\Cipherbook-Setup.exe'
+    $OutputPath = Join-Path $RepositoryRoot "dist\Cipherbook-$appVersion+$buildNumber-windows-setup.exe"
 }
 
 $buildReleasePath = Join-Path $RepositoryRoot 'build\windows\x64\runner\Release'
@@ -24,6 +32,13 @@ $cmdPath = Join-Path $env:WINDIR 'System32\cmd.exe'
 
 if (-not (Test-Path -LiteralPath (Join-Path $releasePath 'cipherbook.exe'))) {
     throw "找不到 Windows Release 产物: $buildReleasePath 或 $fallbackReleasePath"
+}
+$binaryVersion = (Get-Item -LiteralPath (Join-Path $releasePath 'cipherbook.exe')).VersionInfo
+if ($binaryVersion.FileMajorPart -ne [int]$appVersion.Split('.')[0] -or
+    $binaryVersion.FileMinorPart -ne [int]$appVersion.Split('.')[1] -or
+    $binaryVersion.FileBuildPart -ne [int]$appVersion.Split('.')[2] -or
+    $binaryVersion.FilePrivatePart -ne [int]$buildNumber) {
+    throw 'Windows release version does not match pubspec.yaml. Rebuild before packaging.'
 }
 if (-not (Test-Path -LiteralPath $iexpressPath)) {
     throw "找不到 Windows IExpress: $iexpressPath"
@@ -75,9 +90,9 @@ SourceFiles=SourceFiles
 [Strings]
 InstallPrompt=
 DisplayLicense=
-FinishMessage=Cipherbook installation completed.
+FinishMessage=Cipherbook $appVersion installation completed.
 TargetName=$OutputPath
-FriendlyName=Cipherbook
+FriendlyName=Cipherbook $appVersion
 AppLaunched=$cmdPath /c install.cmd
 PostInstallCmd=<None>
 AdminQuietInstCmd=

@@ -14,6 +14,7 @@ import 'lan_pairing_store.dart';
 const int lanSyncDiscoveryPort = 45821;
 const int lanSyncMaxDocumentBytes = 16 * 1024 * 1024;
 const String lanSyncPath = '/cipherbook/sync/v1/download';
+const String lanSyncUploadPath = '/cipherbook/sync/v1/merge';
 
 class LanSyncPeer {
   const LanSyncPeer({
@@ -80,6 +81,8 @@ class LanSyncHost {
     required Uint8List? authorizationKey,
     required this.pairingCode,
     required this.deviceName,
+    required LanPairingStore pairingStore,
+    required this.onMerge,
     required this.addresses,
     required String vaultId,
     required int revision,
@@ -92,7 +95,8 @@ class LanSyncHost {
         _releaseNetworkLock = releaseNetworkLock,
         _authorizationKey = authorizationKey == null
             ? null
-            : Uint8List.fromList(authorizationKey);
+            : Uint8List.fromList(authorizationKey),
+        _pairingStore = pairingStore;
 
   final HttpServer _server;
   final RawDatagramSocket? _discoverySocket;
@@ -106,6 +110,8 @@ class LanSyncHost {
   KdfConfig get kdf => _kdf;
   final String challenge;
   Uint8List? _authorizationKey;
+  final LanPairingStore _pairingStore;
+  final Future<void> Function(Uint8List)? onMerge;
 
   final String pairingCode;
   final String deviceName;
@@ -150,7 +156,11 @@ class LanSyncHost {
   }
 
   Future<void> handleRequest(HttpRequest request) async {
-    if (request.uri.path != lanSyncPath || request.method != 'GET') {
+    final uploading = request.uri.path == lanSyncUploadPath &&
+        request.method == 'POST' &&
+        onMerge != null;
+    if (!uploading &&
+        (request.uri.path != lanSyncPath || request.method != 'GET')) {
       request.response.statusCode = HttpStatus.notFound;
       await request.response.close();
       return;
@@ -175,6 +185,61 @@ class LanSyncHost {
       request.response.statusCode = HttpStatus.unauthorized;
       await request.response.close();
       return;
+    }
+
+    if (uploading) {
+      try {
+        final bytes = <int>[];
+        await for (final chunk
+            in request.timeout(const Duration(seconds: 15))) {
+          if (bytes.length + chunk.length > lanSyncMaxDocumentBytes) {
+            throw const FormatException('同步文件过大。');
+          }
+          bytes.addAll(chunk);
+        }
+        await onMerge!(Uint8List.fromList(bytes));
+        request.response.statusCode = HttpStatus.noContent;
+      } on Object {
+        request.response.statusCode = HttpStatus.conflict;
+      }
+      await request.response.close();
+      return;
+    }
+
+    final clientDeviceId =
+        request.headers.value('x-cipherbook-client-device-id') ?? '';
+    final clientAccessToken =
+        request.headers.value('x-cipherbook-client-device-token') ?? '';
+    if (clientDeviceId.length >= 8 &&
+        clientAccessToken.length >= 32 &&
+        clientDeviceId != deviceId) {
+      try {
+        final existingPeers = await _pairingStore.loadPeers();
+        final existingPeer = existingPeers
+            .where(
+              (peer) => peer.deviceId == clientDeviceId,
+            )
+            .firstOrNull;
+        await _pairingStore.savePeer(
+          LanPairingRecord(
+            deviceId: clientDeviceId,
+            deviceName:
+                request.headers.value('x-cipherbook-client-device-name') ??
+                    pendingLanPeerName,
+            address: request.connectionInfo?.remoteAddress.address ?? '',
+            port: 0,
+            vaultId: request.headers.value('x-cipherbook-client-vault-id') ??
+                vaultId,
+            accessToken: clientAccessToken,
+            // Receiving a request proves the peer is reachable, but does not
+            // mean this host has merged the peer's vault yet.
+            revision: existingPeer?.revision ?? 0,
+            lastSeen: DateTime.now(),
+          ),
+        );
+      } on Object {
+        // Pairing metadata is best effort and must not interrupt a valid sync.
+      }
     }
 
     final response = request.response
@@ -241,6 +306,7 @@ class LanSyncService {
     required Uint8List documentBytes,
     String? deviceName,
     Uint8List? authorizationKey,
+    Future<void> Function(Uint8List)? onMerge,
   }) async {
     if (documentBytes.length > lanSyncMaxDocumentBytes) {
       throw const FormatException('密码库文件超过局域网同步支持的最大大小。');
@@ -282,6 +348,8 @@ class LanSyncService {
           networkLockAcquired ? _networkService.releaseMulticastLock : null,
       deviceId: identity.deviceId,
       accessToken: identity.accessToken,
+      pairingStore: _pairingStore,
+      onMerge: onMerge,
       kdf: document.kdf,
       challenge: challenge,
       authorizationKey: authorizationKey,
@@ -335,6 +403,7 @@ class LanSyncService {
   }
 
   Future<List<LanSyncPeer>> _discover(Duration timeout) async {
+    final identity = await _pairingStore.loadOrCreateIdentity();
     final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
     socket.broadcastEnabled = true;
     final peers = <String, LanSyncPeer>{};
@@ -374,6 +443,7 @@ class LanSyncService {
           port > 65535 ||
           vaultId.isEmpty ||
           deviceId.isEmpty ||
+          deviceId == identity.deviceId ||
           kdf == null ||
           challenge is! String ||
           challenge.isEmpty) {
@@ -436,9 +506,18 @@ class LanSyncService {
         !canUsePasswordProof) {
       throw ArgumentError('配对码无效。');
     }
-    final client = HttpClient();
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10);
     try {
-      final request = await client.get(peer.address, peer.port, lanSyncPath);
+      final identity = await _pairingStore.loadOrCreateIdentity();
+      final request = await client
+          .get(peer.address, peer.port, lanSyncPath)
+          .timeout(const Duration(seconds: 10));
+      request.headers
+        ..set('x-cipherbook-client-device-id', identity.deviceId)
+        ..set('x-cipherbook-client-device-token', identity.accessToken)
+        ..set('x-cipherbook-client-device-name', Platform.localHostname)
+        ..set('x-cipherbook-client-vault-id', peer.vaultId);
       if (normalizedCode != null && normalizedCode.isNotEmpty) {
         request.headers.set('x-cipherbook-pairing', normalizedCode);
       }
@@ -447,7 +526,7 @@ class LanSyncService {
       }
       if (canUsePasswordProof) {
         final key = await _cryptoService.deriveKekBytes(
-          sharedPassword!.trim(),
+          sharedPassword!,
           peer.kdf!,
         );
         final mac = await Hmac.sha256().calculateMac(
@@ -459,7 +538,8 @@ class LanSyncService {
           base64UrlEncode(mac.bytes),
         );
       }
-      final response = await request.close();
+      final response =
+          await request.close().timeout(const Duration(seconds: 10));
       if (response.statusCode != HttpStatus.ok) {
         throw StateError(
           response.statusCode == HttpStatus.unauthorized
@@ -468,7 +548,7 @@ class LanSyncService {
         );
       }
       final bytes = <int>[];
-      await for (final chunk in response) {
+      await for (final chunk in response.timeout(const Duration(seconds: 10))) {
         if (bytes.length + chunk.length > lanSyncMaxDocumentBytes) {
           throw const FormatException('局域网同步文件超过支持的最大大小。');
         }
@@ -486,6 +566,38 @@ class LanSyncService {
           response.headers.value('x-cipherbook-revision') ?? '',
         ),
       );
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  Future<void> uploadMerged({
+    required LanSyncPeer peer,
+    required String accessToken,
+    required Uint8List documentBytes,
+  }) async {
+    if (documentBytes.length > lanSyncMaxDocumentBytes) {
+      throw const FormatException('同步文件过大。');
+    }
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 10);
+    try {
+      final request = await client
+          .post(peer.address, peer.port, lanSyncUploadPath)
+          .timeout(const Duration(seconds: 10));
+      request.headers
+        ..set('x-cipherbook-device-token', accessToken)
+        ..contentType = ContentType.binary
+        ..contentLength = documentBytes.length;
+      request.add(documentBytes);
+      final response =
+          await request.close().timeout(const Duration(seconds: 15));
+      await response.drain<void>().timeout(const Duration(seconds: 10));
+      if (response.statusCode != HttpStatus.noContent) {
+        throw StateError(response.statusCode == HttpStatus.notFound
+            ? '对端版本过旧，请更新后再同步。'
+            : '对端未能确认合并，请保持应用已解锁后重试。');
+      }
     } finally {
       client.close(force: true);
     }

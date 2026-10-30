@@ -940,11 +940,6 @@ class _VaultViewState extends State<_VaultView> {
   final TextEditingController _addPasswordController = TextEditingController();
   final TextEditingController _addUrlController = TextEditingController();
   final TextEditingController _addNotesController = TextEditingController();
-  final TextEditingController _addTagsController = TextEditingController();
-  final TextEditingController _addTotpController = TextEditingController();
-  final TextEditingController _addLengthController = TextEditingController(
-    text: '20',
-  );
   final TextEditingController _importPasswordController =
       TextEditingController();
   final TextEditingController _exportPasswordController =
@@ -963,9 +958,6 @@ class _VaultViewState extends State<_VaultView> {
     _addPasswordController.dispose();
     _addUrlController.dispose();
     _addNotesController.dispose();
-    _addTagsController.dispose();
-    _addTotpController.dispose();
-    _addLengthController.dispose();
     _importPasswordController.dispose();
     _exportPasswordController.dispose();
     _oldPasswordController.dispose();
@@ -986,8 +978,6 @@ class _VaultViewState extends State<_VaultView> {
     _addPasswordController.clear();
     _addUrlController.clear();
     _addNotesController.clear();
-    _addTagsController.clear();
-    _addTotpController.clear();
     _importPasswordController.clear();
     _exportPasswordController.clear();
     _oldPasswordController.clear();
@@ -1375,43 +1365,14 @@ class _VaultViewState extends State<_VaultView> {
               ),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _addLengthController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: '自动密码长度'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                FilledButton.tonalIcon(
-                  onPressed: () {
-                    final length =
-                        int.tryParse(_addLengthController.text) ?? 20;
-                    _addPasswordController.text =
-                        widget.controller.generatePassword(length: length);
-                    _glassPerfBus.pulse();
-                  },
-                  icon: const Icon(Icons.password_outlined),
-                  label: const Text('生成密码'),
-                ),
-              ],
+            _PasswordGeneratorControl(
+              controller: widget.controller,
+              onGenerated: (password) => _addPasswordController.text = password,
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _addUrlController,
               decoration: const InputDecoration(labelText: '网址'),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _addTotpController,
-              decoration: const InputDecoration(labelText: 'TOTP 密钥 / URI'),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _addTagsController,
-              decoration: const InputDecoration(labelText: '标签（逗号分隔）'),
             ),
             const SizedBox(height: 8),
             TextField(
@@ -1426,19 +1387,13 @@ class _VaultViewState extends State<_VaultView> {
                 onPressed: widget.controller.busy
                     ? null
                     : () async {
-                        final tags = _addTagsController.text
-                            .split(',')
-                            .map((value) => value.trim())
-                            .where((value) => value.isNotEmpty)
-                            .toList();
                         final result = await widget.controller.addOrUpdateItem(
                           title: _addTitleController.text,
                           username: _addUsernameController.text,
                           password: _addPasswordController.text,
                           url: _addUrlController.text,
                           notes: _addNotesController.text,
-                          tags: tags,
-                          totpSecret: _addTotpController.text,
+                          tags: const [],
                         );
                         if (!mounted || !result.succeeded) {
                           return;
@@ -1452,8 +1407,6 @@ class _VaultViewState extends State<_VaultView> {
                         _addPasswordController.clear();
                         _addUrlController.clear();
                         _addNotesController.clear();
-                        _addTagsController.clear();
-                        _addTotpController.clear();
                       },
                 icon: const Icon(Icons.check_rounded),
                 label: const Text('保存条目'),
@@ -2769,13 +2722,19 @@ class _DockPopupEntrance extends StatelessWidget {
 Future<T?> _showGlassDialog<T>({
   required BuildContext context,
   required WidgetBuilder builder,
-}) {
+}) async {
   _glassPerfBus.pulse(heavy: true);
-  return showDialog<T>(
+  final navigator = Navigator.of(context, rootNavigator: true);
+  final route = DialogRoute<T>(
     context: context,
+    themes: InheritedTheme.capture(from: context, to: navigator.context),
     barrierColor: _kDialogBarrierColor,
     builder: (context) => _DockPopupEntrance(child: builder(context)),
-  ).whenComplete(_glassPerfBus.pulse);
+  );
+  final result = await navigator.push(route);
+  await route.completed;
+  _glassPerfBus.pulse();
+  return result;
 }
 
 class _GlassDialogActionBar extends StatelessWidget {
@@ -2905,6 +2864,49 @@ Future<bool?> _showImportSummaryDialog(
   );
 }
 
+class _PasswordGeneratorControl extends StatefulWidget {
+  const _PasswordGeneratorControl(
+      {required this.controller, required this.onGenerated});
+
+  final VaultController controller;
+  final ValueChanged<String> onGenerated;
+
+  @override
+  State<_PasswordGeneratorControl> createState() =>
+      _PasswordGeneratorControlState();
+}
+
+class _PasswordGeneratorControlState extends State<_PasswordGeneratorControl> {
+  int _length = 20;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+        alignment: WrapAlignment.end,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 12,
+        children: [
+          DropdownButton<int>(
+            value: _length,
+            underline: const SizedBox.shrink(),
+            borderRadius: BorderRadius.circular(12),
+            items: [
+              for (final length in [16, 20, 24, 32])
+                DropdownMenuItem(value: length, child: Text('$length 位'))
+            ],
+            onChanged: (value) {
+              if (value != null) setState(() => _length = value);
+            },
+          ),
+          TextButton.icon(
+            onPressed: () => widget.onGenerated(
+                widget.controller.generatePassword(length: _length)),
+            icon: const Icon(Icons.password_outlined, size: 18),
+            label: const Text('生成密码'),
+          ),
+        ],
+      );
+}
+
 Future<void> _showAndroidItemEditor(
   BuildContext context, {
   required VaultController controller,
@@ -2915,15 +2917,15 @@ Future<void> _showAndroidItemEditor(
   final passwordController = TextEditingController(text: item?.password ?? '');
   final urlController = TextEditingController(text: item?.url ?? '');
   final notesController = TextEditingController(text: item?.notes ?? '');
-  final tagsController =
-      TextEditingController(text: item == null ? '' : item.tags.join(', '));
-  final totpController = TextEditingController(text: item?.totpSecret ?? '');
-  final lengthController = TextEditingController(text: '20');
   var obscurePassword = true;
   var saving = false;
 
-  await showModalBottomSheet<void>(
-    context: context,
+  final navigator = Navigator.of(context);
+  final route = ModalBottomSheetRoute<void>(
+    capturedThemes:
+        InheritedTheme.capture(from: context, to: navigator.context),
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    modalBarrierColor: Theme.of(context).bottomSheetTheme.modalBarrierColor,
     isScrollControlled: true,
     builder: (sheetContext) => StatefulBuilder(
       builder: (context, setSheetState) {
@@ -2984,30 +2986,10 @@ Future<void> _showAndroidItemEditor(
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      SizedBox(
-                        width: 112,
-                        child: TextField(
-                          controller: lengthController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: '长度'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton.tonalIcon(
-                          onPressed: () {
-                            final length =
-                                int.tryParse(lengthController.text) ?? 20;
-                            passwordController.text =
-                                controller.generatePassword(length: length);
-                          },
-                          icon: const Icon(Icons.password_outlined),
-                          label: const Text('生成密码'),
-                        ),
-                      ),
-                    ],
+                  _PasswordGeneratorControl(
+                    controller: controller,
+                    onGenerated: (password) =>
+                        passwordController.text = password,
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -3015,21 +2997,6 @@ Future<void> _showAndroidItemEditor(
                     keyboardType: TextInputType.url,
                     textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(labelText: '网址'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: totpController,
-                    enableSuggestions: false,
-                    autocorrect: false,
-                    textInputAction: TextInputAction.next,
-                    decoration:
-                        const InputDecoration(labelText: 'TOTP 密钥 / URI'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: tagsController,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(labelText: '标签（逗号分隔）'),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -3047,11 +3014,6 @@ Future<void> _showAndroidItemEditor(
                             setSheetState(() {
                               saving = true;
                             });
-                            final tags = tagsController.text
-                                .split(',')
-                                .map((value) => value.trim())
-                                .where((value) => value.isNotEmpty)
-                                .toList();
                             final result = await controller.addOrUpdateItem(
                               id: item?.id,
                               title: titleController.text,
@@ -3059,8 +3021,8 @@ Future<void> _showAndroidItemEditor(
                               password: passwordController.text,
                               url: urlController.text,
                               notes: notesController.text,
-                              tags: tags,
-                              totpSecret: totpController.text,
+                              tags: item?.tags ?? const [],
+                              totpSecret: item?.totpSecret,
                             );
                             if (result.succeeded && sheetContext.mounted) {
                               Navigator.of(sheetContext).pop();
@@ -3084,14 +3046,14 @@ Future<void> _showAndroidItemEditor(
     ),
   );
 
+  await navigator.push(route);
+  // Controllers remain in use until the closing transition removes the sheet.
+  await route.completed;
   titleController.dispose();
   usernameController.dispose();
   passwordController.dispose();
   urlController.dispose();
   notesController.dispose();
-  tagsController.dispose();
-  totpController.dispose();
-  lengthController.dispose();
 }
 
 Future<void> _showItemEditor(
@@ -3107,10 +3069,6 @@ Future<void> _showItemEditor(
   final passwordController = TextEditingController(text: item?.password ?? '');
   final urlController = TextEditingController(text: item?.url ?? '');
   final notesController = TextEditingController(text: item?.notes ?? '');
-  final tagsController =
-      TextEditingController(text: item == null ? '' : item.tags.join(', '));
-  final totpController = TextEditingController(text: item?.totpSecret ?? '');
-  final lengthController = TextEditingController(text: '20');
   var saving = false;
   var obscurePassword = true;
 
@@ -3119,66 +3077,59 @@ Future<void> _showItemEditor(
     builder: (dialogContext) => StatefulBuilder(
       builder: (context, setDialogState) {
         final viewportHeight = MediaQuery.sizeOf(context).height;
-        final dialogHeight = (viewportHeight - 80).clamp(420.0, 760.0);
+        final dialogHeight = (viewportHeight - 64).clamp(320.0, 660.0);
         return Dialog(
           backgroundColor: Colors.transparent,
           insetPadding:
               const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
           child: _FrostedSurface(
             sigma: 20,
-            borderRadius: BorderRadius.circular(28),
-            tint: const Color(0x14F7EEF2),
-            borderColor: const Color(0x7FE7D9E1),
-            shadowColor: const Color(0x24110810),
+            borderRadius: BorderRadius.circular(16),
+            borderColor: Theme.of(context).colorScheme.outlineVariant,
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
             child: SizedBox(
               width: 540,
               height: dialogHeight,
               child: Theme(
                 data: Theme.of(context).copyWith(
-                  inputDecorationTheme:
-                      Theme.of(context).inputDecorationTheme.copyWith(
-                            filled: true,
-                            fillColor: const Color(0x26F7EEF2),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 18,
-                              vertical: 16,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(22),
-                              borderSide: BorderSide.none,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(22),
-                              borderSide: const BorderSide(
-                                color: Color(0x76E5D6DE),
-                                width: 1,
-                              ),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(22),
-                              borderSide: const BorderSide(
-                                color: Color(0xB4906174),
-                                width: 1.2,
-                              ),
-                            ),
-                            labelStyle: const TextStyle(
-                              color: Color(0xFF72636A),
-                              fontWeight: FontWeight.w600,
-                            ),
+                  inputDecorationTheme: Theme.of(context)
+                      .inputDecorationTheme
+                      .copyWith(
+                        filled: true,
+                        fillColor:
+                            Theme.of(context).colorScheme.surfaceContainerLow,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 16,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Color(0xFFD9DEE5),
+                            width: 1,
                           ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: Theme.of(context).colorScheme.primary,
+                            width: 1.2,
+                          ),
+                        ),
+                      ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
                       item == null ? '新增条目' : '编辑条目',
-                      style:
-                          Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.w900,
-                                height: 1.12,
-                                color: const Color(0xFF241A1E),
-                              ),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                     ),
                     const SizedBox(height: 14),
                     Expanded(
@@ -3225,50 +3176,16 @@ Future<void> _showItemEditor(
                                 ),
                               ),
                               const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextField(
-                                      controller: lengthController,
-                                      keyboardType: TextInputType.number,
-                                      decoration: const InputDecoration(
-                                        labelText: '自动密码长度',
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  FilledButton.tonalIcon(
-                                    onPressed: () {
-                                      final length =
-                                          int.tryParse(lengthController.text) ??
-                                              20;
-                                      passwordController.text = controller
-                                          .generatePassword(length: length);
-                                    },
-                                    icon: const Icon(Icons.password_outlined),
-                                    label: const Text('生成密码'),
-                                  ),
-                                ],
+                              _PasswordGeneratorControl(
+                                controller: controller,
+                                onGenerated: (password) =>
+                                    passwordController.text = password,
                               ),
                               const SizedBox(height: 10),
                               TextField(
                                 controller: urlController,
                                 decoration:
                                     const InputDecoration(labelText: '网址'),
-                              ),
-                              const SizedBox(height: 10),
-                              TextField(
-                                controller: totpController,
-                                decoration: const InputDecoration(
-                                  labelText: 'TOTP 密钥 / otpauth URI',
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              TextField(
-                                controller: tagsController,
-                                decoration: const InputDecoration(
-                                  labelText: '标签（逗号分隔）',
-                                ),
                               ),
                               const SizedBox(height: 10),
                               TextField(
@@ -3298,11 +3215,6 @@ Future<void> _showItemEditor(
                                   setDialogState(() {
                                     saving = true;
                                   });
-                                  final tags = tagsController.text
-                                      .split(',')
-                                      .map((value) => value.trim())
-                                      .where((value) => value.isNotEmpty)
-                                      .toList();
                                   final result =
                                       await controller.addOrUpdateItem(
                                     id: item?.id,
@@ -3311,8 +3223,8 @@ Future<void> _showItemEditor(
                                     password: passwordController.text,
                                     url: urlController.text,
                                     notes: notesController.text,
-                                    tags: tags,
-                                    totpSecret: totpController.text,
+                                    tags: item?.tags ?? const [],
+                                    totpSecret: item?.totpSecret,
                                   );
                                   if (result.succeeded &&
                                       dialogContext.mounted) {
@@ -3343,9 +3255,6 @@ Future<void> _showItemEditor(
   passwordController.dispose();
   urlController.dispose();
   notesController.dispose();
-  tagsController.dispose();
-  totpController.dispose();
-  lengthController.dispose();
 }
 
 Future<void> _showAndroidItemDetails(
@@ -3413,7 +3322,8 @@ Future<void> _showAndroidItemDetails(
                 ),
               ),
               _DetailRow(label: '网址', value: item.url),
-              _DetailRow(label: '标签', value: item.tags.join(', ')),
+              if (item.tags.isNotEmpty)
+                _DetailRow(label: '标签', value: item.tags.join(', ')),
               if ((item.totpSecret?.trim().isNotEmpty ?? false))
                 _TotpPanel(
                   secretOrUri: item.totpSecret!,
@@ -3581,7 +3491,8 @@ Future<void> _showItemDetails(
                               : () => controller.copySecret(item.password),
                         ),
                         _DetailRow(label: '网址', value: item.url),
-                        _DetailRow(label: '标签', value: item.tags.join(', ')),
+                        if (item.tags.isNotEmpty)
+                          _DetailRow(label: '标签', value: item.tags.join(', ')),
                         if ((item.totpSecret?.trim().isNotEmpty ?? false))
                           _TotpPanel(
                             secretOrUri: item.totpSecret!,
@@ -3786,6 +3697,28 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
   bool _busy = false;
   String? _status;
 
+  Future<void> _syncAll() async {
+    final password = _passwordController.text;
+    if (password.trim().isEmpty) {
+      setState(() => _status = '请输入各设备共同使用的主密码。');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _plan = null;
+      _status = '正在验证局域网设备并双向合并，请保持各端解锁…';
+    });
+    await widget.controller.syncLanWithPassword(password);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _status = widget.controller.message;
+      _peers = widget.controller.lanSyncPeers;
+      _selectedPeer = _peers.isEmpty ? null : _peers.first;
+    });
+    _passwordController.clear();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -3811,10 +3744,13 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
     setState(() {
       _busy = false;
       _peers = widget.controller.lanSyncPeers;
-      _selectedPeer = _selectedPeer != null &&
-              _peers.any((peer) => peer.key == _selectedPeer!.key)
-          ? _selectedPeer
-          : (_peers.isEmpty ? null : _peers.first);
+      final selectedId = _selectedPeer?.deviceId;
+      _selectedPeer = _peers.isEmpty
+          ? null
+          : _peers.firstWhere(
+              (peer) => peer.deviceId == selectedId,
+              orElse: () => _peers.first,
+            );
       _status = result.succeeded
           ? (_peers.isEmpty ? '没有发现可配对设备。' : '已发现 ${_peers.length} 台设备。')
           : widget.controller.message;
@@ -3943,7 +3879,20 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                '设备只会传输加密密码库文件。空密码库首次配对使用来源设备主密码验证后会直接进入密码本；已有密码库仍需确认合并。',
+                '所有设备连接同一局域网并保持密码本已解锁。在任意一端输入共同的主密码，即可验证其他设备并将各端条目合并到一起。',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _passwordController,
+                obscureText: true,
+                enabled: !_busy,
+                decoration: const InputDecoration(labelText: '共同的主密码'),
+              ),
+              const SizedBox(height: 10),
+              FilledButton.icon(
+                onPressed: _busy ? null : _syncAll,
+                icon: const Icon(Icons.sync_rounded),
+                label: const Text('验证并同步所有设备'),
               ),
               const SizedBox(height: 16),
               if (host != null) ...[
@@ -3986,74 +3935,77 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
               else
                 const Text('本机尚未解锁，当前仅可从另一台设备配对到本机。'),
               const Divider(height: 28),
-              Row(
+              ExpansionTile(
+                title: const Text('单台设备导入（高级）'),
                 children: [
-                  Expanded(
-                    child: Text(
-                      _peers.isEmpty ? '未发现可配对设备' : '发现 ${_peers.length} 台设备',
-                      style: Theme.of(context).textTheme.titleSmall,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _peers.isEmpty
+                              ? '未发现可配对设备'
+                              : '发现 ${_peers.length} 台设备',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: '重新发现设备',
+                        onPressed: _busy ? null : _discover,
+                        icon: const Icon(Icons.refresh_rounded),
+                      ),
+                    ],
+                  ),
+                  if (_peers.isNotEmpty)
+                    DropdownButtonFormField<LanSyncPeer>(
+                      initialValue: _selectedPeer,
+                      decoration: const InputDecoration(labelText: '来源设备'),
+                      items: _peers
+                          .map(
+                            (peer) => DropdownMenuItem(
+                              value: peer,
+                              child: Text(peer.displayName),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: _busy
+                          ? null
+                          : (peer) => setState(() {
+                                _selectedPeer = peer;
+                              }),
+                    ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _pairingCodeController,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(
+                      labelText: '配对码（可选）',
+                      helperText: '通常只需输入来源设备主密码；配对码用于手动确认设备。',
                     ),
                   ),
-                  IconButton(
-                    tooltip: '重新发现设备',
-                    onPressed: _busy ? null : _discover,
-                    icon: const Icon(Icons.refresh_rounded),
+                  const SizedBox(height: 10),
+                  FilledButton.icon(
+                    onPressed: _busy ? null : _download,
+                    icon: const Icon(Icons.download_for_offline_rounded),
+                    label: Text(
+                      widget.controller.hasVault ? '配对并预览' : '配对并进入密码本',
+                    ),
                   ),
+                  if (_plan != null) ...[
+                    const SizedBox(height: 14),
+                    _ImportSummaryView(summary: _plan!.summary),
+                    const SizedBox(height: 10),
+                    FilledButton.icon(
+                      onPressed: _busy ? null : _apply,
+                      icon: const Icon(Icons.merge_type_rounded),
+                      label: Text(
+                        _plan!.summary.replacesLocalVault
+                            ? '确认建立本地密码库'
+                            : '确认合并',
+                      ),
+                    ),
+                  ],
                 ],
               ),
-              if (_peers.isNotEmpty)
-                DropdownButtonFormField<LanSyncPeer>(
-                  initialValue: _selectedPeer,
-                  decoration: const InputDecoration(labelText: '来源设备'),
-                  items: _peers
-                      .map(
-                        (peer) => DropdownMenuItem(
-                          value: peer,
-                          child: Text(peer.displayName),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: _busy
-                      ? null
-                      : (peer) => setState(() {
-                            _selectedPeer = peer;
-                          }),
-                ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _pairingCodeController,
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(
-                  labelText: '配对码（可选）',
-                  helperText: '通常只需输入来源设备主密码；配对码用于手动确认设备。',
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: '来源设备主密码'),
-              ),
-              const SizedBox(height: 10),
-              FilledButton.icon(
-                onPressed: _busy ? null : _download,
-                icon: const Icon(Icons.download_for_offline_rounded),
-                label: Text(
-                  widget.controller.hasVault ? '配对并预览' : '配对并进入密码本',
-                ),
-              ),
-              if (_plan != null) ...[
-                const SizedBox(height: 14),
-                _ImportSummaryView(summary: _plan!.summary),
-                const SizedBox(height: 10),
-                FilledButton.icon(
-                  onPressed: _busy ? null : _apply,
-                  icon: const Icon(Icons.merge_type_rounded),
-                  label: Text(
-                    _plan!.summary.replacesLocalVault ? '确认建立本地密码库' : '确认合并',
-                  ),
-                ),
-              ],
               if (_busy) ...[
                 const SizedBox(height: 12),
                 const Center(child: CircularProgressIndicator()),

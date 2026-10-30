@@ -114,6 +114,8 @@ if (Test-Path -LiteralPath $iconSource) {
 New-Item -Path $registryPath -Force | Out-Null
 Set-ItemProperty -Path $registryPath -Name InstallLocation -Value $target
 Set-ItemProperty -Path $registryPath -Name DisplayName -Value 'Cipherbook'
+$installedVersion = (Get-Item -LiteralPath (Join-Path $target 'cipherbook.exe')).VersionInfo
+Set-ItemProperty -Path $registryPath -Name DisplayVersion -Value $installedVersion.ProductVersion
 Set-ItemProperty -Path $registryPath -Name InstalledAt -Value (Get-Date).ToUniversalTime().ToString('o')
 
 New-Item -ItemType Directory -Path $startMenu -Force | Out-Null

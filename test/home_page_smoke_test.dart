@@ -302,19 +302,16 @@ void main() {
     final titleField = find.byWidgetPredicate(
       (widget) => widget is TextField && widget.decoration?.labelText == '名称',
     );
-    final totpField = find.byWidgetPredicate(
-      (widget) =>
-          widget is TextField &&
-          widget.decoration?.labelText == 'TOTP 密钥 / URI',
-    );
-    await tester.enterText(titleField, 'Retain this entry');
-    await tester.enterText(totpField, 'not a valid TOTP secret');
+    await tester.enterText(titleField, '  ');
+    await tester.enterText(passwordField, 'Retain this password');
     await tester.tap(find.text('保存条目'));
     await tester.pumpAndSettle();
 
-    expect(tester.widget<TextField>(titleField).controller!.text,
-        'Retain this entry');
+    expect(tester.widget<TextField>(titleField).controller!.text, '  ');
+    expect(tester.widget<TextField>(passwordField).controller!.text,
+        'Retain this password');
     expect(controller.vaultData.activeItems, isEmpty);
+    expect(find.textContaining('名称不能为空'), findsOneWidget);
 
     controller.dispose();
   });
@@ -518,7 +515,8 @@ void main() {
 
   testWidgets('Android editor obscures passwords and retains input on failure',
       (tester) async {
-    final controller = _buildController();
+    final repository = _MemoryVaultRepository();
+    final controller = _buildController(repository: repository);
     await controller.bootstrap();
     await controller.createVault('master-pass');
 
@@ -533,18 +531,13 @@ void main() {
     final titleField = find.byWidgetPredicate(
       (widget) => widget is TextField && widget.decoration?.labelText == '名称',
     );
-    final totpField = find.byWidgetPredicate(
-      (widget) =>
-          widget is TextField &&
-          widget.decoration?.labelText == 'TOTP 密钥 / URI',
-    );
     final passwordWidget = tester.widget<TextField>(passwordField);
     expect(passwordWidget.obscureText, isTrue);
     expect(passwordWidget.enableSuggestions, isFalse);
     expect(passwordWidget.autocorrect, isFalse);
 
-    await tester.enterText(titleField, 'TOTP failure');
-    await tester.enterText(totpField, 'not a valid TOTP secret');
+    await tester.enterText(titleField, 'Retain after disk failure');
+    repository.failNextSave = true;
     final scrollable = find.descendant(
       of: find.byType(DraggableScrollableSheet),
       matching: find.byType(Scrollable),
@@ -554,10 +547,13 @@ void main() {
       300,
       scrollable: scrollable.first,
     );
+    await tester.drag(find.byType(ListView).last, const Offset(0, -220));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('android-item-save')));
     await tester.pumpAndSettle();
 
     expect(find.byType(BottomSheet), findsOneWidget);
+    expect(find.textContaining('Synthetic save failure'), findsOneWidget);
     final retainedTitleField = find.byWidgetPredicate(
       (widget) => widget is TextField && widget.decoration?.labelText == '名称',
     );
@@ -568,9 +564,56 @@ void main() {
     );
     expect(
       tester.widget<TextField>(retainedTitleField).controller!.text,
-      'TOTP failure',
+      'Retain after disk failure',
     );
 
+    controller.dispose();
+  });
+
+  testWidgets(
+      'simplified Android editor preserves hidden tags and TOTP on save',
+      (tester) async {
+    final controller = _buildController();
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await controller.addOrUpdateItem(
+      title: 'Existing entry',
+      username: 'alice',
+      password: 'secret',
+      url: '',
+      notes: '',
+      tags: const ['existing-tag'],
+      totpSecret: 'JBSWY3DPEHPK3PXP',
+    );
+    await tester.pumpWidget(_buildApp(controller));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('条目操作'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('编辑'));
+    await tester.pumpAndSettle();
+    final textFields = tester.widgetList<TextField>(find.byType(TextField));
+    expect(textFields.map((field) => field.decoration?.labelText),
+        containsAll(['名称', '账号', '密码', '网址', '备注']));
+    expect(
+        textFields
+            .any((field) => (field.decoration?.labelText ?? '').contains('密钥')),
+        isFalse);
+    expect(
+        textFields
+            .any((field) => (field.decoration?.labelText ?? '').contains('标签')),
+        isFalse);
+    final titleField = find.byWidgetPredicate((widget) =>
+        widget is TextField && widget.decoration?.labelText == '名称');
+    await tester.enterText(titleField, 'Updated entry');
+    await tester.ensureVisible(find.byKey(const ValueKey('android-item-save')));
+    await tester.drag(find.byType(ListView).last, const Offset(0, -220));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('android-item-save')));
+    await tester.pumpAndSettle();
+    final saved = controller.vaultData.activeItems.single;
+    expect(saved.title, 'Updated entry');
+    expect(saved.tags, ['existing-tag']);
+    expect(saved.totpSecret, 'JBSWY3DPEHPK3PXP');
     controller.dispose();
   });
 

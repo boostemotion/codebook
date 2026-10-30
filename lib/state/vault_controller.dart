@@ -392,6 +392,7 @@ class VaultController extends ChangeNotifier {
         documentBytes: rawBytes,
         deviceName: deviceName,
         authorizationKey: _requireSessionKek(),
+        onMerge: _receiveLanMerge,
       );
       _message = '局域网分享已开启，配对码：${_lanSyncHost!.pairingCode}';
       _notifyListeners();
@@ -420,8 +421,11 @@ class VaultController extends ChangeNotifier {
     Duration timeout = const Duration(seconds: 2),
   }) async {
     final peers = await _lanSyncService.discover(timeout: timeout);
+    final identity = await _pairingStore.loadOrCreateIdentity();
     final records = await _pairingStore.loadPeers();
-    return peers.map((peer) {
+    return peers
+        .where((peer) => peer.deviceId != identity.deviceId)
+        .map((peer) {
       final record = records.where((candidate) {
         return candidate.deviceId == peer.deviceId ||
             (candidate.address == peer.address &&
@@ -431,6 +435,154 @@ class VaultController extends ChangeNotifier {
           ? peer
           : peer.copyWith(accessToken: record.accessToken);
     }).toList();
+  }
+
+  Future<VaultOperationResult> syncLanWithPassword(String password) {
+    return _run(() async {
+      _requirePassword(password, fieldName: '主密码');
+      final generation = _sessionGeneration;
+      if (_hasVault) {
+        _ensureUnlocked();
+        await _cryptoService.openVault(
+            document: _document!, password: password);
+        _ensureSessionCurrent(generation);
+        _lanAutoHostSuppressed = false;
+        await _ensureLanAutoHost();
+      }
+      final peers = await _discoverPeers();
+      _ensureSessionCurrent(generation);
+      _lanSyncPeers = peers;
+      if (peers.isEmpty) {
+        throw StateError('未发现其他设备，请确认其他设备在同一局域网且密码本已解锁。');
+      }
+      final targets = <(
+        LanSyncPeer,
+        LanSyncDownloadResult,
+        EncryptedVaultDocument,
+        VaultSession
+      )>[];
+      var failed = 0;
+      for (final peer in peers) {
+        try {
+          final result = await _lanSyncService.downloadDetailed(
+            peer: peer,
+            sharedPassword: password,
+          );
+          _ensureSessionCurrent(generation);
+          final document = EncryptedVaultDocument.decode(result.bytes);
+          final session = await _cryptoService.openVault(
+            document: document,
+            password: password,
+          );
+          _ensureSessionCurrent(generation);
+          targets.add((peer, result, document, session));
+        } on Object {
+          _ensureSessionCurrent(generation);
+          failed++;
+        }
+      }
+      if (targets.isEmpty) {
+        throw StateError('没有设备通过主密码验证，请确认各端使用同一个主密码，并保持解锁。');
+      }
+      if (!_hasVault) {
+        final plan = await _previewImportBytes(
+          targets.first.$2.bytes,
+          password,
+          sessionGeneration: generation,
+          hadVaultAtPreview: false,
+        );
+        final applied = await applyImportPlan(plan);
+        if (!applied.succeeded) {
+          throw StateError('无法建立本地密码库。');
+        }
+      }
+      // Merge every verified snapshot before sending the union back to peers.
+      // Network calls stay outside the mutation queue to avoid cross-device
+      // deadlocks when two devices initiate sync at the same time.
+      final mergeOperation = _mutationTail.then((_) async {
+        _ensureSessionCurrent(generation);
+        var union = _vaultData;
+        for (final target in targets) {
+          union = union.merge(target.$4.vaultData);
+        }
+        if (_vaultFingerprint(union) != _vaultFingerprint(_vaultData)) {
+          await _saveState(
+              vaultData: union, keyEncryptionKey: _requireSessionKek());
+        }
+      });
+      _mutationTail = mergeOperation.then<void>((_) {}).catchError((_) {});
+      await mergeOperation;
+      var synced = 0;
+      for (final (peer, result, document, session) in targets) {
+        try {
+          _ensureSessionCurrent(generation);
+          final token = result.accessToken;
+          if (token == null) {
+            throw StateError('对端未返回同步授权。');
+          }
+          final outgoing = await _cryptoService.saveVaultWithKek(
+            vaultData: _vaultData,
+            keyEncryptionKey: session.keyEncryptionKey!,
+            dataEncryptionKey: session.dataEncryptionKey,
+            kdf: document.kdf,
+            metadata: document.metadata,
+          );
+          _ensureSessionCurrent(generation);
+          await _lanSyncService.uploadMerged(
+            peer: peer,
+            accessToken: token,
+            documentBytes: outgoing.encode(),
+          );
+          _ensureSessionCurrent(generation);
+          if (result.deviceId != null) {
+            await _pairingStore.savePeer(LanPairingRecord(
+              deviceId: result.deviceId!,
+              deviceName: peer.deviceName,
+              address: peer.address,
+              port: peer.port,
+              vaultId: peer.vaultId,
+              accessToken: token,
+              revision: document.metadata?.revision ?? 0,
+              lastSeen: DateTime.now(),
+            ));
+          }
+          synced++;
+        } on Object {
+          _ensureSessionCurrent(generation);
+          failed++;
+        }
+      }
+      if (synced == 0) {
+        throw StateError('已将对端数据合并到本机，但对端未确认接收；请更新所有设备后重试。');
+      }
+      _message = '已与 $synced 台设备完成双向合并。'
+          '${failed == 0 ? '' : '另有 $failed 台设备未完成，请检查版本、主密码和解锁状态后重试。'}';
+    });
+  }
+
+  Future<void> _receiveLanMerge(Uint8List bytes) async {
+    final generation = _sessionGeneration;
+    final operation = _mutationTail.then((_) async {
+      _ensureSessionCurrent(generation);
+      _ensureUnlocked();
+      final document = EncryptedVaultDocument.decode(bytes);
+      if (document.metadata?.vaultId != _document?.metadata?.vaultId) {
+        throw StateError('同步目标密码库不匹配。');
+      }
+      final session = await _cryptoService.openVaultWithKek(
+        document: document,
+        keyEncryptionKey: _requireSessionKek(),
+      );
+      _ensureSessionCurrent(generation);
+      final merged = _vaultData.merge(session.vaultData);
+      if (_vaultFingerprint(merged) != _vaultFingerprint(_vaultData)) {
+        await _saveState(
+            vaultData: merged, keyEncryptionKey: _requireSessionKek());
+      }
+      _notifyListeners();
+    });
+    _mutationTail = operation.then<void>((_) {}).catchError((_) {});
+    await operation;
   }
 
   Future<void> _discoverLanPeersSilently() async {
@@ -860,7 +1012,7 @@ class VaultController extends ChangeNotifier {
   String _vaultFingerprint(VaultData data) {
     final items = data.items.map((item) => jsonEncode(item.toJson())).toList()
       ..sort();
-    return '${data.updatedAt.toUtc().toIso8601String()}|${items.join('|')}';
+    return items.join('|');
   }
 
   void _ensureSessionCurrent(int expectedGeneration) {
@@ -1055,10 +1207,20 @@ class VaultController extends ChangeNotifier {
       if (currentMetadata == null || currentKek == null) {
         return;
       }
+      final savedPeers = await _pairingStore.loadPeers();
       for (final peer in peers) {
         if (peer.accessToken == null ||
-            peer.vaultId != currentMetadata.vaultId ||
-            peer.revision <= currentMetadata.revision) {
+            peer.vaultId != currentMetadata.vaultId) {
+          continue;
+        }
+        final savedPeer = savedPeers
+            .where(
+              (candidate) => candidate.deviceId == peer.deviceId,
+            )
+            .firstOrNull;
+        // revision is scoped to each peer. Comparing it with our own revision
+        // skips legitimate changes made independently on both devices.
+        if (savedPeer != null && peer.revision <= savedPeer.revision) {
           continue;
         }
         await _autoMergePeer(peer, currentKek);
@@ -1082,6 +1244,7 @@ class VaultController extends ChangeNotifier {
     _lanSyncHost = await _lanSyncService.startHost(
       documentBytes: rawBytes,
       authorizationKey: _requireSessionKek(),
+      onMerge: _receiveLanMerge,
     );
     _notifyListeners();
   }
@@ -1099,9 +1262,7 @@ class VaultController extends ChangeNotifier {
       );
       _ensureSessionCurrent(generation);
       final importedDocument = EncryptedVaultDocument.decode(result.bytes);
-      if (importedDocument.metadata?.vaultId != _document?.metadata?.vaultId ||
-          (importedDocument.metadata?.revision ?? 0) <=
-              (_document?.metadata?.revision ?? 0)) {
+      if (importedDocument.metadata?.vaultId != _document?.metadata?.vaultId) {
         return;
       }
       final importedSession = await _cryptoService.openVaultWithKek(
@@ -1110,14 +1271,13 @@ class VaultController extends ChangeNotifier {
       );
       _ensureSessionCurrent(generation);
       final merged = _vaultData.merge(importedSession.vaultData);
-      if (_vaultFingerprint(merged) == _vaultFingerprint(_vaultData)) {
-        return;
+      if (_vaultFingerprint(merged) != _vaultFingerprint(_vaultData)) {
+        await _saveState(
+          vaultData: merged,
+          keyEncryptionKey: currentKek,
+          revisionFloor: (importedDocument.metadata?.revision ?? 0) + 1,
+        );
       }
-      await _saveState(
-        vaultData: merged,
-        keyEncryptionKey: currentKek,
-        revisionFloor: (importedDocument.metadata?.revision ?? 0) + 1,
-      );
       final deviceId = result.deviceId ?? peer.deviceId;
       final accessToken = result.accessToken ?? peer.accessToken;
       if (deviceId != null && accessToken != null) {
