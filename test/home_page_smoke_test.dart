@@ -164,7 +164,68 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('vault-page-pairing')), findsOneWidget);
-    expect(find.text('打开设备配对'), findsOneWidget);
+    expect(find.text('设备同步'), findsOneWidget);
+    controller.dispose();
+  });
+
+  testWidgets('Windows compact sidebar keeps navigation usable',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(600, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final controller = _buildController();
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await tester.pumpWidget(
+      _buildApp(controller, platform: TargetPlatform.windows),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.getSize(find.byKey(const ValueKey('liquid-dock'))).width,
+        lessThan(80));
+    await tester.tap(find.descendant(
+      of: find.byKey(const ValueKey('liquid-dock')),
+      matching: find.byIcon(Icons.sync_rounded),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('设备同步'));
+    await tester.pump();
+    expect(find.text('验证并同步所有设备'), findsOneWidget);
+    expect(find.text('更多选项'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    controller.dispose();
+  });
+
+  testWidgets('Windows entry actions remain accessible in a narrow window',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final controller = _buildController();
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await controller.addOrUpdateItem(
+      title: 'Narrow entry',
+      username: 'alice',
+      password: 'secret',
+      url: '',
+      notes: '',
+      tags: const [],
+    );
+    await tester.pumpWidget(
+      _buildApp(controller, platform: TargetPlatform.windows),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byTooltip('条目操作'));
+    await tester.pumpAndSettle();
+    expect(find.text('查看'), findsOneWidget);
+    expect(find.text('复制密码'), findsOneWidget);
+    expect(find.text('编辑'), findsOneWidget);
+    expect(find.text('删除'), findsOneWidget);
+    await tester.tap(find.text('编辑'));
+    await tester.pumpAndSettle();
+    expect(find.text('编辑条目'), findsOneWidget);
+    expect(tester.takeException(), isNull);
     controller.dispose();
   });
 
@@ -513,6 +574,42 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('Android sync keeps primary action visible and options collapsed',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final controller = _SyncDialogController();
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await tester.pumpWidget(_buildApp(controller));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('设备配对与同步'));
+    await tester.pumpAndSettle();
+    expect(find.text('设备同步'), findsOneWidget);
+    expect(find.text('验证并同步所有设备'), findsOneWidget);
+    expect(find.text('没有发现可配对设备。'), findsOneWidget);
+    expect(find.text('单台设备导入'), findsNothing);
+
+    await tester.tap(find.text('更多选项'));
+    await tester.pumpAndSettle();
+    expect(find.text('单台设备导入'), findsOneWidget);
+    await tester.ensureVisible(find.text('单台设备导入'));
+    await tester.tap(find.text('单台设备导入'));
+    await tester.pumpAndSettle();
+    expect(find.text('配对码（可选）'), findsOneWidget);
+    await tester.ensureVisible(find.text('配对并预览'));
+    await tester.tap(find.text('配对并预览'));
+    await tester.pumpAndSettle();
+    final status = find.byKey(const ValueKey('lan-advanced-status'));
+    expect(status, findsOneWidget);
+    expect(tester.widget<Text>(status).data, '请先选择来源设备。');
+    expect(tester.getBottomLeft(status).dy,
+        lessThan(tester.getTopLeft(find.text('关闭')).dy));
+    expect(tester.takeException(), isNull);
+    controller.dispose();
+  });
+
   testWidgets('Android editor obscures passwords and retains input on failure',
       (tester) async {
     final repository = _MemoryVaultRepository();
@@ -643,6 +740,37 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('Android narrow screen opens editor from entry details',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(320, 640));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final controller = _buildController();
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await controller.addOrUpdateItem(
+      title: 'A long account name for a narrow screen',
+      username: 'alice',
+      password: 'secret',
+      url: '',
+      notes: '',
+      tags: const [],
+    );
+    await tester.pumpWidget(_buildApp(controller));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byTooltip('设备配对与同步'), findsOneWidget);
+
+    final item = controller.vaultData.activeItems.single;
+    await tester.tap(find.byKey(ValueKey('android-vault-item-${item.id}')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('编辑条目'));
+    await tester.pumpAndSettle();
+    expect(find.text('编辑条目'), findsOneWidget);
+    expect(find.byKey(const ValueKey('android-item-save')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    controller.dispose();
+  });
+
   testWidgets('Android recycle bin restores a deleted entry', (tester) async {
     final controller = _buildController();
     await controller.bootstrap();
@@ -683,6 +811,22 @@ Widget _buildApp(
     theme: ThemeData(useMaterial3: true, platform: platform),
     home: HomePage(controller: controller),
   );
+}
+
+class _SyncDialogController extends VaultController {
+  _SyncDialogController()
+      : super(
+          repository: _MemoryVaultRepository(),
+          cryptoService: _FastCryptoService(),
+          importExportService: _NoopImportExportService(),
+          deviceKeyStore: _MemoryDeviceKeyStore(),
+          passwordGeneratorService: PasswordGeneratorService(random: Random(1)),
+          clipboardService: _MemoryClipboardService(),
+        );
+
+  @override
+  Future<VaultOperationResult> discoverLanSyncPeers() async =>
+      const VaultOperationResult();
 }
 
 VaultController _buildController({

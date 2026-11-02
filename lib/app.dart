@@ -76,21 +76,30 @@ ThemeData _buildTheme(Brightness brightness) {
   );
   if (defaultTargetPlatform == TargetPlatform.android) {
     final isDark = brightness == Brightness.dark;
+    final androidScheme = ColorScheme.fromSeed(
+      seedColor: const Color(0xFF286A5A),
+      brightness: brightness,
+      surface: isDark ? const Color(0xFF191D1C) : const Color(0xFFFFFFFF),
+    );
     final androidBackground =
-        isDark ? const Color(0xFF0F172A) : const Color(0xFFF6F7F9);
-    final androidSurface =
-        isDark ? const Color(0xFF1E293B) : const Color(0xFFFFFFFF);
+        isDark ? const Color(0xFF121514) : const Color(0xFFF8F9F7);
+    final androidSurface = androidScheme.surface;
     final androidBorder =
-        isDark ? const Color(0xFF334155) : const Color(0xFFE4E7EC);
+        isDark ? const Color(0xFF343D39) : const Color(0xFFDDE4DF);
     return ThemeData(
       useMaterial3: true,
-      colorScheme: scheme,
+      colorScheme: androidScheme,
       scaffoldBackgroundColor: androidBackground,
       visualDensity: VisualDensity.standard,
       appBarTheme: AppBarTheme(
         centerTitle: false,
         backgroundColor: androidBackground,
         surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          color: androidScheme.onSurface,
+          fontSize: 21,
+          fontWeight: FontWeight.w700,
+        ),
       ),
       cardTheme: CardThemeData(
         color: androidSurface,
@@ -104,13 +113,31 @@ ThemeData _buildTheme(Brightness brightness) {
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: androidSurface,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: androidBorder),
+        ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 48),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 48),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: scheme.surface,
-        surfaceTintColor: scheme.surfaceTint,
+        backgroundColor: androidSurface,
+        surfaceTintColor: Colors.transparent,
         showDragHandle: true,
       ),
     );

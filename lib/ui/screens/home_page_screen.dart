@@ -231,9 +231,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return Stack(
         children: [
           Scaffold(
-            appBar: AppBar(
-              title: Text(controller.hasVault ? '解锁密码本' : '创建密码本'),
-            ),
+            appBar: AppBar(title: const Text('密码本')),
             body: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -339,6 +337,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   onPressed: _focusSearch,
                   icon: const Icon(Icons.search_rounded),
                 ),
+              if (!_androidSearchOpen)
+                IconButton(
+                  tooltip: '设备配对与同步',
+                  onPressed: () => _showLanSyncDialog(
+                    context,
+                    controller: controller,
+                  ),
+                  icon: const Icon(Icons.sync_rounded),
+                ),
               IconButton(
                 tooltip: '立即锁定',
                 onPressed: controller.lock,
@@ -388,108 +395,198 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ),
             ],
           ),
-          body: items.isEmpty
-              ? Center(
-                  child: Text(_searchQuery.isEmpty ? '还没有条目' : '没有匹配条目'),
-                )
-              : NotificationListener<ScrollNotification>(
-                  onNotification: (notification) {
-                    if (notification is UserScrollNotification &&
-                        notification.direction != ScrollDirection.idle) {
-                      final expanded =
-                          notification.direction != ScrollDirection.reverse;
-                      if (expanded != _androidFabExpanded) {
-                        setState(() {
-                          _androidFabExpanded = expanded;
-                        });
-                      }
-                    }
-                    return false;
-                  },
-                  child: ListView.separated(
-                    key: const ValueKey('android-vault-list'),
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
-                    itemCount: items.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final item = items[index];
-                      final subtitle = [item.username, item.url]
-                          .where((value) => value.trim().isNotEmpty)
-                          .join(' · ');
-                      return Card(
-                        key: ValueKey('android-vault-item-${item.id}'),
-                        clipBehavior: Clip.antiAlias,
-                        child: ListTile(
-                          minVerticalPadding: 12,
-                          title: Text(
-                            item.title.trim().isEmpty ? '未命名' : item.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                child: Text(
+                  _searchQuery.isEmpty
+                      ? '全部密码  ·  ${items.length}'
+                      : '搜索结果  ·  ${items.length}',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+              ),
+              Expanded(
+                child: items.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _searchQuery.isEmpty
+                                  ? Icons.key_outlined
+                                  : Icons.search_off_rounded,
+                              size: 36,
+                              color: Theme.of(context).colorScheme.outline,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(_searchQuery.isEmpty ? '还没有条目' : '没有匹配条目',
+                                style: Theme.of(context).textTheme.titleMedium),
+                            const SizedBox(height: 4),
+                            Text(
+                                _searchQuery.isEmpty
+                                    ? '添加第一条密码，随时查找'
+                                    : '试试其他关键词',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                    )),
+                          ],
+                        ),
+                      )
+                    : NotificationListener<ScrollNotification>(
+                        onNotification: (notification) {
+                          if (notification is UserScrollNotification &&
+                              notification.direction != ScrollDirection.idle) {
+                            final expanded = notification.direction !=
+                                ScrollDirection.reverse;
+                            if (expanded != _androidFabExpanded) {
+                              setState(() {
+                                _androidFabExpanded = expanded;
+                              });
+                            }
+                          }
+                          return false;
+                        },
+                        child: ListView.separated(
+                          key: const ValueKey('android-vault-list'),
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 96),
+                          itemCount: items.length,
+                          separatorBuilder: (_, __) => Padding(
+                            padding: const EdgeInsets.only(left: 64, right: 8),
+                            child: Divider(
+                                height: 1,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .outlineVariant),
                           ),
-                          subtitle: subtitle.isEmpty
-                              ? null
-                              : Text(
-                                  subtitle,
+                          itemBuilder: (context, index) {
+                            final item = items[index];
+                            final subtitle = [item.username, item.url]
+                                .where((value) => value.trim().isNotEmpty)
+                                .join(' · ');
+                            return Material(
+                              key: ValueKey('android-vault-item-${item.id}'),
+                              color: Colors.transparent,
+                              clipBehavior: Clip.antiAlias,
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                leading: Container(
+                                  width: 44,
+                                  height: 44,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .secondaryContainer,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    item.title.trim().isEmpty
+                                        ? '?'
+                                        : item.title
+                                            .trim()
+                                            .characters
+                                            .first
+                                            .toUpperCase(),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSecondaryContainer,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                  ),
+                                ),
+                                title: Text(
+                                  item.title.trim().isEmpty
+                                      ? '未命名'
+                                      : item.title,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w700),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                          onTap: () => _showItemDetails(
-                            context,
-                            controller: controller,
-                            item: item,
-                          ),
-                          trailing: PopupMenuButton<String>(
-                            tooltip: '条目操作',
-                            onSelected: (action) {
-                              switch (action) {
-                                case 'copy':
-                                  controller.copySecret(item.password);
-                                  break;
-                                case 'edit':
-                                  _showItemEditor(
-                                    context,
-                                    controller: controller,
-                                    item: item,
-                                  );
-                                  break;
-                                case 'delete':
-                                  _confirmDeleteItem(
-                                    context,
-                                    controller: controller,
-                                    item: item,
-                                  );
-                                  break;
-                              }
-                            },
-                            itemBuilder: (context) => const [
-                              PopupMenuItem(
-                                value: 'copy',
-                                child: ListTile(
-                                  leading: Icon(Icons.copy_outlined),
-                                  title: Text('复制密码'),
+                                subtitle: subtitle.isEmpty
+                                    ? null
+                                    : Text(
+                                        subtitle,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                onTap: () => _showItemDetails(
+                                  context,
+                                  controller: controller,
+                                  item: item,
+                                ),
+                                trailing: PopupMenuButton<String>(
+                                  tooltip: '条目操作',
+                                  onSelected: (action) {
+                                    switch (action) {
+                                      case 'copy':
+                                        controller.copySecret(item.password);
+                                        break;
+                                      case 'edit':
+                                        _showItemEditor(
+                                          context,
+                                          controller: controller,
+                                          item: item,
+                                        );
+                                        break;
+                                      case 'delete':
+                                        _confirmDeleteItem(
+                                          context,
+                                          controller: controller,
+                                          item: item,
+                                        );
+                                        break;
+                                    }
+                                  },
+                                  itemBuilder: (context) => const [
+                                    PopupMenuItem(
+                                      value: 'copy',
+                                      child: ListTile(
+                                        leading: Icon(Icons.copy_outlined),
+                                        title: Text('复制密码'),
+                                      ),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'edit',
+                                      child: ListTile(
+                                        leading: Icon(Icons.edit_outlined),
+                                        title: Text('编辑'),
+                                      ),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: ListTile(
+                                        leading:
+                                            Icon(Icons.delete_outline_rounded),
+                                        title: Text('移至回收站'),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              PopupMenuItem(
-                                value: 'edit',
-                                child: ListTile(
-                                  leading: Icon(Icons.edit_outlined),
-                                  title: Text('编辑'),
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: ListTile(
-                                  leading: Icon(Icons.delete_outline_rounded),
-                                  title: Text('移至回收站'),
-                                ),
-                              ),
-                            ],
-                          ),
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
-                ),
+                      ),
+              ),
+            ],
+          ),
           floatingActionButton: AnimatedSwitcher(
             duration: const Duration(milliseconds: 160),
             child: _androidFabExpanded
@@ -709,16 +806,21 @@ class _LockedView extends StatelessWidget {
         child: SingleChildScrollView(
           child: _FrostedSurface(
             sigma: 24,
+            plainOnAndroid: true,
             padding: const EdgeInsets.fromLTRB(18, 20, 18, 18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
                   controller.hasVault ? '解锁密码本' : '创建密码本',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.2,
-                      ),
+                  style: Theme.of(context).platform == TargetPlatform.android
+                      ? Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          )
+                      : Theme.of(context).textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.2,
+                          ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -1031,58 +1133,67 @@ class _VaultViewState extends State<_VaultView> {
       });
 
     if (isDesktopPlatform) {
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _DesktopSidebar(
-            key: const ValueKey('liquid-dock'),
-            activeTab: _tab,
-            onTabChanged: (tab) {
-              _glassPerfBus.pulse(heavy: true);
-              setState(() {
-                _tab = tab;
-                if (tab == _VaultTab.add) {
-                  _addPasswordObscured = true;
-                }
-              });
-            },
-            onLock: widget.controller.lock,
-          ),
-          const SizedBox(width: 1),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(26, 20, 26, 18),
-              child: Column(
+      return LayoutBuilder(
+          builder: (context, constraints) => Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _DesktopHeader(
-                    tab: _tab,
-                    itemCount: items.length,
-                    searchController: widget.searchController,
-                    searchFocusNode: widget.searchFocusNode,
-                    sortMode: widget.sortMode,
-                    onSearchChanged: (value) {
-                      _glassPerfBus.pulse();
-                      widget.onSearchChanged(value);
+                  _DesktopSidebar(
+                    key: const ValueKey('liquid-dock'),
+                    activeTab: _tab,
+                    compact: constraints.maxWidth < 700,
+                    onTabChanged: (tab) {
+                      _glassPerfBus.pulse(heavy: true);
+                      setState(() {
+                        _tab = tab;
+                        if (tab == _VaultTab.add) {
+                          _addPasswordObscured = true;
+                        }
+                      });
                     },
-                    onClearSearch: () {
-                      widget.searchController.clear();
-                      widget.onSearchChanged('');
-                    },
-                    onSortModeChanged: widget.onSortModeChanged,
+                    onLock: widget.controller.lock,
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(width: 1),
                   Expanded(
-                    child: _tab == _VaultTab.passwords
-                        ? _buildPasswordsPage(items, true)
-                        : _buildActionPage(context),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _DesktopHeader(
+                            tab: _tab,
+                            itemCount: items.length,
+                            searchController: widget.searchController,
+                            searchFocusNode: widget.searchFocusNode,
+                            sortMode: widget.sortMode,
+                            onSearchChanged: (value) {
+                              _glassPerfBus.pulse();
+                              widget.onSearchChanged(value);
+                            },
+                            onClearSearch: () {
+                              widget.searchController.clear();
+                              widget.onSearchChanged('');
+                            },
+                            onSortModeChanged: widget.onSortModeChanged,
+                          ),
+                          const SizedBox(height: 12),
+                          Expanded(
+                            child: _tab == _VaultTab.passwords
+                                ? _buildPasswordsPage(items, true)
+                                : Align(
+                                    alignment: Alignment.topLeft,
+                                    child: ConstrainedBox(
+                                      constraints:
+                                          const BoxConstraints(maxWidth: 680),
+                                      child: _buildActionPage(context),
+                                    ),
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
-              ),
-            ),
-          ),
-        ],
-      );
+              ));
     }
 
     final shouldHideDock = keyboardVisible ||
@@ -1226,17 +1337,12 @@ class _VaultViewState extends State<_VaultView> {
         return false;
       },
       child: isDesktopPlatform
-          ? GridView.builder(
+          ? ListView.separated(
               key: const ValueKey('vault-list'),
               controller: widget.scrollController,
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 340,
-                mainAxisExtent: 88,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-              ),
+              separatorBuilder: (_, __) => const SizedBox(height: 4),
               itemCount: items.length,
-              padding: const EdgeInsets.fromLTRB(0, 0, 0, 96),
+              padding: const EdgeInsets.only(bottom: 16),
               itemBuilder: (context, index) {
                 final item = items[index];
                 final accountInfo = [
@@ -1524,17 +1630,20 @@ class _VaultViewState extends State<_VaultView> {
             icon: const Icon(Icons.upload_rounded),
             label: const Text('导出加密备份'),
           ),
-          const SizedBox(height: 10),
-          Text(
-            '导出时会弹出文件选择器页面，导出完成后会给出消息提示。',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          if (Theme.of(context).platform == TargetPlatform.android) ...[
+            const SizedBox(height: 10),
+            Text(
+              '导出时会弹出文件选择器页面，导出完成后会给出消息提示。',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildPairingPage() {
+    final isAndroid = Theme.of(context).platform == TargetPlatform.android;
     return _FrostedSurface(
       key: const ValueKey('vault-page-pairing'),
       padding: const EdgeInsets.fromLTRB(22, 22, 22, 22),
@@ -1542,22 +1651,28 @@ class _VaultViewState extends State<_VaultView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '在局域网中发现并同步设备',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+            isAndroid ? '在局域网中发现并同步设备' : '设备连接同一局域网并保持解锁，使用共同主密码合并。',
+            style: isAndroid
+                ? Theme.of(context)
+                    .textTheme
+                    .titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w800)
+                : Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 8),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640),
-            child: Text(
-              '配对后使用同一个主密码共享密码库。设备只在当前局域网内通信，数据仍以加密文件传输。',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: const Color(0xFF667085),
-                  ),
+          if (isAndroid) ...[
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: Text(
+                '配对后使用同一个主密码共享密码库。设备只在当前局域网内通信，数据仍以加密文件传输。',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF667085),
+                    ),
+              ),
             ),
-          ),
-          const SizedBox(height: 22),
+            const SizedBox(height: 14),
+          ],
+          const SizedBox(height: 8),
           FilledButton.icon(
             onPressed: widget.controller.busy
                 ? null
@@ -1566,7 +1681,7 @@ class _VaultViewState extends State<_VaultView> {
                       controller: widget.controller,
                     ),
             icon: const Icon(Icons.sync_rounded),
-            label: const Text('打开设备配对'),
+            label: Text(isAndroid ? '打开设备配对' : '设备同步'),
           ),
         ],
       ),
@@ -1678,11 +1793,13 @@ class _DesktopSidebar extends StatelessWidget {
   const _DesktopSidebar({
     super.key,
     required this.activeTab,
+    required this.compact,
     required this.onTabChanged,
     required this.onLock,
   });
 
   final _VaultTab activeTab;
+  final bool compact;
   final ValueChanged<_VaultTab> onTabChanged;
   final VoidCallback onLock;
 
@@ -1690,9 +1807,9 @@ class _DesktopSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
-      width: 224,
+      width: compact ? 64 : 200,
       color: const Color(0xFFFFFFFF),
-      padding: const EdgeInsets.fromLTRB(14, 18, 14, 14),
+      padding: EdgeInsets.fromLTRB(compact ? 8 : 12, 16, compact ? 8 : 12, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1711,47 +1828,27 @@ class _DesktopSidebar extends StatelessWidget {
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Cipherbook',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.1,
+              if (!compact) const SizedBox(width: 10),
+              if (!compact)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Cipherbook',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.1,
+                        ),
                       ),
-                    ),
-                    Text(
-                      '本地加密密码库',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: const Color(0xFF667085),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
-          const SizedBox(height: 24),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 10),
-            child: Text(
-              '工作区',
-              style: TextStyle(
-                color: Color(0xFF98A2B3),
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.6,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 20),
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
@@ -1760,6 +1857,7 @@ class _DesktopSidebar extends StatelessWidget {
                   _DesktopSidebarItem(
                     tab: tab,
                     active: tab == activeTab,
+                    compact: compact,
                     onTap: () => onTabChanged(tab),
                   ),
               ],
@@ -1767,39 +1865,16 @@ class _DesktopSidebar extends StatelessWidget {
           ),
           const Divider(height: 1, color: Color(0xFFE7E9EE)),
           const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
-            decoration: BoxDecoration(
-              color: const Color(0xFFF8FAFC),
-              border: Border.all(color: const Color(0xFFE7E9EE)),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.verified_user_outlined,
-                  size: 17,
-                  color: Color(0xFF12B76A),
-                ),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    '已解锁',
-                    style: TextStyle(
-                      color: Color(0xFF344054),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: '立即锁定 (Ctrl+L)',
-                  onPressed: onLock,
-                  padding: EdgeInsets.zero,
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.lock_outline_rounded, size: 18),
-                ),
-              ],
+          Align(
+            alignment: compact ? Alignment.center : Alignment.centerLeft,
+            child: Tooltip(
+              message: '立即锁定 (Ctrl+L)',
+              child: TextButton.icon(
+                onPressed: onLock,
+                icon: const Icon(Icons.lock_outline_rounded, size: 18),
+                label: compact ? const SizedBox.shrink() : const Text('锁定'),
+                style: TextButton.styleFrom(padding: const EdgeInsets.all(10)),
+              ),
             ),
           ),
         ],
@@ -1812,11 +1887,13 @@ class _DesktopSidebarItem extends StatelessWidget {
   const _DesktopSidebarItem({
     required this.tab,
     required this.active,
+    required this.compact,
     required this.onTap,
   });
 
   final _VaultTab tab;
   final bool active;
+  final bool compact;
   final VoidCallback onTap;
 
   @override
@@ -1826,35 +1903,38 @@ class _DesktopSidebarItem extends StatelessWidget {
         : const Color(0xFF667085);
     return Padding(
       padding: const EdgeInsets.only(bottom: 3),
-      child: Material(
-        color: active
-            ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.09)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(7),
-        child: InkWell(
+      child: Tooltip(
+        message: compact ? tab.label : '',
+        child: Material(
+          color: active
+              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.09)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(7),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-            child: Row(
-              children: [
-                Icon(tab.icon, size: 18, color: color),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    tab.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: active ? color : const Color(0xFF475467),
-                      fontSize: 13,
-                      fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(7),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              child: Row(
+                children: [
+                  Icon(tab.icon, size: 18, color: color),
+                  if (!compact) const SizedBox(width: 10),
+                  if (!compact)
+                    Expanded(
+                      child: Text(
+                        tab.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: active ? color : const Color(0xFF475467),
+                          fontSize: 13,
+                          fontWeight:
+                              active ? FontWeight.w700 : FontWeight.w500,
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-                if (active)
-                  Icon(Icons.chevron_right_rounded, size: 16, color: color),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -1885,12 +1965,8 @@ class _DesktopHeader extends StatelessWidget {
   final ValueChanged<_SortMode> onSortModeChanged;
 
   String get subtitle => switch (tab) {
-        _VaultTab.passwords => '$itemCount 条记录，保存在本机加密库中',
-        _VaultTab.add => '创建一条新的登录凭据',
-        _VaultTab.importVault => '从加密备份导入并预览变更',
-        _VaultTab.exportVault => '生成可迁移的加密备份文件',
-        _VaultTab.pairing => '发现局域网设备并共享密码库',
-        _VaultTab.settings => '管理主密码和快速解锁',
+        _VaultTab.passwords => '$itemCount 条记录',
+        _ => '',
       };
 
   @override
@@ -1903,19 +1979,20 @@ class _DesktopHeader extends StatelessWidget {
           children: [
             Text(
               tab == _VaultTab.passwords ? '密码库' : tab.label,
-              style: theme.textTheme.headlineSmall?.copyWith(
+              style: theme.textTheme.titleLarge?.copyWith(
                 color: const Color(0xFF101828),
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.2,
+                fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: const Color(0xFF667085),
+            if (subtitle.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: const Color(0xFF667085),
+                ),
               ),
-            ),
+            ],
           ],
         );
 
@@ -1928,7 +2005,7 @@ class _DesktopHeader extends StatelessWidget {
         }
 
         final toolbar = SizedBox(
-          width: constraints.maxWidth < 700 ? constraints.maxWidth : 360,
+          width: constraints.maxWidth < 520 ? constraints.maxWidth : 360,
           child: _SearchField(
             key: const ValueKey('vault-toolbar'),
             controller: searchController,
@@ -1940,7 +2017,7 @@ class _DesktopHeader extends StatelessWidget {
           ),
         );
 
-        if (constraints.maxWidth < 700) {
+        if (constraints.maxWidth < 520) {
           return Column(
             key: const ValueKey('vault-header'),
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2398,6 +2475,85 @@ class _EntryCardState extends State<_EntryCard> {
         : (widget.item.notes.trim().isNotEmpty
             ? widget.item.notes.trim()
             : '点击查看详情');
+    if (desktopSpacing) {
+      final theme = Theme.of(context);
+      return Material(
+        color: _hovered ? const Color(0xFFF3F6FA) : Colors.white,
+        borderRadius: BorderRadius.circular(6),
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() => _hovered = false),
+          child: InkWell(
+            onTap: widget.onView,
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: LayoutBuilder(builder: (context, constraints) {
+                final actions = <(IconData, String, VoidCallback)>[
+                  (Icons.visibility_outlined, '查看', widget.onView),
+                  (Icons.copy_outlined, '复制密码', widget.onCopy),
+                  (Icons.edit_outlined, '编辑', widget.onEdit),
+                  (Icons.delete_outline, '删除', widget.onDelete),
+                ];
+                return Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(leadingText,
+                          style: TextStyle(
+                              color: theme.colorScheme.onPrimaryContainer,
+                              fontWeight: FontWeight.w700)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall),
+                          if (widget.accountInfo.isNotEmpty)
+                            Text(widget.accountInfo,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                    if (constraints.maxWidth < 340)
+                      PopupMenuButton<int>(
+                        tooltip: '条目操作',
+                        icon: const Icon(Icons.more_vert),
+                        onSelected: (index) => actions[index].$3(),
+                        itemBuilder: (context) => [
+                          for (var i = 0; i < actions.length; i++)
+                            PopupMenuItem(value: i, child: Text(actions[i].$2)),
+                        ],
+                      )
+                    else
+                      for (final action in actions)
+                        IconButton(
+                          tooltip: action.$2,
+                          onPressed: action.$3,
+                          icon: Icon(action.$1, size: 18),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                  ],
+                );
+              }),
+            ),
+          ),
+        ),
+      );
+    }
     final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
           fontWeight: FontWeight.w900,
           fontSize: desktopSpacing ? 17 : 19,
@@ -3136,6 +3292,7 @@ Future<void> _showItemEditor(
                       child: Scrollbar(
                         thumbVisibility: true,
                         child: SingleChildScrollView(
+                          primary: true,
                           padding: const EdgeInsets.only(
                               top: 10, right: 14, bottom: 4),
                           child: Column(
@@ -3278,8 +3435,27 @@ Future<void> _showAndroidItemDetails(
             controller: scrollController,
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             children: [
-              Text(item.title,
-                  style: Theme.of(context).textTheme.headlineSmall),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(item.title.trim().isEmpty ? '未命名' : item.title,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w700)),
+                  ),
+                  IconButton(
+                    tooltip: '编辑条目',
+                    onPressed: () {
+                      Navigator.of(sheetContext).pop();
+                      _showItemEditor(context,
+                          controller: controller, item: item);
+                    },
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
               const SizedBox(height: 16),
               _DetailRow(
                 label: '账号',
@@ -3696,14 +3872,19 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
   ImportPlan? _plan;
   bool _busy = false;
   String? _status;
+  bool _advancedStatus = false;
 
   Future<void> _syncAll() async {
     final password = _passwordController.text;
     if (password.trim().isEmpty) {
-      setState(() => _status = '请输入各设备共同使用的主密码。');
+      setState(() {
+        _advancedStatus = false;
+        _status = '请输入各设备共同使用的主密码。';
+      });
       return;
     }
     setState(() {
+      _advancedStatus = false;
       _busy = true;
       _plan = null;
       _status = '正在验证局域网设备并双向合并，请保持各端解锁…';
@@ -3722,7 +3903,9 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
   @override
   void initState() {
     super.initState();
-    _discover();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _discover();
+    });
   }
 
   @override
@@ -3734,6 +3917,7 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
 
   Future<void> _discover() async {
     setState(() {
+      _advancedStatus = false;
       _busy = true;
       _status = '正在发现局域网设备…';
     });
@@ -3759,6 +3943,7 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
 
   Future<void> _startShare() async {
     setState(() {
+      _advancedStatus = true;
       _busy = true;
       _status = '正在开启设备配对服务…';
     });
@@ -3776,7 +3961,9 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
 
   Future<void> _stopShare() async {
     setState(() {
+      _advancedStatus = true;
       _busy = true;
+      _status = '正在关闭设备配对服务…';
     });
     await widget.controller.stopLanSyncShare();
     if (!mounted) {
@@ -3792,6 +3979,7 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
     final peer = _selectedPeer;
     if (peer == null) {
       setState(() {
+        _advancedStatus = true;
         _status = '请先选择来源设备。';
       });
       return;
@@ -3800,11 +3988,13 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
     final sourcePassword = _passwordController.text.trim();
     if (pairingCode.isEmpty && sourcePassword.isEmpty) {
       setState(() {
+        _advancedStatus = true;
         _status = '请输入来源设备的主密码。';
       });
       return;
     }
     setState(() {
+      _advancedStatus = true;
       _busy = true;
       _plan = null;
       _status = '正在下载加密密码库…';
@@ -3850,6 +4040,7 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
       return;
     }
     setState(() {
+      _advancedStatus = true;
       _busy = true;
       _status = plan.summary.replacesLocalVault ? '正在建立本地密码库…' : '正在合并密码库…';
     });
@@ -3867,8 +4058,181 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
     });
   }
 
+  Widget _buildCompactDialog(BuildContext context) {
+    final host = widget.controller.lanSyncHost;
+    final colors = Theme.of(context).colorScheme;
+    return AlertDialog(
+      title: const Text('设备同步'),
+      contentPadding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+      content: SizedBox(
+        width: 480,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '设备连接同一局域网并保持解锁，使用共同主密码合并。',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _passwordController,
+                obscureText: true,
+                enabled: !_busy,
+                decoration: const InputDecoration(labelText: '共同的主密码'),
+              ),
+              const SizedBox(height: 8),
+              FilledButton.icon(
+                onPressed: _busy ? null : _syncAll,
+                icon: const Icon(Icons.sync_rounded),
+                label: const Text('验证并同步所有设备'),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _status ?? '正在发现局域网设备…',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: colors.onSurfaceVariant,
+                          ),
+                    ),
+                  ),
+                  if (_busy)
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    IconButton(
+                      tooltip: '重新发现设备',
+                      onPressed: _discover,
+                      icon: const Icon(Icons.refresh_rounded),
+                    ),
+                ],
+              ),
+              const Divider(height: 1),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                childrenPadding: const EdgeInsets.only(bottom: 8),
+                title: const Text('更多选项'),
+                children: [
+                  if (host != null) ...[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('本机配对服务已开启',
+                          style: Theme.of(context).textTheme.titleSmall),
+                    ),
+                    const SizedBox(height: 6),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: SelectableText('配对码：${host.pairingCode}'),
+                    ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(host.addresses.isEmpty
+                          ? '端口：${host.port}'
+                          : '地址：${host.addresses.join('、')}  端口：${host.port}'),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _stopShare,
+                      icon: const Icon(Icons.stop_circle_outlined),
+                      label: const Text('停止本机配对服务'),
+                    ),
+                  ] else if (widget.controller.isUnlocked)
+                    OutlinedButton.icon(
+                      onPressed: _busy ? null : _startShare,
+                      icon: const Icon(Icons.wifi_tethering_rounded),
+                      label: const Text('在本机开启配对服务'),
+                    )
+                  else
+                    const Text('本机尚未解锁，当前仅可从另一台设备配对到本机。'),
+                  const Divider(),
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    title: const Text('单台设备导入'),
+                    children: [
+                      if (_peers.isNotEmpty)
+                        DropdownButtonFormField<LanSyncPeer>(
+                          initialValue: _selectedPeer,
+                          decoration: const InputDecoration(labelText: '来源设备'),
+                          items: _peers
+                              .map((peer) => DropdownMenuItem(
+                                    value: peer,
+                                    child: Text(peer.displayName),
+                                  ))
+                              .toList(),
+                          onChanged: _busy
+                              ? null
+                              : (peer) => setState(() => _selectedPeer = peer),
+                        )
+                      else
+                        const Text('未发现可配对设备'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _pairingCodeController,
+                        textCapitalization: TextCapitalization.characters,
+                        decoration: const InputDecoration(
+                          labelText: '配对码（可选）',
+                          helperText: '通常只需输入来源设备主密码；配对码用于手动确认设备。',
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      FilledButton.icon(
+                        onPressed: _busy ? null : _download,
+                        icon: const Icon(Icons.download_for_offline_rounded),
+                        label: Text(
+                            widget.controller.hasVault ? '配对并预览' : '配对并进入密码本'),
+                      ),
+                      if (_plan != null) ...[
+                        const SizedBox(height: 14),
+                        _ImportSummaryView(summary: _plan!.summary),
+                        const SizedBox(height: 10),
+                        FilledButton.icon(
+                          onPressed: _busy ? null : _apply,
+                          icon: const Icon(Icons.merge_type_rounded),
+                          label: Text(_plan!.summary.replacesLocalVault
+                              ? '确认建立本地密码库'
+                              : '确认合并'),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        if (_advancedStatus && _status != null)
+          SizedBox(
+            width: double.infinity,
+            child: Text(
+              _status!,
+              key: const ValueKey('lan-advanced-status'),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.onSurfaceVariant,
+                  ),
+            ),
+          ),
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.of(context).pop(),
+          child: const Text('关闭'),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (Theme.of(context).platform == TargetPlatform.android ||
+        Theme.of(context).platform == TargetPlatform.windows) {
+      return _buildCompactDialog(context);
+    }
     final host = widget.controller.lanSyncHost;
     return AlertDialog(
       title: const Text('设备配对与同步'),
@@ -4637,6 +5001,7 @@ class _FrostedSurface extends StatelessWidget {
     this.shadowColor,
     this.enableBlur = true,
     this.specularStrength = 1,
+    this.plainOnAndroid = false,
   });
 
   final Widget child;
@@ -4648,10 +5013,14 @@ class _FrostedSurface extends StatelessWidget {
   final Color? shadowColor;
   final bool enableBlur;
   final double specularStrength;
+  final bool plainOnAndroid;
 
   @override
   Widget build(BuildContext context) {
     if (Theme.of(context).platform == TargetPlatform.android) {
+      if (plainOnAndroid) {
+        return Padding(padding: padding, child: child);
+      }
       return Material(
         color: Theme.of(context).colorScheme.surfaceContainerLow,
         elevation: 0,
