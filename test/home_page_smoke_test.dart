@@ -859,6 +859,67 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('Windows exports only entries missing from Bitwarden baseline',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const testEmail = 'delta.ui' '@' 'example.test';
+    final importExport = _MemoryImportExportService();
+    final controller = _buildController(
+      importExportService: importExport,
+    );
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await controller.addOrUpdateItem(
+      title: 'Bitwarden 已有项',
+      username: testEmail,
+      password: 'same-password',
+      url: 'https://existing.example.com',
+      notes: '',
+      tags: const [],
+    );
+    await controller.addOrUpdateItem(
+      title: '仅 Codebook 缺失项',
+      username: 'missing@example.test',
+      password: 'missing-password',
+      url: 'https://missing.example.com',
+      notes: '',
+      tags: const [],
+    );
+    final existing = controller.vaultData.activeItems
+        .firstWhere((item) => item.title == 'Bitwarden 已有项');
+    importExport.bitwardenImportBytes =
+        const BitwardenInterchangeService().encodeJson(<VaultItem>[
+      existing.copyWith(id: 'bitwarden-baseline'),
+    ]);
+
+    await tester.pumpWidget(
+      _buildApp(controller, platform: TargetPlatform.windows),
+    );
+    await tester.pumpAndSettle();
+    final dock = find.byKey(const ValueKey('liquid-dock'));
+    await tester.tap(find.descendant(of: dock, matching: find.text('导出')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('核对 Bitwarden 并导出缺失项'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bitwarden 缺失项核对'), findsOneWidget);
+    expect(find.text('将只导出 Bitwarden 中不存在的 1 条。'), findsOneWidget);
+    expect(find.text('仅 Codebook 缺失项'), findsOneWidget);
+    await tester.tap(find.text('导出缺失 JSON'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('继续导出'));
+    await tester.pumpAndSettle();
+
+    expect(importExport.bitwardenExportBytes, isNotNull);
+    final exported = const BitwardenInterchangeService()
+        .decode(importExport.bitwardenExportBytes!);
+    expect(exported.items, hasLength(1));
+    expect(exported.items.single.title, '仅 Codebook 缺失项');
+    expect(tester.takeException(), isNull);
+    controller.dispose();
+  });
+
   testWidgets('Android narrow screen opens Bitwarden review without overflow',
       (tester) async {
     await tester.binding.setSurfaceSize(const Size(360, 800));
@@ -1049,6 +1110,7 @@ class _MemoryDeviceKeyStore implements DeviceKeyStore {
 class _MemoryImportExportService extends ImportExportService {
   Uint8List? importBytes;
   Uint8List? bitwardenImportBytes;
+  Uint8List? bitwardenExportBytes;
 
   @override
   Future<String?> pickImportPath() async => 'memory-import.pwv';
@@ -1060,6 +1122,17 @@ class _MemoryImportExportService extends ImportExportService {
   @override
   Future<Uint8List> readFile(String path) async =>
       path.contains('bitwarden') ? bitwardenImportBytes! : importBytes!;
+
+  @override
+  Future<String?> pickBitwardenExportPath({required bool csv}) async =>
+      csv ? 'memory-bitwarden-export.csv' : 'memory-bitwarden-export.json';
+
+  @override
+  Future<void> writeFile(String path, Uint8List bytes) async {
+    if (path.contains('bitwarden')) {
+      bitwardenExportBytes = Uint8List.fromList(bytes);
+    }
+  }
 }
 
 class _NoopImportExportService extends ImportExportService {

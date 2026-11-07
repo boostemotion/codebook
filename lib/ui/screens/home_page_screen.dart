@@ -1697,6 +1697,22 @@ class _VaultViewState extends State<_VaultView> {
               ),
             ],
           ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: widget.controller.busy
+                ? null
+                : () => _startBitwardenDeltaExport(
+                      context,
+                      widget.controller,
+                    ),
+            icon: const Icon(Icons.rule_rounded),
+            label: const Text('核对 Bitwarden 并导出缺失项'),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '先选择 Bitwarden 最新导出作为基线，只导出 Bitwarden 中不存在的本机条目。',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           if (Theme.of(context).platform == TargetPlatform.android) ...[
             const SizedBox(height: 10),
             Text(
@@ -3165,6 +3181,151 @@ Future<void> _exportToBitwarden(
   await controller.exportBitwarden(format);
 }
 
+Future<bool> _startBitwardenDeltaExport(
+  BuildContext context,
+  VaultController controller,
+) async {
+  final plan = await controller.previewBitwardenDeltaExport();
+  if (!context.mounted || plan == null) {
+    return false;
+  }
+  final format = await showDialog<BitwardenExchangeFormat>(
+    context: context,
+    builder: (_) => _BitwardenDeltaExportDialog(plan: plan),
+  );
+  if (!context.mounted || format == null) {
+    return false;
+  }
+  final confirmed = await _confirmBitwardenExport(context, format);
+  if (!context.mounted || !confirmed) {
+    return false;
+  }
+  final result = await controller.exportBitwardenDelta(plan, format);
+  return result.succeeded;
+}
+
+class _BitwardenDeltaExportDialog extends StatelessWidget {
+  const _BitwardenDeltaExportDialog({required this.plan});
+
+  final BitwardenDeltaExportPlan plan;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return AlertDialog(
+      key: const ValueKey('bitwarden-delta-dialog'),
+      title: const Text('Bitwarden 缺失项核对'),
+      content: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Bitwarden 基线 ${plan.baselineItemCount} 条，'
+              'Codebook ${plan.localItemCount} 条，'
+              '已匹配 ${plan.matchedItemCount} 条。',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              plan.hasMissingItems
+                  ? '将只导出 Bitwarden 中不存在的 ${plan.missingItemCount} 条。'
+                  : '没有发现需要补充到 Bitwarden 的条目。',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: plan.hasMissingItems
+                        ? colors.primary
+                        : colors.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '此操作不会更新或删除 Bitwarden 已有条目；Bitwarden 中不同的密码需要在对应条目中单独修改。',
+            ),
+            if (plan.unsupportedItems > 0 ||
+                plan.duplicateCodebookCount > 0 ||
+                plan.warnings.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              if (plan.unsupportedItems > 0)
+                Text(
+                  '基线中有 ${plan.unsupportedItems} 条未支持项目，未参与匹配。',
+                  style: TextStyle(color: colors.error),
+                ),
+              if (plan.duplicateCodebookCount > 0)
+                Text(
+                  'Codebook 中有 ${plan.duplicateCodebookCount} 条完全相同记录，仅导出一次。',
+                ),
+              for (final warning in plan.warnings) Text(warning),
+            ],
+            if (plan.hasMissingItems) ...[
+              const SizedBox(height: 12),
+              const Text('缺失条目：'),
+              const SizedBox(height: 4),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: colors.surfaceContainerLowest,
+                    border: Border.all(color: colors.outlineVariant),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    itemCount: plan.missingItems.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final item = plan.missingItems[index];
+                      final subtitle = item.kind == VaultItemKind.secureNote
+                          ? '安全笔记'
+                          : (item.username.isEmpty ? '登录项' : item.username);
+                      return ListTile(
+                        dense: true,
+                        leading: Icon(
+                          item.kind == VaultItemKind.secureNote
+                              ? Icons.note_outlined
+                              : Icons.login_rounded,
+                          size: 20,
+                        ),
+                        title: Text(
+                          item.title.isEmpty ? '（未命名条目）' : item.title,
+                        ),
+                        subtitle: Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('取消'),
+        ),
+        if (plan.hasMissingItems) ...[
+          OutlinedButton(
+            onPressed: () =>
+                Navigator.of(context).pop(BitwardenExchangeFormat.csv),
+            child: const Text('导出缺失 CSV'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(context).pop(BitwardenExchangeFormat.json),
+            child: const Text('导出缺失 JSON'),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 Future<Map<String, BitwardenImportAction>?> _showBitwardenImportDialog(
   BuildContext context,
   BitwardenImportPlan plan,
@@ -3340,11 +3501,17 @@ class _BitwardenReviewTile extends StatelessWidget {
         .where((value) => value.isNotEmpty)
         .toSet()
         .join('、');
-    final label = switch (review.kind) {
-      BitwardenImportMatchKind.exactDuplicate => '疑似重复',
-      BitwardenImportMatchKind.passwordConflict => '账号可能相同，密码不同',
-      BitwardenImportMatchKind.possibleDuplicate => '可能相关',
-    };
+    final label = imported.kind == VaultItemKind.secureNote
+        ? switch (review.kind) {
+            BitwardenImportMatchKind.exactDuplicate => '疑似重复笔记',
+            BitwardenImportMatchKind.passwordConflict => '笔记标题相同，内容不同',
+            BitwardenImportMatchKind.possibleDuplicate => '笔记可能相关',
+          }
+        : switch (review.kind) {
+            BitwardenImportMatchKind.exactDuplicate => '疑似重复',
+            BitwardenImportMatchKind.passwordConflict => '账号可能相同，密码不同',
+            BitwardenImportMatchKind.possibleDuplicate => '可能相关',
+          };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -5121,6 +5288,26 @@ class _AndroidExportSheetState extends State<_AndroidExportSheet> {
     });
   }
 
+  Future<void> _exportBitwardenDelta() async {
+    setState(() {
+      _exporting = true;
+    });
+    final succeeded = await _startBitwardenDeltaExport(
+      context,
+      widget.controller,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (succeeded) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() {
+      _exporting = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
@@ -5184,6 +5371,16 @@ class _AndroidExportSheetState extends State<_AndroidExportSheet> {
                 ),
               ],
             ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _exporting || widget.controller.busy
+                  ? null
+                  : _exportBitwardenDelta,
+              icon: const Icon(Icons.rule_rounded),
+              label: const Text('核对 Bitwarden 并导出缺失项'),
+            ),
+            const SizedBox(height: 4),
+            const Text('以 Bitwarden 最新导出为基线，只导出其中不存在的本机条目。'),
             if (_exporting) ...[
               const SizedBox(height: 16),
               const Center(child: CircularProgressIndicator()),

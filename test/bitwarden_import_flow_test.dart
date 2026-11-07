@@ -124,6 +124,65 @@ void main() {
     expect(parsed.items.single.username, testEmail);
     expect(parsed.items.single.password, 'export-password');
   });
+
+  test('exports only Codebook entries missing from a Bitwarden baseline',
+      () async {
+    final repository = _MemoryVaultRepository();
+    final importExport = _MemoryImportExportService();
+    final controller = VaultController(
+      repository: repository,
+      cryptoService: CryptoService(),
+      importExportService: importExport,
+      deviceKeyStore: _MemoryDeviceKeyStore(),
+      passwordGeneratorService: PasswordGeneratorService(random: Random(3)),
+      clipboardService: _MemoryClipboardService(),
+    );
+    addTearDown(controller.dispose);
+
+    await controller.bootstrap();
+    await controller.createVault('master-password');
+    await controller.addOrUpdateItem(
+      title: 'Bitwarden 已有',
+      username: testEmail,
+      password: 'existing-password',
+      url: 'https://existing.example.com',
+      notes: '',
+      tags: const [],
+    );
+    await controller.addOrUpdateItem(
+      title: '仅 Codebook 有',
+      username: 'missing@example.test',
+      password: 'missing-password',
+      url: 'https://missing.example.com',
+      notes: '',
+      tags: const [],
+    );
+
+    final existing = controller.vaultData.activeItems
+        .firstWhere((item) => item.title == 'Bitwarden 已有');
+    final baseline = const BitwardenInterchangeService().encodeJson(
+      <VaultItem>[existing.copyWith(id: 'bitwarden-existing')],
+    );
+
+    final plan = await controller.previewBitwardenDeltaExportBytes(baseline);
+    expect(plan, isNotNull);
+    expect(plan!.matchedItemCount, 1);
+    expect(plan.missingItemCount, 1);
+    expect(plan.missingItems.single.title, '仅 Codebook 有');
+
+    final result = await controller.exportBitwardenDelta(
+      plan,
+      BitwardenExchangeFormat.json,
+    );
+    expect(result.succeeded, isTrue, reason: controller.message);
+    expect(importExport.writtenBytes, isNotNull);
+
+    final exported =
+        const BitwardenInterchangeService().decode(importExport.writtenBytes!);
+    expect(exported.items, hasLength(1));
+    expect(exported.items.single.title, '仅 Codebook 有');
+    expect(controller.vaultData.activeItems, hasLength(2));
+  });
 }
 
 class _MemoryVaultRepository extends VaultRepository {

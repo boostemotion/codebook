@@ -10,6 +10,12 @@ Cipherbook 是本地优先的单机密码库。核心目标是：
 4. UI 不直接处理密钥、文件或网络协议；
 5. 加密、存储和同步失败时优先保留可用副本，不静默覆盖最后一个有效密码库。
 
+## 平台边界
+
+当前提交包含 Android 和 Windows 宿主工程。共享 Dart 层尽量保持平台无关，但系统认证、
+本地网络锁、文件保存和窗口生命周期仍需平台桥接。iOS 尚无宿主工程和原生桥接，不能因为
+共享层存在就视为受支持平台；未来接入范围和验收条件见 [`ios.md`](ios.md)。
+
 ## 分层
 
 ```text
@@ -25,7 +31,7 @@ Flutter UI
 - `lib/models/`：密码库文档、条目、KDF、同步状态和 Bitwarden 交换模型。
 - `lib/services/`：无 UI 的加密、文件、导入导出、TOTP、网络的平台适配逻辑。
 - `lib/state/`：`VaultController` 编排解锁、锁定、写操作、同步和导入计划。
-- `lib/ui/`：Android / Windows 自适应界面，只调用控制器公开接口。
+- `lib/ui/`：当前面向 Android / Windows 的平台自适应界面，只调用控制器公开接口。
 - `android/`、`windows/`：平台桥接。系统认证和本地密钥包装不进入 Widget。
 
 `main.dart` 创建 `CipherbookApp`，应用在启动时装配具体服务，并把同一个
@@ -96,6 +102,7 @@ VaultData JSON
 - Windows：使用当前用户 DPAPI 保护缓存；读取缓存前必须通过 Windows Hello 验证。
 - Android：使用 Android Keystore 中的 AES-GCM 密钥，密钥要求强生物识别认证；
   生物识别录入变化会使旧密钥失效。
+- iOS：尚未实现 Keychain、Face ID / Touch ID 和无平台环境之外的失败分支。
 - 开关默认关闭。只有用户主动开启后，冷启动才能直接请求系统认证。
 - `QuickUnlockPreferenceStore` 只保存布尔开关。若系统认证不可用、被取消或密钥失效，
   仍必须输入主密码。
@@ -125,9 +132,14 @@ KDF 参数和一次性 challenge。发现端不会广播主密码。
 B 有而 A 没有的条目都可以进入最终合集。网络请求不在全局写锁内等待对端，
 避免两台设备同时发起同步时互相死锁。
 
+接收端只有在加密文档验证通过、数据完成合并并成功保存后，才会把同步成功状态写入
+`VaultController.message` 并通知 UI。存在新数据时提示“已接收并合并”，没有新数据时
+提示“当前密码本已是最新”；写入失败不会显示成功提醒。
+
 局域网同步的限制：
 
-- Android 只保证应用前台且解锁时可用；
+- Android 和 Windows 只保证应用前台且解锁时可用；
+- iOS 尚未实现本地网络权限和宿主集成；
 - 端口用于局域网，不应暴露到公网；
 - 当前没有中心服务器、远端冲突仲裁或跨网段穿透；
 - 同步上限为 16 MiB 加密文档。
@@ -147,6 +159,21 @@ B 有而 A 没有的条目都可以进入最终合集。网络请求不在全局
 重复判断是启发式的，不是自动合并策略。应用可能依据来源 ID、同网站、账号别名、
 标题、密码和 TOTP 生成候选；当多个本机条目得分相同时，会禁止自动替换并要求人工核验。
 默认动作是“两边都保留”。
+
+### Bitwarden 缺失项导出
+
+Bitwarden 文件导入本身是纯新增操作，不能依靠 JSON/CSV 更新 Bitwarden 已有条目。
+为避免 Cipherbook 全量导出造成 Bitwarden 重复，`createDeltaExportPlan` 支持：
+
+1. 把用户选择的 Bitwarden 当前导出仅作为只读基线；
+2. 逐条将 Cipherbook 活动条目与基线匹配，不把基线条目写回本地密码库；
+3. 匹配来源 ID、规范化网址、账号邮箱/手机号别名、标题、密码、TOTP 和安全笔记内容；
+4. 只把未匹配的 Cipherbook 条目放进导出计划；
+5. 对 Cipherbook 中完全相同的记录只保留一条；
+6. 在文件选择和新文件写入前复核 session generation 与 vault revision。
+
+这条离线流程只负责“补充缺失项”。Bitwarden 已有条目的密码或字段更新不会被覆盖；
+真正的 upsert 需要后续接入 Bitwarden API/CLI，而不能依赖文件导入。
 
 导出为 Bitwarden JSON/CSV 是明文操作，需要二次确认。当前不支持额外网址、任意自定义字段、
 Passkey、附件、银行卡、身份资料、Collections、密码历史和重新输入主密码保护。

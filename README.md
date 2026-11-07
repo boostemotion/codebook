@@ -3,7 +3,11 @@
 Cipherbook 是一个本地优先的 Android / Windows 密码库。密码库默认只以加密文件保存在当前设备，
 不需要账号、云端服务或自建后端；需要多设备协作时，可在同一局域网内验证共同主密码后双向合并。
 
-当前应用版本：`1.3.0+5`（以 [`pubspec.yaml`](pubspec.yaml) 为唯一来源）。
+当前应用版本：`1.4.0+6`（以 [`pubspec.yaml`](pubspec.yaml) 为唯一来源）。
+
+> 当前构建用于本地测试和自用验证。Android 仍使用 debug 签名，Windows 安装包尚无正式代码签名；
+> iOS 尚未提供官方构建或安装包。正式分发前请先阅读
+> [`docs/release.md`](docs/release.md) 中的阻断项。
 
 ## 功能概览
 
@@ -12,7 +16,9 @@ Cipherbook 是一个本地优先的 Android / Windows 密码库。密码库默�
 - TOTP：兼容已有验证器密钥和 `otpauth://totp` URI。
 - 加密备份：`.pwv` 导入、导出、导入预览和异常文件恢复。
 - 局域网同步：UDP 发现，验证共同主密码后收集并双向合并多台设备的数据。
-- Bitwarden 数据桥接：未加密 JSON / CSV 导入导出、重复候选人工核验和来源 ID 回写。
+  接收端完成合并后会显示同步成功提醒。
+- Bitwarden 数据桥接：未加密 JSON / CSV 导入导出、重复候选人工核验、来源 ID 回写，
+  并可按 Bitwarden 基线只导出缺失条目。
 - 快速解锁：Android 强生物识别、Windows Hello；默认冷启动先验证一次主密码，也可逐设备开启
   “冷启动直接快速解锁”。
 - 自动锁定、锁定时清理会话密钥，并尝试清理本应用复制到剪贴板的内容。
@@ -23,7 +29,10 @@ Cipherbook 是一个本地优先的 Android / Windows 密码库。密码库默�
 | --- | --- | --- |
 | Windows 10/11 | 支持 | Flutter 桌面应用；Windows Hello + DPAPI 快速解锁 |
 | Android 7.0+ / API 24+ | 支持 | Flutter 应用；快速解锁要求设备支持强生物识别 |
-| iOS | 未支持 | 尚无 iOS 宿主工程、Keychain / Face ID 桥接和签名配置 |
+| iOS / iPadOS | 规划中 | 尚无宿主工程、Keychain / Face ID、文件保存、局域网权限和签名配置 |
+
+iOS 的当前边界和未来接入条件见 [`docs/ios.md`](docs/ios.md)。不要把 Android 或 Windows
+产物描述为 iOS 支持，也不要使用未经确认的第三方签名包处理真实密码库。
 
 ## 快速开始
 
@@ -45,6 +54,17 @@ flutter run -d <device-id>
 完整的工具链、Release 构建、ADB 安装和测试命令见
 [`docs/development.md`](docs/development.md)。安装包命名和发布检查见
 [`docs/release.md`](docs/release.md)。
+
+## 文档导航
+
+- [`docs/README.md`](docs/README.md)：文档索引和阅读顺序；
+- [`docs/architecture.md`](docs/architecture.md)：分层、加密文件、同步和 Bitwarden 桥接；
+- [`docs/security.md`](docs/security.md)：资产、信任边界、快速解锁和部署风险；
+- [`docs/development.md`](docs/development.md)：Windows、Android、测试和常见构建问题；
+- [`docs/release.md`](docs/release.md)：版本、构建、产物校验和正式发布阻断项；
+- [`docs/ios.md`](docs/ios.md)：iOS 未支持状态、所需工作和未来真机/上架路径；
+- [`CONTRIBUTING.md`](CONTRIBUTING.md)：代码、测试、提交和 Pull Request 要求；
+- [`SECURITY.md`](SECURITY.md)：安全漏洞的私密报告方式。
 
 ## 数据与安全
 
@@ -71,7 +91,25 @@ Android 端依赖应用在前台且已解锁，锁定或进入后台后会停止
 
 ## Bitwarden 数据交换
 
-在 Bitwarden 中导出未加密 JSON，或使用 CSV 兼容格式，再从 Cipherbook 导入。应用会：
+### 向 Bitwarden 补充缺失项
+
+Bitwarden 的文件导入只会新增条目，不会按账号、网址或来源 ID 更新已有条目。
+因此 Bitwarden 中已有数据时，不要直接再次导入 Cipherbook 的全量导出文件。推荐流程：
+
+1. 在 Bitwarden 中导出当前密码库，得到未加密 JSON 或 CSV，作为基线。
+2. 在 Cipherbook 的“导出”页面点击“核对 Bitwarden 并导出缺失项”。
+3. 选择第 1 步的 Bitwarden 文件，Cipherbook 会核对账号、网址、邮箱/手机号、标题、
+   密码和安全笔记内容。
+4. 查看“已匹配”和“缺失”数量，再导出缺失 JSON 或缺失 CSV。
+5. 只把这份缺失文件导入 Bitwarden。Bitwarden 已有条目不会被改动或删除。
+
+Bitwarden 基线与 Cipherbook 中密码不同但账号相同时，会视为已经存在而不重复导出；
+这类密码更新目前仍需在 Bitwarden 条目中单独修改。完全相同的 Cipherbook 记录只会导出一次。
+
+### 从 Bitwarden 导入 Cipherbook
+
+在 Bitwarden 中导出未加密 JSON，或使用 CSV 兼容格式，再从 Cipherbook 的“导入”页面导入。
+应用会：
 
 - 导入登录项、安全笔记、文件夹、收藏、TOTP 和可用的来源 ID；
 - 从混合账号文本中提取手机号和邮箱别名；
@@ -118,11 +156,13 @@ flutter build windows --release --no-pub
 ## 当前限制
 
 - 当前没有云端同步、账号体系和后台常驻同步。
-- iOS 版本尚未工程化；Windows 不能直接完成 iOS 构建和签名。
+- iOS 版本尚未工程化；Windows 不能直接完成 iOS 构建和签名，详见 [`docs/ios.md`](docs/ios.md)。
 - Bitwarden 桥接只覆盖登录项、安全笔记及已列出的字段，不支持加密 JSON、Passkey、附件、
   银行卡、身份资料、Collections、额外网址和任意自定义字段。
 - Android Release 目前使用 debug 签名，`applicationId` 仍是 `com.example.cipherbook`；
   正式发布前必须替换唯一 ID 并配置独立签名密钥。
 - Windows 安装包尚未配置正式代码签名证书。
+- 当前没有 GitHub Actions 或其他自动发布流水线；公开仓库可以后续增加 macOS 编译任务，
+  但签名、TestFlight 和 App Store 上传仍需 Apple 开发者凭据。
 - 构建产物位于本地 `build/` 和 `dist/`，不提交到 Git；如需公开提供，应作为 GitHub Release
   附件单独发布。

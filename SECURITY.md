@@ -2,7 +2,10 @@
 
 ## 支持范围
 
-当前维护版本为 `1.3.x`。旧版本可能缺少现有修复，安全报告应优先在最新 `main` 或最新 Release 上复现。
+当前维护版本为 `1.4.x`。旧版本可能缺少现有修复，安全报告应优先在最新 `main` 或最新 Release 上复现。
+
+Windows 和 Android 是当前支持的平台。仓库不提供官方 iOS 构建；使用 AltStore、
+Sideloadly 或其他第三方签名工具产生的安装包不属于本项目发布产物。
 
 ## 私密报告漏洞
 
@@ -43,4 +46,5 @@
 - 公网暴露局域网同步端口；
 - Android debug 签名和 `com.example.cipherbook` 的应用 ID；
 - 尚未实现 iOS、Passkey、Bitwarden 加密 JSON 或正式代码签名；
+- 第三方 iOS 重签、证书吊销、签名过期或设备管理策略造成的安装不可用；
 - 未经审计的第三方修改版本。

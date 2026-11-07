@@ -87,6 +87,10 @@ void main() {
     expect(result.succeeded, isTrue, reason: controllers.first.message);
     expect(controllers.first.lanSyncPeers, hasLength(2));
     expect(controllers.first.message, contains('2 台设备'));
+    expect(controllers[1].message, contains('同步成功'));
+    expect(controllers[1].message, contains('已接收并合并'));
+    expect(controllers[2].message, contains('同步成功'));
+    expect(controllers[2].message, contains('已接收并合并'));
     final ids =
         controllers.first.vaultData.activeItems.map((item) => item.id).toSet();
     expect(ids, hasLength(3));
@@ -99,6 +103,10 @@ void main() {
     expect(
         (await controllers[1].syncLanWithPassword('shared-password')).succeeded,
         isTrue);
+    expect(controllers[0].message, contains('同步成功'));
+    expect(controllers[0].message, contains('已是最新'));
+    expect(controllers[2].message, contains('同步成功'));
+    expect(controllers[2].message, contains('已是最新'));
     expect(
         repositories.map((repo) => repo.document!.metadata!.revision).toList(),
         revisions);
@@ -111,10 +119,12 @@ void main() {
       notes: '',
       tags: const [],
     );
+    controllers[2].clearMessage();
     repositories[2].failNextSave = true;
     final partial = await controllers[1].syncLanWithPassword('shared-password');
     expect(partial.succeeded, isTrue);
     expect(controllers[1].message, contains('1 台设备未完成'));
+    expect(controllers[2].message, isNull);
     expect(controllers[1].vaultData.activeItems, hasLength(4));
     expect(controllers[2].vaultData.activeItems, hasLength(3));
     final retry = await controllers[1].syncLanWithPassword('shared-password');

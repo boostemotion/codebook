@@ -429,6 +429,47 @@ class BitwardenInterchangeService {
     );
   }
 
+  BitwardenDeltaExportPlan createDeltaExportPlan({
+    required VaultData localVault,
+    required List<VaultItem> bitwardenItems,
+    required int sessionGeneration,
+    required int expectedRevision,
+    int unsupportedItems = 0,
+    List<String> warnings = const [],
+  }) {
+    final activeLocalItems = localVault.activeItems;
+    final missingItems = <VaultItem>[];
+    final missingSignatures = <String>{};
+    var matchedItemCount = 0;
+    var duplicateCodebookCount = 0;
+
+    for (final localItem in activeLocalItems) {
+      final match = _bestLocalMatch(localItem, bitwardenItems);
+      if (match != null) {
+        matchedItemCount++;
+        continue;
+      }
+      final signature = _deltaItemSignature(localItem);
+      if (!missingSignatures.add(signature)) {
+        duplicateCodebookCount++;
+        continue;
+      }
+      missingItems.add(localItem);
+    }
+
+    return BitwardenDeltaExportPlan(
+      sessionGeneration: sessionGeneration,
+      expectedRevision: expectedRevision,
+      baselineItemCount: bitwardenItems.length,
+      localItemCount: activeLocalItems.length,
+      matchedItemCount: matchedItemCount,
+      missingItems: List.unmodifiable(missingItems),
+      duplicateCodebookCount: duplicateCodebookCount,
+      unsupportedItems: unsupportedItems,
+      warnings: List.unmodifiable(warnings),
+    );
+  }
+
   Map<String, Object?> _itemToBitwardenJson(
     VaultItem item, {
     required String? folderId,
@@ -478,34 +519,62 @@ class BitwardenInterchangeService {
     final importedAliases = identityAliases(imported.username);
     final importedHost = normalizedHost(imported.url);
     for (final local in localItems) {
+      if (local.kind != imported.kind) {
+        continue;
+      }
       final sharedAliases = <String>{};
       var score = 0;
       var reason = '';
-      if (local.id == imported.id) {
+      final sameSource = local.id == imported.id;
+      final titleMatches =
+          normalizedText(local.title) == normalizedText(imported.title);
+      final passwordsEqual =
+          _passwordValuesEqual(local.password, imported.password);
+      final localAliases = identityAliases(local.username);
+      sharedAliases.addAll(importedAliases.intersection(localAliases));
+
+      if (sameSource) {
         score = 1000;
         reason = '来源 ID 相同';
         sharedAliases.addAll(importedAliases);
+      } else if (imported.kind == VaultItemKind.secureNote) {
+        final titleMatches =
+            normalizedText(local.title) == normalizedText(imported.title);
+        final notesMatch = normalizedText(local.notes).isNotEmpty &&
+            normalizedText(local.notes) == normalizedText(imported.notes);
+        if (!titleMatches && !notesMatch) {
+          continue;
+        }
+        score = (titleMatches ? 45 : 0) + (notesMatch ? 35 : 0);
+        reason = titleMatches && notesMatch
+            ? '安全笔记标题和内容相同'
+            : titleMatches
+                ? '安全笔记标题相同'
+                : '安全笔记内容相同';
       } else {
         final localHost = normalizedHost(local.url);
-        if (importedHost == null ||
-            localHost == null ||
-            importedHost != localHost) {
+        final hostsComparable = importedHost != null && localHost != null;
+        if (hostsComparable && importedHost != localHost) {
           continue;
         }
-        final localAliases = identityAliases(local.username);
-        sharedAliases.addAll(importedAliases.intersection(localAliases));
-        final titleMatches = local.title.trim().toLowerCase() ==
-            imported.title.trim().toLowerCase();
-        if (sharedAliases.isEmpty && !titleMatches) {
-          continue;
+        if (hostsComparable) {
+          if (sharedAliases.isEmpty && !titleMatches) {
+            continue;
+          }
+          score = sharedAliases.isEmpty ? 20 : 60 + sharedAliases.length;
+          reason = sharedAliases.isEmpty ? '同网站且标题相同' : '同网站且账号别名相同';
+        } else {
+          if (!titleMatches || (sharedAliases.isEmpty && !passwordsEqual)) {
+            continue;
+          }
+          score = 25;
+          reason = sharedAliases.isEmpty ? '标题和密码相同' : '标题和账号信息相同';
         }
-        score = sharedAliases.isEmpty ? 20 : 60 + sharedAliases.length;
-        reason = sharedAliases.isEmpty ? '同网站且标题相同' : '同网站且账号别名相同';
         if (titleMatches) {
           score += 10;
         }
       }
-      if (_passwordValuesEqual(local.password, imported.password)) {
+      if (passwordsEqual) {
         score += 40;
       }
       if ((local.totpSecret ?? '') == (imported.totpSecret ?? '')) {
@@ -520,12 +589,15 @@ class BitwardenInterchangeService {
           continue;
         }
       }
-      final passwordsEqual =
-          _passwordValuesEqual(local.password, imported.password);
-      final sameSource = local.id == imported.id;
-      final kind = passwordsEqual && (sameSource || sharedAliases.isNotEmpty)
+      final notesMatch = imported.kind == VaultItemKind.secureNote &&
+          normalizedText(local.notes).isNotEmpty &&
+          normalizedText(local.notes) == normalizedText(imported.notes);
+      final exactMatch = imported.kind == VaultItemKind.secureNote
+          ? sameSource || (titleMatches && notesMatch)
+          : passwordsEqual && (sameSource || sharedAliases.isNotEmpty);
+      final kind = exactMatch
           ? BitwardenImportMatchKind.exactDuplicate
-          : sameSource || sharedAliases.isNotEmpty
+          : sameSource || sharedAliases.isNotEmpty || titleMatches
               ? BitwardenImportMatchKind.passwordConflict
               : BitwardenImportMatchKind.possibleDuplicate;
       bestScore = score;
@@ -591,11 +663,32 @@ class BitwardenInterchangeService {
     final uri = Uri.tryParse(
       value.contains('://') ? value : 'https://$value',
     );
-    final host = uri?.host.trim().toLowerCase();
+    var host = uri?.host.trim().toLowerCase();
     if (host == null || host.isEmpty) {
       return null;
     }
-    return host.endsWith('.') ? host.substring(0, host.length - 1) : host;
+    if (host.endsWith('.')) {
+      host = host.substring(0, host.length - 1);
+    }
+    if (host.startsWith('www.')) {
+      host = host.substring(4);
+    }
+    return host.isEmpty ? null : host;
+  }
+
+  static String normalizedText(String value) =>
+      value.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
+
+  static String _deltaItemSignature(VaultItem item) {
+    if (item.kind == VaultItemKind.secureNote) {
+      return 'note:${normalizedText(item.title)}:${normalizedText(item.notes)}';
+    }
+    final host = normalizedHost(item.url);
+    final username = normalizedText(item.username);
+    final password = item.password;
+    final totp = item.totpSecret?.trim() ?? '';
+    final title = host == null ? normalizedText(item.title) : '';
+    return 'login:$host:$title:$username:$password:$totp';
   }
 
   static Set<String> identityAliases(String rawUsername) {

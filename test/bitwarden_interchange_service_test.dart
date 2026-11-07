@@ -199,6 +199,120 @@ void main() {
     );
   });
 
+  test('delta export contains only Codebook items missing from Bitwarden', () {
+    final now = DateTime(2026, 1, 1);
+    VaultItem login({
+      required String id,
+      required String title,
+      required String username,
+      required String password,
+      required String url,
+    }) =>
+        VaultItem(
+          id: id,
+          title: title,
+          username: username,
+          password: password,
+          url: url,
+          notes: '',
+          tags: const [],
+          createdAt: now,
+          updatedAt: now,
+        );
+    final matched = login(
+      id: 'matched',
+      title: '已有站点',
+      username: '$testPhone / $testEmail',
+      password: 'same-password',
+      url: 'https://www.example.com/login',
+    );
+    final missingLogin = login(
+      id: 'missing-login',
+      title: '仅 Codebook 有',
+      username: 'new.account@example.test',
+      password: 'new-password',
+      url: 'https://only-codebook.example',
+    );
+    final missingNote = VaultItem(
+      id: 'missing-note',
+      title: '安全笔记',
+      username: '',
+      password: '',
+      url: '',
+      notes: '仅 Codebook 保存的笔记',
+      tags: const [],
+      createdAt: now,
+      updatedAt: now,
+      kind: VaultItemKind.secureNote,
+    );
+    final local = VaultData(
+      items: <VaultItem>[matched, missingLogin, missingNote],
+      updatedAt: now,
+    );
+    final baseline = <VaultItem>[
+      matched.copyWith(
+        id: 'bitwarden-match',
+        username: testEmail,
+        url: 'https://example.com',
+      ),
+      login(
+        id: 'bitwarden-only',
+        title: '仅 Bitwarden 有',
+        username: 'bitwarden@example.test',
+        password: 'bitwarden-password',
+        url: 'https://bitwarden-only.example',
+      ),
+    ];
+
+    final plan = service.createDeltaExportPlan(
+      localVault: local,
+      bitwardenItems: baseline,
+      sessionGeneration: 3,
+      expectedRevision: 8,
+    );
+
+    expect(plan.baselineItemCount, 2);
+    expect(plan.localItemCount, 3);
+    expect(plan.matchedItemCount, 1);
+    expect(plan.missingItemCount, 2);
+    expect(
+      plan.missingItems.map((item) => item.id),
+      containsAll(<String>['missing-login', 'missing-note']),
+    );
+  });
+
+  test('delta export matches notes and collapses exact Codebook duplicates',
+      () {
+    final now = DateTime(2026, 1, 1);
+    VaultItem note(String id) => VaultItem(
+          id: id,
+          title: '相同笔记',
+          username: '',
+          password: '',
+          url: '',
+          notes: '完全相同的内容',
+          tags: const [],
+          createdAt: now,
+          updatedAt: now,
+          kind: VaultItemKind.secureNote,
+        );
+    final local = VaultData(
+      items: <VaultItem>[note('note-a'), note('note-b')],
+      updatedAt: now,
+    );
+
+    final plan = service.createDeltaExportPlan(
+      localVault: local,
+      bitwardenItems: const <VaultItem>[],
+      sessionGeneration: 1,
+      expectedRevision: 1,
+    );
+
+    expect(plan.matchedItemCount, 0);
+    expect(plan.missingItemCount, 1);
+    expect(plan.duplicateCodebookCount, 1);
+  });
+
   test('equally strong matches are marked as ambiguous for manual review', () {
     final now = DateTime(2026, 1, 1);
     VaultItem localItem(String id, String title) => VaultItem(

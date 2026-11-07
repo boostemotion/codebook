@@ -58,3 +58,31 @@ class BitwardenImportPlan {
 
   int get incomingItems => importedItems.length;
 }
+
+class BitwardenDeltaExportPlan {
+  const BitwardenDeltaExportPlan({
+    required this.sessionGeneration,
+    required this.expectedRevision,
+    required this.baselineItemCount,
+    required this.localItemCount,
+    required this.matchedItemCount,
+    required this.missingItems,
+    required this.duplicateCodebookCount,
+    required this.unsupportedItems,
+    required this.warnings,
+  });
+
+  final int sessionGeneration;
+  final int expectedRevision;
+  final int baselineItemCount;
+  final int localItemCount;
+  final int matchedItemCount;
+  final List<VaultItem> missingItems;
+  final int duplicateCodebookCount;
+  final int unsupportedItems;
+  final List<String> warnings;
+
+  int get missingItemCount => missingItems.length;
+
+  bool get hasMissingItems => missingItems.isNotEmpty;
+}

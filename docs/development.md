@@ -98,7 +98,7 @@ build\app\outputs\flutter-apk\app-release.apk
 ```powershell
 $adb = 'D:\DevTools\android-sdk\platform-tools\adb.exe'
 & $adb devices -l
-& $adb install -r dist\Cipherbook-1.3.0+5-android.apk
+& $adb install -r dist\Cipherbook-1.4.0+6-android.apk
 & $adb shell monkey -p com.example.cipherbook -c android.intent.category.LAUNCHER 1
 ```
 
@@ -109,6 +109,15 @@ $adb = 'D:\DevTools\android-sdk\platform-tools\adb.exe'
 - Android 快速解锁只接受强生物识别，不提供设备 PIN/图案回退。
 - `MainActivity` 设置了 `FLAG_SECURE`，因此 ADB 截图通常是黑的；这是预期安全行为。
 - 局域网同步依赖前台 Multicast Lock，锁屏、锁定或进入后台后会停止分享。
+
+## iOS
+
+当前仓库没有 `ios/` 宿主工程，不能从 Windows 生成或安装 iOS 应用。必须在 macOS 上使用
+Xcode 完成原生编译、签名和真机验证。
+
+iOS 接入前还需要 Keychain / Face ID、系统分享导出、本地网络权限、移动端布局和隐私遮罩。
+所需工作、可选分发方式及验收条件统一记录在 [`ios.md`](ios.md)。在该文档列出的验收条件完成前，
+不要添加“支持 iOS”的构建说明或发布声明。
 
 ## 调试密码库
 
@@ -139,7 +148,7 @@ flutter run -d windows --dart-define=CIPHERBOOK_SEED_DEBUG_VAULT=true
 ### Android 构建提示 Gradle / AGP / Kotlin 即将停止支持
 
 当前 Flutter 工具链会提示升级 Gradle、Android Gradle Plugin 和 Kotlin 版本。
-这些预警在 `1.3.0+5` 构建中仍可通过，但发布前应单独完成工具链升级并重新验证
+这些预警在 `1.4.0+6` 构建中仍可通过，但发布前应单独完成工具链升级并重新验证
 Keystore、Biometric 和局域网插件。
 
 ### 局域网只看到一台设备

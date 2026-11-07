@@ -400,6 +400,40 @@ class VaultController extends ChangeNotifier {
     });
   }
 
+  Future<BitwardenDeltaExportPlan?> previewBitwardenDeltaExport() {
+    final sessionGeneration = _sessionGeneration;
+    return _runWithResult(() async {
+      _ensureUnlocked();
+      final baselinePath = await _withExternalUi(
+        _importExportService.pickBitwardenImportPath,
+      );
+      _ensureSessionCurrent(sessionGeneration);
+      if (baselinePath == null) {
+        _message = '已取消 Bitwarden 缺失项校验。';
+        return null;
+      }
+      final baselineBytes = await _importExportService.readFile(baselinePath);
+      _ensureSessionCurrent(sessionGeneration);
+      return _previewBitwardenDeltaExportBytes(
+        baselineBytes,
+        sessionGeneration: sessionGeneration,
+      );
+    });
+  }
+
+  Future<BitwardenDeltaExportPlan?> previewBitwardenDeltaExportBytes(
+    Uint8List baselineBytes,
+  ) {
+    final sessionGeneration = _sessionGeneration;
+    return _runWithResult(() async {
+      _ensureUnlocked();
+      return _previewBitwardenDeltaExportBytes(
+        baselineBytes,
+        sessionGeneration: sessionGeneration,
+      );
+    });
+  }
+
   Future<VaultOperationResult> applyBitwardenImport(
     BitwardenImportPlan plan, {
     Map<String, BitwardenImportAction> decisions = const {},
@@ -504,6 +538,46 @@ class VaultController extends ChangeNotifier {
       _ensureUnlocked();
       _restartAutoLockTimer();
       _message = '已导出 ${format.name.toUpperCase()} 明文交换文件。'
+          '请立即导入 Bitwarden，完成后删除该文件。';
+    });
+  }
+
+  Future<VaultOperationResult> exportBitwardenDelta(
+    BitwardenDeltaExportPlan plan,
+    BitwardenExchangeFormat format,
+  ) {
+    return _run(() async {
+      _ensureSessionCurrent(plan.sessionGeneration);
+      _ensureUnlocked();
+      if ((_document?.metadata?.revision ?? 0) != plan.expectedRevision) {
+        throw StateError('密码库在预览后发生了变化，请重新校验 Bitwarden 缺失项。');
+      }
+      if (!plan.hasMissingItems) {
+        _message = 'Bitwarden 中未发现需要补充的条目。';
+        return;
+      }
+      final exportPath = await _withExternalUi(
+        () => _importExportService.pickBitwardenExportPath(
+          csv: format == BitwardenExchangeFormat.csv,
+        ),
+      );
+      _ensureSessionCurrent(plan.sessionGeneration);
+      _ensureUnlocked();
+      if ((_document?.metadata?.revision ?? 0) != plan.expectedRevision) {
+        throw StateError('密码库在预览后发生了变化，请重新校验 Bitwarden 缺失项。');
+      }
+      if (exportPath == null) {
+        _message = '已取消 Bitwarden 缺失项导出。';
+        return;
+      }
+      final bytes = format == BitwardenExchangeFormat.csv
+          ? _bitwardenInterchangeService.encodeCsv(plan.missingItems)
+          : _bitwardenInterchangeService.encodeJson(plan.missingItems);
+      await _importExportService.writeFile(exportPath, bytes);
+      _ensureSessionCurrent(plan.sessionGeneration);
+      _ensureUnlocked();
+      _restartAutoLockTimer();
+      _message = '已导出 ${plan.missingItemCount} 条 Bitwarden 缺失项。'
           '请立即导入 Bitwarden，完成后删除该文件。';
     });
   }
@@ -736,10 +810,14 @@ class VaultController extends ChangeNotifier {
       );
       _ensureSessionCurrent(generation);
       final merged = _vaultData.merge(session.vaultData);
-      if (_vaultFingerprint(merged) != _vaultFingerprint(_vaultData)) {
+      final hasChanges =
+          _vaultFingerprint(merged) != _vaultFingerprint(_vaultData);
+      if (hasChanges) {
         await _saveState(
             vaultData: merged, keyEncryptionKey: _requireSessionKek());
       }
+      _message =
+          hasChanges ? '同步成功：已接收并合并其他设备的密码本更新。' : '同步成功：其他设备已完成同步，当前密码本已是最新。';
       _notifyListeners();
     });
     _mutationTail = operation.then<void>((_) {}).catchError((_) {});
@@ -1160,6 +1238,24 @@ class VaultController extends ChangeNotifier {
     return _bitwardenInterchangeService.createImportPlan(
       importedItems: parsed.items,
       localVault: _vaultData,
+      sessionGeneration: sessionGeneration,
+      expectedRevision: _document?.metadata?.revision ?? 0,
+      unsupportedItems: parsed.unsupportedItems,
+      warnings: parsed.warnings,
+    );
+  }
+
+  BitwardenDeltaExportPlan _previewBitwardenDeltaExportBytes(
+    Uint8List baselineBytes, {
+    required int sessionGeneration,
+  }) {
+    _ensureSessionCurrent(sessionGeneration);
+    _ensureUnlocked();
+    final parsed = _bitwardenInterchangeService.decode(baselineBytes);
+    _ensureSessionCurrent(sessionGeneration);
+    return _bitwardenInterchangeService.createDeltaExportPlan(
+      localVault: _vaultData,
+      bitwardenItems: parsed.items,
       sessionGeneration: sessionGeneration,
       expectedRevision: _document?.metadata?.revision ?? 0,
       unsupportedItems: parsed.unsupportedItems,
