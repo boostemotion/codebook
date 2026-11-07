@@ -14,6 +14,7 @@ import 'package:cipherbook/services/import_export_service.dart';
 import 'package:cipherbook/services/lan_pairing_store.dart';
 import 'package:cipherbook/services/lan_sync_service.dart';
 import 'package:cipherbook/services/password_generator_service.dart';
+import 'package:cipherbook/services/quick_unlock_preference_store.dart';
 import 'package:cipherbook/services/vault_repository.dart';
 import 'package:cipherbook/state/vault_controller.dart';
 
@@ -155,6 +156,73 @@ void main() {
     expect(controller.vaultData.activeItems.single.title, 'Mail');
     expect(deviceKeyStore.storedBytes, isNotNull);
     expect(repository.document, isNotNull);
+  });
+
+  test(
+      'quick unlock requires the master password after a cold start by default',
+      () async {
+    final repository = _MemoryVaultRepository();
+    final deviceKeyStore = _MemoryDeviceKeyStore();
+    final preferenceStore = MemoryQuickUnlockPreferenceStore();
+    final firstController = _controller(
+      repository: repository,
+      deviceKeyStore: deviceKeyStore,
+      quickUnlockPreferenceStore: preferenceStore,
+    );
+
+    await firstController.bootstrap();
+    await firstController.createVault('master-pass');
+    await firstController.enableQuickUnlock();
+    firstController.dispose();
+
+    final coldStartController = _controller(
+      repository: repository,
+      deviceKeyStore: deviceKeyStore,
+      quickUnlockPreferenceStore: preferenceStore,
+    );
+    await coldStartController.bootstrap();
+
+    expect(coldStartController.allowQuickUnlockOnFirstLaunch, isFalse);
+    expect(coldStartController.canUseQuickUnlockNow, isFalse);
+    final result = await coldStartController.unlockWithQuickUnlock();
+    expect(result.succeeded, isFalse);
+    expect(coldStartController.isUnlocked, isFalse);
+    expect(coldStartController.message, contains('冷启动直接快速解锁'));
+    coldStartController.dispose();
+  });
+
+  test('quick unlock can open on cold start when explicitly enabled', () async {
+    final repository = _MemoryVaultRepository();
+    final deviceKeyStore = _MemoryDeviceKeyStore();
+    final preferenceStore = MemoryQuickUnlockPreferenceStore();
+    final firstController = _controller(
+      repository: repository,
+      deviceKeyStore: deviceKeyStore,
+      quickUnlockPreferenceStore: preferenceStore,
+    );
+
+    await firstController.bootstrap();
+    await firstController.createVault('master-pass');
+    await firstController.enableQuickUnlock();
+    final preferenceResult =
+        await firstController.setAllowQuickUnlockOnFirstLaunch(true);
+    expect(preferenceResult.succeeded, isTrue);
+    expect(firstController.allowQuickUnlockOnFirstLaunch, isTrue);
+    firstController.dispose();
+
+    final coldStartController = _controller(
+      repository: repository,
+      deviceKeyStore: deviceKeyStore,
+      quickUnlockPreferenceStore: preferenceStore,
+    );
+    await coldStartController.bootstrap();
+
+    expect(coldStartController.allowQuickUnlockOnFirstLaunch, isTrue);
+    expect(coldStartController.canUseQuickUnlockNow, isTrue);
+    final unlockResult = await coldStartController.unlockWithQuickUnlock();
+    expect(unlockResult.succeeded, isTrue);
+    expect(coldStartController.isUnlocked, isTrue);
+    coldStartController.dispose();
   });
 
   test('ordinary vault saves do not refresh the quick-unlock cache', () async {
@@ -830,6 +898,7 @@ VaultController _controller({
   ClipboardService? clipboardService,
   LanPairingStore? pairingStore,
   LanSyncService? lanSyncService,
+  QuickUnlockPreferenceStore? quickUnlockPreferenceStore,
 }) =>
     VaultController(
       repository: repository,
@@ -840,6 +909,7 @@ VaultController _controller({
       clipboardService: clipboardService ?? _MemoryClipboardService(),
       pairingStore: pairingStore,
       lanSyncService: lanSyncService,
+      quickUnlockPreferenceStore: quickUnlockPreferenceStore,
     );
 
 class _LocalPeersService extends LanSyncService {

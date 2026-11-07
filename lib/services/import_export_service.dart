@@ -9,6 +9,18 @@ class ImportExportService {
     label: '密码本文件',
     extensions: <String>['pwv'],
   );
+  static const XTypeGroup bitwardenFileGroup = XTypeGroup(
+    label: 'Bitwarden 交换文件',
+    extensions: <String>['json', 'csv'],
+  );
+  static const XTypeGroup bitwardenJsonFileGroup = XTypeGroup(
+    label: 'Bitwarden JSON',
+    extensions: <String>['json'],
+  );
+  static const XTypeGroup bitwardenCsvFileGroup = XTypeGroup(
+    label: 'Bitwarden CSV',
+    extensions: <String>['csv'],
+  );
 
   Future<String?> pickImportPath() {
     return openFile(acceptedTypeGroups: const [vaultFileGroup])
@@ -27,6 +39,29 @@ class ImportExportService {
     return getSaveLocation(
       suggestedName: 'cipherbook-export.pwv',
       acceptedTypeGroups: const [vaultFileGroup],
+    ).then((location) => location?.path);
+  }
+
+  Future<String?> pickBitwardenImportPath() {
+    return openFile(acceptedTypeGroups: const [bitwardenFileGroup])
+        .then((file) => file?.path);
+  }
+
+  Future<String?> pickBitwardenExportPath({required bool csv}) {
+    final extension = csv ? 'csv' : 'json';
+    final suggestedName = 'cipherbook-bitwarden.$extension';
+    final typeGroup = csv ? bitwardenCsvFileGroup : bitwardenJsonFileGroup;
+    if (Platform.isAndroid) {
+      return getDirectoryPath().then((directory) {
+        if (directory == null) {
+          return null;
+        }
+        return '$directory${Platform.pathSeparator}$suggestedName';
+      });
+    }
+    return getSaveLocation(
+      suggestedName: suggestedName,
+      acceptedTypeGroups: [typeGroup],
     ).then((location) => location?.path);
   }
 

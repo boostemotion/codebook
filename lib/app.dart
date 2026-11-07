@@ -7,6 +7,7 @@ import 'services/crypto_service.dart';
 import 'services/device_key_store.dart';
 import 'services/import_export_service.dart';
 import 'services/password_generator_service.dart';
+import 'services/quick_unlock_preference_store.dart';
 import 'services/vault_repository.dart';
 import 'state/vault_controller.dart';
 import 'ui/home_page.dart';
@@ -31,6 +32,7 @@ class _CipherbookAppState extends State<CipherbookApp> {
       deviceKeyStore: MethodChannelDeviceKeyStore(),
       passwordGeneratorService: PasswordGeneratorService(),
       clipboardService: ClipboardService(),
+      quickUnlockPreferenceStore: const FileQuickUnlockPreferenceStore(),
     );
 
     _initializeController();

@@ -250,6 +250,9 @@ class VaultItem {
     required this.updatedAt,
     this.totpSecret,
     this.deletedAt,
+    this.kind = VaultItemKind.login,
+    this.folder = '',
+    this.favorite = false,
   });
 
   final String id;
@@ -263,6 +266,9 @@ class VaultItem {
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? deletedAt;
+  final VaultItemKind kind;
+  final String folder;
+  final bool favorite;
 
   bool get isDeleted => deletedAt != null;
 
@@ -278,6 +284,9 @@ class VaultItem {
     DateTime? createdAt,
     DateTime? updatedAt,
     Object? deletedAt = _unset,
+    VaultItemKind? kind,
+    String? folder,
+    bool? favorite,
   }) {
     return VaultItem(
       id: id ?? this.id,
@@ -295,6 +304,9 @@ class VaultItem {
       deletedAt: identical(deletedAt, _unset)
           ? this.deletedAt
           : deletedAt as DateTime?,
+      kind: kind ?? this.kind,
+      folder: folder ?? this.folder,
+      favorite: favorite ?? this.favorite,
     );
   }
 
@@ -310,6 +322,9 @@ class VaultItem {
         'createdAt': createdAt.toUtc().toIso8601String(),
         'updatedAt': updatedAt.toUtc().toIso8601String(),
         'deletedAt': deletedAt?.toUtc().toIso8601String(),
+        'kind': kind.name,
+        'folder': folder,
+        'favorite': favorite,
       };
 
   factory VaultItem.fromJson(Map<String, dynamic> json) {
@@ -327,6 +342,9 @@ class VaultItem {
       deletedAt: json['deletedAt'] == null
           ? null
           : _readRequiredDateTime(json, key: 'deletedAt'),
+      kind: _readVaultItemKind(json['kind']),
+      folder: _readOptionalString(json, key: 'folder'),
+      favorite: json['favorite'] == true,
     );
     item.validate();
     return item;
@@ -339,12 +357,18 @@ class VaultItem {
         password.length > maxVaultPasswordLength ||
         url.length > maxVaultUrlLength ||
         notes.length > maxVaultNotesLength ||
+        folder.length > maxVaultTagLength ||
         tags.length > maxVaultTagCount ||
         tags.any((tag) => tag.length > maxVaultTagLength) ||
         (totpSecret?.length ?? 0) > 1024) {
       throw const FormatException('Vault item exceeds supported limits.');
     }
   }
+}
+
+enum VaultItemKind {
+  login,
+  secureNote,
 }
 
 class VaultData {
@@ -575,6 +599,18 @@ List<String> _readStringList(Map<String, dynamic> json, {required String key}) {
     throw FormatException('Invalid list item in field: $key');
   }
   return value.cast<String>();
+}
+
+VaultItemKind _readVaultItemKind(Object? value) {
+  if (value is! String) {
+    return VaultItemKind.login;
+  }
+  for (final kind in VaultItemKind.values) {
+    if (kind.name == value) {
+      return kind;
+    }
+  }
+  return VaultItemKind.login;
 }
 
 DateTime _readRequiredDateTime(Map<String, dynamic> json,

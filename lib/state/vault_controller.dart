@@ -6,7 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:uuid/uuid.dart';
 
+import '../models/bitwarden_bridge_models.dart';
 import '../models/vault_models.dart';
+import '../services/bitwarden_interchange_service.dart';
 import '../services/clipboard_service.dart';
 import '../services/crypto_service.dart';
 import '../services/device_key_store.dart';
@@ -14,6 +16,7 @@ import '../services/import_export_service.dart';
 import '../services/lan_pairing_store.dart';
 import '../services/lan_sync_service.dart';
 import '../services/password_generator_service.dart';
+import '../services/quick_unlock_preference_store.dart';
 import '../services/totp_service.dart';
 import '../services/vault_repository.dart';
 import 'import_plan.dart';
@@ -39,8 +42,10 @@ class VaultController extends ChangeNotifier {
     required DeviceKeyStore deviceKeyStore,
     required PasswordGeneratorService passwordGeneratorService,
     required ClipboardService clipboardService,
+    BitwardenInterchangeService? bitwardenInterchangeService,
     LanSyncService? lanSyncService,
     LanPairingStore? pairingStore,
+    QuickUnlockPreferenceStore? quickUnlockPreferenceStore,
     Duration autoLockDuration = const Duration(minutes: 2),
   })  : _repository = repository,
         _cryptoService = cryptoService,
@@ -48,9 +53,13 @@ class VaultController extends ChangeNotifier {
         _deviceKeyStore = deviceKeyStore,
         _passwordGeneratorService = passwordGeneratorService,
         _clipboardService = clipboardService,
+        _bitwardenInterchangeService =
+            bitwardenInterchangeService ?? const BitwardenInterchangeService(),
         _pairingStore = pairingStore ?? LanPairingStore(),
         _lanSyncService =
             lanSyncService ?? LanSyncService(pairingStore: pairingStore),
+        _quickUnlockPreferenceStore =
+            quickUnlockPreferenceStore ?? MemoryQuickUnlockPreferenceStore(),
         _autoLockDuration = autoLockDuration,
         _autoLockPreset = _presetForDuration(autoLockDuration);
 
@@ -60,8 +69,10 @@ class VaultController extends ChangeNotifier {
   final DeviceKeyStore _deviceKeyStore;
   final PasswordGeneratorService _passwordGeneratorService;
   final ClipboardService _clipboardService;
+  final BitwardenInterchangeService _bitwardenInterchangeService;
   final LanPairingStore _pairingStore;
   final LanSyncService _lanSyncService;
+  final QuickUnlockPreferenceStore _quickUnlockPreferenceStore;
   Duration _autoLockDuration;
   AutoLockPreset? _autoLockPreset;
   final Uuid _uuid = const Uuid();
@@ -75,6 +86,7 @@ class VaultController extends ChangeNotifier {
   bool _isUnlocked = false;
   bool _quickUnlockSupported = false;
   bool _quickUnlockEnabled = false;
+  bool _allowQuickUnlockOnFirstLaunch = false;
   bool _masterPasswordVerifiedThisLaunch = false;
   String? _message;
   VaultData _vaultData = VaultData.empty();
@@ -99,10 +111,11 @@ class VaultController extends ChangeNotifier {
   bool get isUnlocked => _isUnlocked;
   bool get quickUnlockSupported => _quickUnlockSupported;
   bool get quickUnlockEnabled => _quickUnlockEnabled;
+  bool get allowQuickUnlockOnFirstLaunch => _allowQuickUnlockOnFirstLaunch;
   bool get canUseQuickUnlockNow =>
       _quickUnlockSupported &&
       _quickUnlockEnabled &&
-      _masterPasswordVerifiedThisLaunch;
+      (_masterPasswordVerifiedThisLaunch || _allowQuickUnlockOnFirstLaunch);
   String? get message => _message;
   VaultData get vaultData => _vaultData;
   AutoLockPreset? get autoLockPreset => _autoLockPreset;
@@ -132,6 +145,8 @@ class VaultController extends ChangeNotifier {
       _quickUnlockSupported = await _deviceKeyStore.isSupported();
       _quickUnlockEnabled =
           _quickUnlockSupported && await _deviceKeyStore.hasWrappedDekCache();
+      _allowQuickUnlockOnFirstLaunch = _quickUnlockSupported &&
+          await _quickUnlockPreferenceStore.allowQuickUnlockOnFirstLaunch();
       _masterPasswordVerifiedThisLaunch = result.canCreate;
       if (!result.canCreate && result.state != VaultStorageState.available) {
         _message = result.error ?? '密码库需要恢复或修复，不能创建新密码库。';
@@ -272,8 +287,12 @@ class VaultController extends ChangeNotifier {
   Future<VaultOperationResult> unlockWithQuickUnlock() {
     final sessionGeneration = _sessionGeneration;
     return _run(() async {
-      if (!_masterPasswordVerifiedThisLaunch) {
-        throw StateError('首次登录请使用主密码，之后可用 Windows Hello 快速解锁。');
+      if (!_masterPasswordVerifiedThisLaunch &&
+          !_allowQuickUnlockOnFirstLaunch) {
+        throw StateError(
+          '本次启动尚未验证主密码。请先输入一次主密码，'
+          '或在设置中开启“冷启动直接快速解锁”。',
+        );
       }
       if (!_quickUnlockSupported || !_quickUnlockEnabled) {
         throw StateError('当前设备未开启快速解锁。');
@@ -344,6 +363,148 @@ class VaultController extends ChangeNotifier {
         sessionGeneration: sessionGeneration,
         hadVaultAtPreview: _hasVault,
       );
+    });
+  }
+
+  Future<BitwardenImportPlan?> previewBitwardenImport() {
+    final sessionGeneration = _sessionGeneration;
+    return _runWithResult(() async {
+      _ensureUnlocked();
+      final importPath = await _withExternalUi(
+        _importExportService.pickBitwardenImportPath,
+      );
+      _ensureSessionCurrent(sessionGeneration);
+      if (importPath == null) {
+        _message = '已取消 Bitwarden 导入。';
+        return null;
+      }
+      final importBytes = await _importExportService.readFile(importPath);
+      _ensureSessionCurrent(sessionGeneration);
+      return _previewBitwardenImportBytes(
+        importBytes,
+        sessionGeneration: sessionGeneration,
+      );
+    });
+  }
+
+  Future<BitwardenImportPlan?> previewBitwardenImportBytes(
+    Uint8List importBytes,
+  ) {
+    final sessionGeneration = _sessionGeneration;
+    return _runWithResult(() async {
+      _ensureUnlocked();
+      return _previewBitwardenImportBytes(
+        importBytes,
+        sessionGeneration: sessionGeneration,
+      );
+    });
+  }
+
+  Future<VaultOperationResult> applyBitwardenImport(
+    BitwardenImportPlan plan, {
+    Map<String, BitwardenImportAction> decisions = const {},
+  }) {
+    return _runMutation(() async {
+      _ensureSessionCurrent(plan.sessionGeneration);
+      _ensureUnlocked();
+      final currentRevision = _document?.metadata?.revision ?? 0;
+      if (currentRevision != plan.expectedRevision) {
+        throw StateError('密码库在预览后发生了变化，请重新预览 Bitwarden 导入。');
+      }
+
+      final reviewById = <String, BitwardenImportReview>{
+        for (final review in plan.reviews) review.importedItem.id: review,
+      };
+      final nextItems = List<VaultItem>.from(_vaultData.items);
+      final usedIds = <String>{
+        for (final item in nextItems) item.id,
+      };
+      var importedCount = 0;
+      var keptLocalCount = 0;
+      for (final importedItem in plan.importedItems) {
+        final action =
+            decisions[importedItem.id] ?? BitwardenImportAction.keepBoth;
+        final review = reviewById[importedItem.id];
+        if (action == BitwardenImportAction.keepLocal) {
+          keptLocalCount++;
+          continue;
+        }
+        if (action == BitwardenImportAction.useImported) {
+          if (review == null) {
+            throw StateError('导入计划中的冲突条目已失效，请重新预览。');
+          }
+          if (review.hasAmbiguousMatches) {
+            throw StateError(
+              '该导入项匹配到多个同强度本机账号，请保留两边并在密码库中人工核对。',
+            );
+          }
+          final localId = review.localItem.id;
+          nextItems.removeWhere((item) => item.id == localId);
+          usedIds.remove(localId);
+          nextItems.add(
+            importedItem.copyWith(
+              id: localId,
+              createdAt: review.localItem.createdAt,
+              updatedAt: DateTime.now(),
+              deletedAt: null,
+            ),
+          );
+          usedIds.add(localId);
+          importedCount++;
+          continue;
+        }
+
+        var itemId = importedItem.id;
+        if (usedIds.contains(itemId)) {
+          itemId = _uuid.v4();
+        }
+        nextItems.add(
+          importedItem.copyWith(
+            id: itemId,
+            updatedAt: DateTime.now(),
+            deletedAt: null,
+          ),
+        );
+        usedIds.add(itemId);
+        importedCount++;
+      }
+
+      await _saveState(
+        vaultData: VaultData(items: nextItems, updatedAt: DateTime.now()),
+        keyEncryptionKey: _requireSessionKek(),
+      );
+      _message = 'Bitwarden 导入完成：写入 $importedCount 条'
+          '${keptLocalCount == 0 ? '' : '，保留本机 $keptLocalCount 条'}。';
+    });
+  }
+
+  Future<VaultOperationResult> exportBitwarden(
+    BitwardenExchangeFormat format,
+  ) {
+    final sessionGeneration = _sessionGeneration;
+    return _run(() async {
+      _ensureUnlocked();
+      _ensureSessionCurrent(sessionGeneration);
+      final exportPath = await _withExternalUi(
+        () => _importExportService.pickBitwardenExportPath(
+          csv: format == BitwardenExchangeFormat.csv,
+        ),
+      );
+      _ensureSessionCurrent(sessionGeneration);
+      _ensureUnlocked();
+      if (exportPath == null) {
+        _message = '已取消 Bitwarden 导出。';
+        return;
+      }
+      final bytes = format == BitwardenExchangeFormat.csv
+          ? _bitwardenInterchangeService.encodeCsv(_vaultData.items)
+          : _bitwardenInterchangeService.encodeJson(_vaultData.items);
+      await _importExportService.writeFile(exportPath, bytes);
+      _ensureSessionCurrent(sessionGeneration);
+      _ensureUnlocked();
+      _restartAutoLockTimer();
+      _message = '已导出 ${format.name.toUpperCase()} 明文交换文件。'
+          '请立即导入 Bitwarden，完成后删除该文件。';
     });
   }
 
@@ -733,6 +894,9 @@ class VaultController extends ChangeNotifier {
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
         deletedAt: null,
+        kind: existing?.kind ?? VaultItemKind.login,
+        folder: existing?.folder ?? '',
+        favorite: existing?.favorite ?? false,
       );
       item.validate();
       await _saveState(
@@ -843,9 +1007,28 @@ class VaultController extends ChangeNotifier {
 
   Future<VaultOperationResult> disableQuickUnlock() {
     return _runMutation(() async {
+      if (_allowQuickUnlockOnFirstLaunch) {
+        await _quickUnlockPreferenceStore
+            .setAllowQuickUnlockOnFirstLaunch(false);
+        _allowQuickUnlockOnFirstLaunch = false;
+      }
       await _deviceKeyStore.clear();
       _quickUnlockEnabled = false;
       _message = '已关闭当前设备的快速解锁。';
+    });
+  }
+
+  Future<VaultOperationResult> setAllowQuickUnlockOnFirstLaunch(
+    bool value,
+  ) {
+    return _runMutation(() async {
+      _ensureUnlocked();
+      if (!_quickUnlockSupported || !_quickUnlockEnabled) {
+        throw StateError('请先开启快速解锁。');
+      }
+      await _quickUnlockPreferenceStore.setAllowQuickUnlockOnFirstLaunch(value);
+      _allowQuickUnlockOnFirstLaunch = value;
+      _message = value ? '冷启动时可以直接使用系统认证解锁。' : '冷启动后首次解锁需要输入主密码。';
     });
   }
 
@@ -963,6 +1146,24 @@ class VaultController extends ChangeNotifier {
       importedDocument: importedDocument,
       importedSession: importedSession,
       summary: _buildImportSummary(importedSession.vaultData),
+    );
+  }
+
+  BitwardenImportPlan _previewBitwardenImportBytes(
+    Uint8List importBytes, {
+    required int sessionGeneration,
+  }) {
+    _ensureSessionCurrent(sessionGeneration);
+    _ensureUnlocked();
+    final parsed = _bitwardenInterchangeService.decode(importBytes);
+    _ensureSessionCurrent(sessionGeneration);
+    return _bitwardenInterchangeService.createImportPlan(
+      importedItems: parsed.items,
+      localVault: _vaultData,
+      sessionGeneration: sessionGeneration,
+      expectedRevision: _document?.metadata?.revision ?? 0,
+      unsupportedItems: parsed.unsupportedItems,
+      warnings: parsed.warnings,
     );
   }
 

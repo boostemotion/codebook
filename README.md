@@ -1,177 +1,128 @@
 # Cipherbook
 
-Cipherbook 是一个本地优先的跨设备密码库，当前支持 Windows 和 Android。
-密码库始终保存在本机加密文件中，不依赖云端账号或后端服务。
+Cipherbook 是一个本地优先的 Android / Windows 密码库。密码库默认只以加密文件保存在当前设备，
+不需要账号、云端服务或自建后端；需要多设备协作时，可在同一局域网内验证共同主密码后双向合并。
 
-## 功能
+当前应用版本：`1.3.0+5`（以 [`pubspec.yaml`](pubspec.yaml) 为唯一来源）。
 
-- 主密码解锁的本地加密密码库
-- 新增、编辑、搜索、复制和回收站
-- 密码表单仅保留名称、账号、密码、网址、备注，支持选择长度生成密码
-- 兼容已有 TOTP 与标签数据，编辑普通信息不会清除这些数据
-- 加密备份导入、导出与导入预览
-- Windows 与 Android 局域网配对和加密同步
-- 主密码修改与自动锁定
-- 快速解锁：Android 生物识别、Windows Hello + DPAPI
-- Windows 和 Android 使用统一的 Cipherbook 锁图标
+## 功能概览
 
-## 技术栈
+- 本地加密密码库：Argon2id + XChaCha20-Poly1305，主密码不会上传。
+- 登录项与安全笔记：新增、编辑、搜索、复制、收藏、文件夹和回收站。
+- TOTP：兼容已有验证器密钥和 `otpauth://totp` URI。
+- 加密备份：`.pwv` 导入、导出、导入预览和异常文件恢复。
+- 局域网同步：UDP 发现，验证共同主密码后收集并双向合并多台设备的数据。
+- Bitwarden 数据桥接：未加密 JSON / CSV 导入导出、重复候选人工核验和来源 ID 回写。
+- 快速解锁：Android 强生物识别、Windows Hello；默认冷启动先验证一次主密码，也可逐设备开启
+  “冷启动直接快速解锁”。
+- 自动锁定、锁定时清理会话密钥，并尝试清理本应用复制到剪贴板的内容。
 
-- Flutter / Dart：跨平台 UI、状态编排和业务逻辑
-- Argon2id：从主密码派生密钥加密密钥（KEK）
-- XChaCha20-Poly1305：加密实际密码库数据
-- Android Keystore + Biometric：Android 快速解锁
-- Windows Hello + DPAPI：Windows 快速解锁
-- UDP 发现 + HTTP 加密文档传输：局域网配对
+## 平台支持
 
-项目没有传统后端。`lib/services/` 负责加密、文件存储、导入导出和网络同步，
-`lib/state/` 负责会话与业务编排，`lib/ui/` 只负责界面交互。
+| 平台 | 状态 | 说明 |
+| --- | --- | --- |
+| Windows 10/11 | 支持 | Flutter 桌面应用；Windows Hello + DPAPI 快速解锁 |
+| Android 7.0+ / API 24+ | 支持 | Flutter 应用；快速解锁要求设备支持强生物识别 |
+| iOS | 未支持 | 尚无 iOS 宿主工程、Keychain / Face ID 桥接和签名配置 |
+
+## 快速开始
+
+从源码运行：
+
+```powershell
+git clone https://github.com/boostemotion/codebook.git
+cd codebook
+flutter pub get
+flutter run -d windows
+```
+
+Android 设备可通过 `flutter devices` 查看设备 ID，再执行：
+
+```powershell
+flutter run -d <device-id>
+```
+
+完整的工具链、Release 构建、ADB 安装和测试命令见
+[`docs/development.md`](docs/development.md)。安装包命名和发布检查见
+[`docs/release.md`](docs/release.md)。
+
+## 数据与安全
+
+- 主密码通过 Argon2id 派生 256 位密钥加密密钥（KEK），默认参数为 64 MiB、3 次迭代、并行度 1。
+- 每个密码库使用独立 DEK；DEK 由 KEK 包装，实际数据使用 XChaCha20-Poly1305 加密。
+- 修改主密码会生成新的盐、KEK 和 DEK，并使用新参数重新加密密码库。
+- 快速解锁只缓存经过设备保护包装的 DEK。Windows 在读取前会验证 Windows Hello；
+  Android 使用 Android Keystore 中要求强生物识别的密钥。
+- “冷启动直接快速解锁”只保存设备本地开关，不保存主密码或明文 DEK。
+- 密码库写入采用临时文件、校验和 `.bak` 备份流程，避免直接覆盖最后一个可用文件。
+- Android 禁用系统自动备份并设置 `FLAG_SECURE`，减少截图和最近任务泄露。
+
+完整的威胁边界和已知取舍见 [`docs/security.md`](docs/security.md)。
+
+## 局域网同步
+
+1. 确保设备连接同一局域网，打开应用并解锁密码库。
+2. 从任意一台设备进入“设备配对与同步”，输入所有设备共同使用的主密码。
+3. 应用通过 UDP 发现设备，验证主密码证明，下载并合并已经加密的 `.pwv` 文档，再把合并结果写回各端。
+4. 每台设备继续保留自己的密码库编号、KDF 参数和加密文件；主密码不在网络中直接传输。
+
+同步按条目 ID 和更新时间合并，并保留删除标记；它不是云同步，也不提供中心服务器冲突仲裁。
+Android 端依赖应用在前台且已解锁，锁定或进入后台后会停止监听。
+
+## Bitwarden 数据交换
+
+在 Bitwarden 中导出未加密 JSON，或使用 CSV 兼容格式，再从 Cipherbook 导入。应用会：
+
+- 导入登录项、安全笔记、文件夹、收藏、TOTP 和可用的来源 ID；
+- 从混合账号文本中提取手机号和邮箱别名；
+- 按来源 ID、网站、账号别名、标题、密码和 TOTP 给出重复候选；
+- 对每条候选要求人工选择“两边都保留”“用导入项替换本机”或“不导入这一条”；
+- 对额外网址、自定义字段、Passkey、附件、密码历史和不支持的项目给出提示。
+
+Bitwarden JSON/CSV 是明文凭据文件。导出前应用会二次确认；导入目标密码管理器后应立即删除交换文件。
+Bitwarden 加密 JSON 不能直接导入，需要先在 Bitwarden 中导出未加密 JSON 或 CSV。
 
 ## 项目结构
 
 ```text
-lib/models/       数据模型与校验
-lib/services/     加密、存储、导入导出、TOTP、局域网同步
-lib/state/        VaultController 和导入计划
-lib/ui/           Android / Windows 界面
-android/          Android 宿主、Keystore 和生物识别
-windows/          Windows 宿主、Windows Hello 和 DPAPI
-packaging/        Windows 安装器脚本
-tools/            图标和开发辅助脚本
-docs/             架构与维护说明
-test/             单元测试和界面流程测试
+lib/models/       密码库、KDF、同步与 Bitwarden 交换模型
+lib/services/     加密、存储、导入导出、TOTP、快速解锁和局域网同步
+lib/state/        VaultController、会话锁定、导入计划和合并编排
+lib/ui/           Android / Windows 共享与平台自适应界面
+android/          Android 宿主、Keystore、Biometric 和网络桥接
+windows/          Windows 宿主、Windows Hello 和 DPAPI 桥接
+packaging/        Windows IExpress 安装器
+docs/             架构、开发、安全与发布文档
+test/             单元测试和 Flutter 流程测试
 ```
 
-## 开发环境
+更多设计说明见 [`docs/architecture.md`](docs/architecture.md)。
 
-建议使用以下工具链，并将工具安装在 `D:\DevTools` 等独立目录：
-
-- Flutter 3.47+
-- Dart 3.13+
-- Android SDK、JDK 17
-- Windows 10/11 SDK
-
-安装依赖：
+## 开发与验证
 
 ```powershell
-$env:PUB_CACHE = 'D:\DevTools\pub-cache'
-flutter pub get
+flutter analyze --no-pub lib test
+flutter test --no-pub
 ```
 
-检查和测试：
+发布前还需构建两个平台：
 
 ```powershell
-flutter analyze lib test
-flutter test
-```
-
-## Android
-
-构建 Release APK：
-
-```powershell
-$env:JAVA_HOME = 'D:\DevTools\jdk-17'
-$env:Path = "$env:JAVA_HOME\bin;$env:Path"
-$env:PUB_CACHE = 'D:\DevTools\pub-cache'
 flutter build apk --release --no-pub
-```
-
-输出：`build\app\outputs\flutter-apk\app-release.apk`
-
-通过 ADB 安装并启动：
-
-```powershell
-$adb = 'D:\DevTools\android-sdk\platform-tools\adb.exe'
-& $adb devices
-& $adb install -r build\app\outputs\flutter-apk\app-release.apk
-& $adb shell monkey -p com.example.cipherbook -c android.intent.category.LAUNCHER 1
-```
-
-当前 Release 构建使用 debug 签名，只适合本地安装和测试，不应直接作为公开发布版本。
-
-## Windows
-
-运行：
-
-```powershell
-flutter run -d windows
-```
-
-构建：
-
-```powershell
-$env:PUB_CACHE = 'D:\DevTools\pub-cache'
-flutter clean
-flutter pub get
 flutter build windows --release --no-pub
 ```
 
-输出目录：`build\windows\x64\runner\Release\`
-
-生成安装包：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File packaging\windows\build_installer.ps1
-```
-
-安装包按当前版本命名，例如：`dist\Cipherbook-1.2.1+4-windows-setup.exe`。
-打包脚本会检查 EXE 的版本与 `pubspec.yaml` 是否一致，避免把旧构建打成新版本。
-
-安装器首次安装时选择目录，后续会读取 `HKCU\Software\Cipherbook` 和已有快捷方式定位安装目录。
-安装前会检查 `cipherbook.exe` 是否正在运行，并等待 IExpress 输出完整后再返回。
-
-## 局域网配对与同步
-
-配对只在局域网内进行：
-
-1. 所有设备升级至 1.2.0 或更高版本，连接同一局域网，并打开、解锁密码本。
-2. 在任意一端进入“设备配对与同步”，输入各端共同使用的主密码。
-3. 点击“验证并同步所有设备”。应用自动过滤本机，验证其他设备，收集合并各端条目，再将合并结果写回各端。
-4. 界面显示对端已确认写入的设备数量；部分失败会单独提示，可以直接重试。
-
-这一操作也支持分别创建、使用相同主密码的密码库，不要求其密码库编号相同。
-各端继续保留自己的加密参数与密码库编号，主密码仅在本机用于派生密钥和生成验证证明，不直接广播或传输。
-“单台设备导入（高级）”保留原有逐台预览、确认合并的入口。
-从同一密码库导入的已配对设备，后续仍可在应用前台且已解锁时低频自动同步。
-
-传输内容是加密的 `.pwv` 文档，不传输明文密码、主密码或 KEK。已有密码库按条目更新时间合并，
-本地较新的条目不会被来源设备覆盖。锁定或进入后台后会停止网络监听。
-
-## 安全说明
-
-- 主密码丢失后无法恢复数据，不存在后门。
-- 密码库写入使用临时文件、备份文件和校验恢复流程。
-- 不要把主密码、TOTP 密钥或导出密码写入日志、截图或提交记录。
-- Android 已禁用系统自动备份，并使用安全窗口标记减少最近任务和截图泄露。
-- 正式发布前必须配置唯一的 Android application ID 和正式签名密钥，签名文件不得提交到 Git。
+贡献代码前请阅读 [`CONTRIBUTING.md`](CONTRIBUTING.md)。安全问题请按
+[`SECURITY.md`](SECURITY.md) 的方式报告。
 
 ## 当前限制
 
-- iOS 尚未加入工程。Flutter 业务代码可以复用，但需要 macOS/Xcode、iOS Keychain/Face ID 原生桥接、
-  本地网络权限和 Apple 签名配置；Windows 上不能直接完成 iOS 签名发布。
-- Android 局域网同步依赖前台运行，不能承诺像桌面端一样长期后台监听。
-- 当前没有云端同步和服务端冲突解决；同步以本地加密文档和条目更新时间合并为边界。
-- Android Release 目前是 debug 签名，仅用于本地测试。
-
-## 维护约定
-
-### 版本与发布
-
-版本唯一来源是 `pubspec.yaml` 的 `version: 主版本.次版本.补丁版本+构建号`，
-例如当前的 `1.2.1+4`。Android 的版本名称/版本代码和 Windows EXE 的产品/文件版本均由 Flutter 自动生成。
-
-- 修复问题：`1.1.0` → `1.1.1`。
-- 新增兼容功能：`1.1.0` → `1.2.0`。
-- 不兼容的大改动：`1.x.x` → `2.0.0`，同时提供迁移说明。
-- 每次发布构建号必须递增（`+2` → `+3`），包括同一功能版本重新打包。
-- 先修改版本并运行 `flutter pub get`，再构建两端；同一批发布共用版本号与构建号。
-- Windows 安装包使用 `Cipherbook-版本+构建号-windows-setup.exe`，Android 分发文件使用
-  `Cipherbook-版本+构建号-android.apk`；Flutter 原始 APK 输出名仍为 `app-release.apk`。
-- 每次发布在 [CHANGELOG.md](CHANGELOG.md) 记录用户可见的改动。
-
-应用版本与 `.pwv` 密码库格式版本分别维护；仅升级应用版本不会改变密码库格式。
-
-业务逻辑放在 `lib/services/` 和 `lib/state/`，不要在 Widget 中直接写文件或调用平台 API。
-涉及加密、存储、导入、同步或会话锁定的修改必须补充针对性测试。
-
-更详细的边界说明见 [`docs/architecture.md`](docs/architecture.md)。
+- 当前没有云端同步、账号体系和后台常驻同步。
+- iOS 版本尚未工程化；Windows 不能直接完成 iOS 构建和签名。
+- Bitwarden 桥接只覆盖登录项、安全笔记及已列出的字段，不支持加密 JSON、Passkey、附件、
+  银行卡、身份资料、Collections、额外网址和任意自定义字段。
+- Android Release 目前使用 debug 签名，`applicationId` 仍是 `com.example.cipherbook`；
+  正式发布前必须替换唯一 ID 并配置独立签名密钥。
+- Windows 安装包尚未配置正式代码签名证书。
+- 构建产物位于本地 `build/` 和 `dist/`，不提交到 Git；如需公开提供，应作为 GitHub Release
+  附件单独发布。

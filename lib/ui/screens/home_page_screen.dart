@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
+import '../../models/bitwarden_bridge_models.dart';
 import '../../models/vault_models.dart';
 import '../../services/lan_sync_service.dart';
 import '../../services/totp_service.dart';
@@ -276,6 +277,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         item.username,
         item.url,
         item.notes,
+        item.folder,
         item.tags.join(' '),
       ].join(' ').toLowerCase();
       return haystack.contains(_searchQuery);
@@ -1117,6 +1119,7 @@ class _VaultViewState extends State<_VaultView> {
         item.username,
         item.url,
         item.notes,
+        item.folder,
         item.tags.join(' '),
       ].join(' ').toLowerCase();
       return haystack.contains(widget.searchQuery);
@@ -1594,6 +1597,29 @@ class _VaultViewState extends State<_VaultView> {
             icon: const Icon(Icons.wifi_tethering_rounded),
             label: const Text('设备配对与同步'),
           ),
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 14),
+          Text(
+            '从 Bitwarden 导入',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '支持未加密 JSON 和 CSV。导入前会列出重复候选，是否合并由你确认。',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: widget.controller.busy
+                ? null
+                : () => _startBitwardenImport(
+                      context,
+                      widget.controller,
+                    ),
+            icon: const Icon(Icons.compare_arrows_rounded),
+            label: const Text('选择 Bitwarden 文件并核验'),
+          ),
           const SizedBox(height: 12),
           Expanded(
             child: _importSummary == null
@@ -1629,6 +1655,47 @@ class _VaultViewState extends State<_VaultView> {
                     ),
             icon: const Icon(Icons.upload_rounded),
             label: const Text('导出加密备份'),
+          ),
+          const SizedBox(height: 16),
+          const Divider(height: 1),
+          const SizedBox(height: 14),
+          Text(
+            '导出到 Bitwarden',
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '交换文件包含明文凭据。建议导入 Bitwarden 后立即删除。',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: widget.controller.busy
+                    ? null
+                    : () => _exportToBitwarden(
+                          context,
+                          widget.controller,
+                          BitwardenExchangeFormat.json,
+                        ),
+                icon: const Icon(Icons.data_object_rounded),
+                label: const Text('导出 JSON'),
+              ),
+              OutlinedButton.icon(
+                onPressed: widget.controller.busy
+                    ? null
+                    : () => _exportToBitwarden(
+                          context,
+                          widget.controller,
+                          BitwardenExchangeFormat.csv,
+                        ),
+                icon: const Icon(Icons.table_rows_rounded),
+                label: const Text('导出 CSV'),
+              ),
+            ],
           ),
           if (Theme.of(context).platform == TargetPlatform.android) ...[
             const SizedBox(height: 10),
@@ -1746,6 +1813,27 @@ class _VaultViewState extends State<_VaultView> {
               title: const Text('快速解锁'),
               subtitle: Text(
                 supported ? '使用系统认证保护会话密钥' : '当前设备不支持',
+              ),
+            ),
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              value: widget.controller.allowQuickUnlockOnFirstLaunch,
+              onChanged: !supported || !enabled || widget.controller.busy
+                  ? null
+                  : (value) async {
+                      await widget.controller
+                          .setAllowQuickUnlockOnFirstLaunch(value);
+                      if (mounted) {
+                        setState(() {});
+                      }
+                    },
+              title: const Text('冷启动直接快速解锁'),
+              subtitle: Text(
+                !supported
+                    ? '当前设备不支持快速解锁'
+                    : !enabled
+                        ? '请先开启快速解锁'
+                        : '启动应用后可直接使用系统认证，无需先输入一次主密码',
               ),
             ),
           ],
@@ -3020,6 +3108,319 @@ Future<bool?> _showImportSummaryDialog(
   );
 }
 
+Future<void> _startBitwardenImport(
+  BuildContext context,
+  VaultController controller,
+) async {
+  final plan = await controller.previewBitwardenImport();
+  if (!context.mounted || plan == null) {
+    return;
+  }
+  final decisions = await _showBitwardenImportDialog(context, plan);
+  if (!context.mounted || decisions == null) {
+    return;
+  }
+  await controller.applyBitwardenImport(
+    plan,
+    decisions: decisions,
+  );
+}
+
+Future<bool> _confirmBitwardenExport(
+  BuildContext context,
+  BitwardenExchangeFormat format,
+) async {
+  final label = format.name.toUpperCase();
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('导出 Bitwarden $label？'),
+      content: const Text(
+        '交换文件包含可直接读取的账号和密码。请只保存到可信位置，并在导入 Bitwarden 后立即删除。',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('继续导出'),
+        ),
+      ],
+    ),
+  );
+  return confirmed == true;
+}
+
+Future<void> _exportToBitwarden(
+  BuildContext context,
+  VaultController controller,
+  BitwardenExchangeFormat format,
+) async {
+  final confirmed = await _confirmBitwardenExport(context, format);
+  if (!context.mounted || !confirmed) {
+    return;
+  }
+  await controller.exportBitwarden(format);
+}
+
+Future<Map<String, BitwardenImportAction>?> _showBitwardenImportDialog(
+  BuildContext context,
+  BitwardenImportPlan plan,
+) {
+  return showDialog<Map<String, BitwardenImportAction>>(
+    context: context,
+    builder: (context) => _BitwardenImportDialog(plan: plan),
+  );
+}
+
+class _BitwardenImportDialog extends StatefulWidget {
+  const _BitwardenImportDialog({required this.plan});
+
+  final BitwardenImportPlan plan;
+
+  @override
+  State<_BitwardenImportDialog> createState() => _BitwardenImportDialogState();
+}
+
+class _BitwardenImportDialogState extends State<_BitwardenImportDialog> {
+  late final Map<String, BitwardenImportAction> _decisions = {
+    for (final review in widget.plan.reviews)
+      review.importedItem.id: BitwardenImportAction.keepBoth,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final compact = size.width < 600;
+    return Dialog(
+      insetPadding: EdgeInsets.symmetric(
+        horizontal: compact ? 12 : 28,
+        vertical: 20,
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 720,
+          maxHeight: size.height * 0.88,
+        ),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            compact ? 16 : 22,
+            20,
+            compact ? 16 : 22,
+            14,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.compare_arrows_rounded),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '核验 Bitwarden 导入',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    tooltip: '取消',
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '可导入 ${widget.plan.incomingItems} 条，'
+                '发现 ${widget.plan.reviews.length} 条需要人工核验的候选。',
+              ),
+              if (widget.plan.unsupportedItems > 0) ...[
+                const SizedBox(height: 6),
+                Text(
+                  '另有 ${widget.plan.unsupportedItems} 条未支持项目不会导入。',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+              if (widget.plan.reusedPasswordCount > 0) ...[
+                const SizedBox(height: 6),
+                Text(
+                  '检测到 ${widget.plan.reusedPasswordCount} 条与本机其他账号复用密码；'
+                  '这只会提示，不会合并条目。',
+                ),
+              ],
+              for (final warning in widget.plan.warnings) ...[
+                const SizedBox(height: 6),
+                Text(warning),
+              ],
+              const SizedBox(height: 12),
+              const Divider(height: 1),
+              const SizedBox(height: 10),
+              if (widget.plan.reviews.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  child: Text(
+                    widget.plan.incomingItems == 0
+                        ? '文件中没有可导入的登录项或安全笔记。'
+                        : '没有发现重复候选，全部条目将作为新记录导入。',
+                  ),
+                )
+              else ...[
+                Text(
+                  '软件只提供候选，不会自动删除或覆盖。默认两边都保留。',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: widget.plan.reviews.length,
+                    separatorBuilder: (_, __) => const Divider(height: 18),
+                    itemBuilder: (context, index) {
+                      final review = widget.plan.reviews[index];
+                      return _BitwardenReviewTile(
+                        review: review,
+                        action: _decisions[review.importedItem.id] ??
+                            BitwardenImportAction.keepBoth,
+                        onChanged: (action) {
+                          setState(() {
+                            _decisions[review.importedItem.id] = action;
+                          });
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('取消'),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: widget.plan.incomingItems == 0
+                        ? null
+                        : () => Navigator.of(context).pop(_decisions),
+                    icon: const Icon(Icons.download_done_rounded),
+                    label: const Text('按选择导入'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BitwardenReviewTile extends StatelessWidget {
+  const _BitwardenReviewTile({
+    required this.review,
+    required this.action,
+    required this.onChanged,
+  });
+
+  final BitwardenImportReview review;
+  final BitwardenImportAction action;
+  final ValueChanged<BitwardenImportAction> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final imported = review.importedItem;
+    final local = review.localItem;
+    final aliases = review.sharedAliases
+        .map(_displayAlias)
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .join('、');
+    final label = switch (review.kind) {
+      BitwardenImportMatchKind.exactDuplicate => '疑似重复',
+      BitwardenImportMatchKind.passwordConflict => '账号可能相同，密码不同',
+      BitwardenImportMatchKind.possibleDuplicate => '可能相关',
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                imported.title.isEmpty ? '（未命名导入项）' : imported.title,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color:
+                        review.kind == BitwardenImportMatchKind.passwordConflict
+                            ? Theme.of(context).colorScheme.error
+                            : Theme.of(context).colorScheme.primary,
+                  ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        Text('导入项账号：${imported.username.isEmpty ? '（空）' : imported.username}'),
+        Text(
+            '本机候选：${local.title} · ${local.username.isEmpty ? '（空）' : local.username}'),
+        if (aliases.isNotEmpty) Text('共同账号信息：$aliases'),
+        if (review.hasAmbiguousMatches)
+          Text(
+            '另有 ${review.equallyRankedMatchCount - 1} 个同强度本机候选，'
+            '无法安全判断应替换哪一条。',
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        Text(
+          '判断依据：${review.reason}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            ChoiceChip(
+              label: const Text('两边都保留'),
+              selected: action == BitwardenImportAction.keepBoth,
+              onSelected: (_) => onChanged(BitwardenImportAction.keepBoth),
+            ),
+            ChoiceChip(
+              label: const Text('用导入项替换本机'),
+              selected: action == BitwardenImportAction.useImported &&
+                  !review.hasAmbiguousMatches,
+              onSelected: review.hasAmbiguousMatches
+                  ? null
+                  : (_) => onChanged(BitwardenImportAction.useImported),
+            ),
+            ChoiceChip(
+              label: const Text('不导入这一条'),
+              selected: action == BitwardenImportAction.keepLocal,
+              onSelected: (_) => onChanged(BitwardenImportAction.keepLocal),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String _displayAlias(String alias) {
+    final separator = alias.indexOf(':');
+    return separator < 0 ? alias : alias.substring(separator + 1);
+  }
+}
+
 class _PasswordGeneratorControl extends StatefulWidget {
   const _PasswordGeneratorControl(
       {required this.controller, required this.onGenerated});
@@ -3498,6 +3899,8 @@ Future<void> _showAndroidItemDetails(
                 ),
               ),
               _DetailRow(label: '网址', value: item.url),
+              if (item.folder.isNotEmpty)
+                _DetailRow(label: '文件夹', value: item.folder),
               if (item.tags.isNotEmpty)
                 _DetailRow(label: '标签', value: item.tags.join(', ')),
               if ((item.totpSecret?.trim().isNotEmpty ?? false))
@@ -3667,6 +4070,8 @@ Future<void> _showItemDetails(
                               : () => controller.copySecret(item.password),
                         ),
                         _DetailRow(label: '网址', value: item.url),
+                        if (item.folder.isNotEmpty)
+                          _DetailRow(label: '文件夹', value: item.folder),
                         if (item.tags.isNotEmpty)
                           _DetailRow(label: '标签', value: item.tags.join(', ')),
                         if ((item.totpSecret?.trim().isNotEmpty ?? false))
@@ -4563,6 +4968,27 @@ class _AndroidImportSheetState extends State<_AndroidImportSheet> {
     });
   }
 
+  Future<void> _importFromBitwarden() async {
+    final plan = await widget.controller.previewBitwardenImport();
+    if (!mounted || plan == null) {
+      return;
+    }
+    final decisions = await _showBitwardenImportDialog(context, plan);
+    if (!mounted || decisions == null) {
+      return;
+    }
+    final result = await widget.controller.applyBitwardenImport(
+      plan,
+      decisions: decisions,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (result.succeeded) {
+      Navigator.of(context).pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final summary = _plan?.summary;
@@ -4593,6 +5019,23 @@ class _AndroidImportSheetState extends State<_AndroidImportSheet> {
               onPressed: _loading || widget.controller.busy ? null : _preview,
               icon: const Icon(Icons.preview_rounded),
               label: const Text('选择并预览备份'),
+            ),
+            const SizedBox(height: 18),
+            const Divider(height: 1),
+            const SizedBox(height: 14),
+            Text(
+              '从 Bitwarden 导入',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            const Text('支持未加密 JSON 和 CSV。重复候选必须在预览中人工确认。'),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _loading || widget.controller.busy
+                  ? null
+                  : _importFromBitwarden,
+              icon: const Icon(Icons.compare_arrows_rounded),
+              label: const Text('选择 Bitwarden 文件并核验'),
             ),
             if (summary != null) ...[
               const SizedBox(height: 20),
@@ -4657,6 +5100,27 @@ class _AndroidExportSheetState extends State<_AndroidExportSheet> {
     });
   }
 
+  Future<void> _exportBitwarden(BitwardenExchangeFormat format) async {
+    final confirmed = await _confirmBitwardenExport(context, format);
+    if (!mounted || !confirmed) {
+      return;
+    }
+    setState(() {
+      _exporting = true;
+    });
+    final result = await widget.controller.exportBitwarden(format);
+    if (!mounted) {
+      return;
+    }
+    if (result.succeeded) {
+      Navigator.of(context).pop();
+      return;
+    }
+    setState(() {
+      _exporting = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
@@ -4689,6 +5153,36 @@ class _AndroidExportSheetState extends State<_AndroidExportSheet> {
               onPressed: _exporting || widget.controller.busy ? null : _export,
               icon: const Icon(Icons.upload_rounded),
               label: const Text('选择位置并导出'),
+            ),
+            const SizedBox(height: 18),
+            const Divider(height: 1),
+            const SizedBox(height: 14),
+            Text(
+              '导出到 Bitwarden',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            const Text('交换文件包含明文凭据。导入 Bitwarden 后请立即删除。'),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _exporting || widget.controller.busy
+                      ? null
+                      : () => _exportBitwarden(BitwardenExchangeFormat.json),
+                  icon: const Icon(Icons.data_object_rounded),
+                  label: const Text('导出 JSON'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _exporting || widget.controller.busy
+                      ? null
+                      : () => _exportBitwarden(BitwardenExchangeFormat.csv),
+                  icon: const Icon(Icons.table_rows_rounded),
+                  label: const Text('导出 CSV'),
+                ),
+              ],
             ),
             if (_exporting) ...[
               const SizedBox(height: 16),
@@ -4806,6 +5300,26 @@ class _AndroidSettingsSheetState extends State<_AndroidSettingsSheet> {
                   widget.controller.quickUnlockSupported
                       ? '使用设备安全认证保护会话密钥。'
                       : '当前设备不支持快速解锁。',
+                ),
+              ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: widget.controller.allowQuickUnlockOnFirstLaunch,
+                onChanged: !widget.controller.quickUnlockSupported ||
+                        !widget.controller.quickUnlockEnabled ||
+                        widget.controller.busy
+                    ? null
+                    : (enabled) async {
+                        await widget.controller
+                            .setAllowQuickUnlockOnFirstLaunch(enabled);
+                      },
+                title: const Text('冷启动直接快速解锁'),
+                subtitle: Text(
+                  !widget.controller.quickUnlockSupported
+                      ? '当前设备不支持快速解锁。'
+                      : !widget.controller.quickUnlockEnabled
+                          ? '请先开启使用系统认证。'
+                          : '启动应用后可直接使用系统认证，无需先输入一次主密码。',
                 ),
               ),
               const Divider(height: 32),

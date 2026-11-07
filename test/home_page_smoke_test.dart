@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:cipherbook/models/vault_models.dart';
+import 'package:cipherbook/services/bitwarden_interchange_service.dart';
 import 'package:cipherbook/services/clipboard_service.dart';
 import 'package:cipherbook/services/crypto_service.dart';
 import 'package:cipherbook/services/device_key_store.dart';
@@ -801,6 +802,115 @@ void main() {
 
     controller.dispose();
   });
+
+  testWidgets('Windows previews Bitwarden duplicates before importing',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 1000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const testEmail = 'ui.user' '@' 'example.test';
+    final importExport = _MemoryImportExportService();
+    final controller = _buildController(
+      importExportService: importExport,
+    );
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await controller.addOrUpdateItem(
+      title: '示例站点',
+      username: testEmail,
+      password: 'same-password',
+      url: 'https://example.com',
+      notes: '',
+      tags: const [],
+    );
+    final now = DateTime(2026, 1, 1);
+    importExport.bitwardenImportBytes =
+        const BitwardenInterchangeService().encodeJson(<VaultItem>[
+      VaultItem(
+        id: 'bitwarden-duplicate',
+        title: '示例站点',
+        username: testEmail,
+        password: 'same-password',
+        url: 'https://example.com/login',
+        notes: '',
+        tags: const [],
+        createdAt: now,
+        updatedAt: now,
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      _buildApp(controller, platform: TargetPlatform.windows),
+    );
+    await tester.pumpAndSettle();
+    final dock = find.byKey(const ValueKey('liquid-dock'));
+    await tester.tap(find.descendant(of: dock, matching: find.text('导入')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('选择 Bitwarden 文件并核验'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('核验 Bitwarden 导入'), findsOneWidget);
+    expect(find.text('两边都保留'), findsOneWidget);
+    expect(find.text('软件只提供候选，不会自动删除或覆盖。默认两边都保留。'), findsOneWidget);
+    await tester.tap(find.text('按选择导入'));
+    await tester.pumpAndSettle();
+
+    expect(controller.vaultData.activeItems, hasLength(2));
+    expect(tester.takeException(), isNull);
+    controller.dispose();
+  });
+
+  testWidgets('Android narrow screen opens Bitwarden review without overflow',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(360, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const testEmail = 'narrow.user' '@' 'example.test';
+    final importExport = _MemoryImportExportService();
+    final controller = _buildController(
+      importExportService: importExport,
+    );
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await controller.addOrUpdateItem(
+      title: '窄屏示例',
+      username: testEmail,
+      password: 'same-password',
+      url: 'https://example.com',
+      notes: '',
+      tags: const [],
+    );
+    final now = DateTime(2026, 1, 1);
+    importExport.bitwardenImportBytes =
+        const BitwardenInterchangeService().encodeJson(<VaultItem>[
+      VaultItem(
+        id: 'bitwarden-narrow',
+        title: '窄屏示例',
+        username: testEmail,
+        password: 'same-password',
+        url: 'https://example.com/login',
+        notes: '',
+        tags: const [],
+        createdAt: now,
+        updatedAt: now,
+      ),
+    ]);
+
+    await tester.pumpWidget(_buildApp(controller));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('android-vault-overflow')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('导入'));
+    await tester.pumpAndSettle();
+
+    final importButton = find.text('选择 Bitwarden 文件并核验');
+    await tester.ensureVisible(importButton);
+    await tester.tap(importButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('核验 Bitwarden 导入'), findsOneWidget);
+    expect(find.text('两边都保留'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    controller.dispose();
+  });
 }
 
 Widget _buildApp(
@@ -938,12 +1048,18 @@ class _MemoryDeviceKeyStore implements DeviceKeyStore {
 
 class _MemoryImportExportService extends ImportExportService {
   Uint8List? importBytes;
+  Uint8List? bitwardenImportBytes;
 
   @override
   Future<String?> pickImportPath() async => 'memory-import.pwv';
 
   @override
-  Future<Uint8List> readFile(String path) async => importBytes!;
+  Future<String?> pickBitwardenImportPath() async =>
+      bitwardenImportBytes == null ? null : 'memory-bitwarden.json';
+
+  @override
+  Future<Uint8List> readFile(String path) async =>
+      path.contains('bitwarden') ? bitwardenImportBytes! : importBytes!;
 }
 
 class _NoopImportExportService extends ImportExportService {
