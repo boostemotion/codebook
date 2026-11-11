@@ -128,4 +128,61 @@ void main() {
 
     expect(merged.items.single.deletedAt, deletedAt);
   });
+
+  test('merge keeps independently created categories', () {
+    final createdAt = DateTime(2026, 1, 1);
+    final local = VaultData(
+      items: const [],
+      updatedAt: createdAt,
+      categories: [
+        VaultCategory(
+          id: 'local-category',
+          name: '工作',
+          createdAt: createdAt,
+          updatedAt: createdAt,
+        ),
+      ],
+    );
+    final remote = VaultData(
+      items: const [],
+      updatedAt: createdAt,
+      categories: [
+        VaultCategory(
+          id: 'remote-category',
+          name: '生活',
+          createdAt: createdAt,
+          updatedAt: createdAt,
+        ),
+      ],
+    );
+
+    final merged = local.merge(remote);
+
+    expect(merged.categories.map((category) => category.id),
+        containsAll(['local-category', 'remote-category']));
+  });
+
+  test('legacy folder text migrates to stable categories', () {
+    final createdAt = DateTime.utc(2026, 1, 1);
+    final item = VaultItem(
+      id: 'legacy-item',
+      title: 'Legacy',
+      username: '',
+      password: '',
+      url: '',
+      notes: '',
+      tags: const [],
+      createdAt: createdAt,
+      updatedAt: createdAt,
+      folder: '旧分组',
+    );
+
+    final migrated = VaultData.fromJson({
+      'items': [item.toJson()],
+      'updatedAt': createdAt.toUtc().toIso8601String(),
+    });
+
+    expect(migrated.categories.single.name, '旧分组');
+    expect(migrated.categories.single.id, startsWith('legacy-folder-'));
+  });
 }

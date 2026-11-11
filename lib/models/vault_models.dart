@@ -22,6 +22,7 @@ const int maxVaultUrlLength = 4096;
 const int maxVaultNotesLength = 65536;
 const int maxVaultTagCount = 64;
 const int maxVaultTagLength = 128;
+const int maxVaultCategories = 128;
 
 class KdfConfig {
   const KdfConfig({
@@ -366,6 +367,59 @@ class VaultItem {
   }
 }
 
+class VaultCategory {
+  const VaultCategory({
+    required this.id,
+    required this.name,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String name;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  VaultCategory copyWith({
+    String? name,
+    DateTime? updatedAt,
+  }) {
+    return VaultCategory(
+      id: id,
+      name: name ?? this.name,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'createdAt': createdAt.toUtc().toIso8601String(),
+        'updatedAt': updatedAt.toUtc().toIso8601String(),
+      };
+
+  factory VaultCategory.fromJson(Map<String, dynamic> json) {
+    final category = VaultCategory(
+      id: _readRequiredString(json, key: 'id'),
+      name: _readOptionalString(json, key: 'name'),
+      createdAt: _readRequiredDateTime(json, key: 'createdAt'),
+      updatedAt: _readRequiredDateTime(json, key: 'updatedAt'),
+    );
+    category.validate();
+    return category;
+  }
+
+  void validate() {
+    if (id.isEmpty ||
+        id.length > 128 ||
+        name.isEmpty ||
+        name.length > maxVaultTagLength) {
+      throw const FormatException('Vault category exceeds supported limits.');
+    }
+  }
+}
+
 enum VaultItemKind {
   login,
   secureNote,
@@ -375,10 +429,12 @@ class VaultData {
   const VaultData({
     required this.items,
     required this.updatedAt,
+    this.categories = const [],
   });
 
   final List<VaultItem> items;
   final DateTime updatedAt;
+  final List<VaultCategory> categories;
 
   static VaultData empty() => VaultData(
         items: const [],
@@ -388,6 +444,7 @@ class VaultData {
   Map<String, dynamic> toJson() => {
         'items': items.map((item) => item.toJson()).toList(),
         'updatedAt': updatedAt.toUtc().toIso8601String(),
+        'categories': categories.map((category) => category.toJson()).toList(),
       };
 
   factory VaultData.fromJson(Map<String, dynamic> json) {
@@ -405,9 +462,36 @@ class VaultData {
       updatedAt: json['updatedAt'] == null
           ? DateTime.now()
           : _readRequiredDateTime(json, key: 'updatedAt'),
+      categories: _readVaultCategories(json['categories']),
     );
     data.validate();
-    return data;
+    return VaultData(
+      items: data.items,
+      categories: data.categories.isEmpty
+          ? _migrateLegacyCategories(data.items)
+          : data.categories,
+      updatedAt: data.updatedAt,
+    );
+  }
+
+  static List<VaultCategory> _migrateLegacyCategories(List<VaultItem> items) {
+    final legacyCategoryNames = {
+      for (final item in items.where((item) => item.folder.trim().isNotEmpty))
+        item.folder.trim(),
+    };
+    if (legacyCategoryNames.isEmpty) {
+      return const [];
+    }
+    final names = legacyCategoryNames.toList()..sort();
+    return [
+      for (var index = 0; index < names.length; index++)
+        VaultCategory(
+          id: 'legacy-folder-$index',
+          name: names[index],
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+    ];
   }
 
   void validate() {
@@ -416,6 +500,18 @@ class VaultData {
     }
     for (final item in items) {
       item.validate();
+    }
+    if (categories.length > maxVaultCategories) {
+      throw const FormatException('Vault contains too many categories.');
+    }
+    final categoryIds = <String>{};
+    final categoryNames = <String>{};
+    for (final category in categories) {
+      category.validate();
+      if (!categoryIds.add(category.id) ||
+          !categoryNames.add(category.name.toLowerCase())) {
+        throw const FormatException('Vault categories must be unique.');
+      }
     }
   }
 
@@ -465,6 +561,62 @@ class VaultData {
         updatedAt: removedAt,
       );
 
+  VaultCategory? categoryById(String? categoryId) {
+    if (categoryId == null || categoryId.isEmpty) {
+      return null;
+    }
+    for (final category in categories) {
+      if (category.id == categoryId) {
+        return category;
+      }
+    }
+    return null;
+  }
+
+  VaultCategory? categoryByName(String name) {
+    final normalized = name.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    for (final category in categories) {
+      if (category.name.trim().toLowerCase() == normalized) {
+        return category;
+      }
+    }
+    return null;
+  }
+
+  VaultData withCategoryAssigned({
+    required String itemId,
+    required String? categoryId,
+    required DateTime updatedAt,
+  }) {
+    final nextItems = items.map((item) {
+      if (item.id != itemId) {
+        return item;
+      }
+      return item.copyWith(
+        folder: categoryId ?? '',
+        updatedAt: updatedAt,
+      );
+    }).toList();
+    return copyWith(items: nextItems, updatedAt: updatedAt);
+  }
+
+  VaultData pruneCategories({required DateTime updatedAt}) {
+    final usedCategoryIds = {
+      for (final item in items.where((item) => !item.isDeleted))
+        if (item.folder.isNotEmpty) item.folder,
+    };
+    final nextCategories = categories
+        .where((category) => usedCategoryIds.contains(category.id))
+        .toList();
+    return nextCategories.length == categories.length
+        ? this
+        : copyWith(
+            items: items, categories: nextCategories, updatedAt: updatedAt);
+  }
+
   VaultData merge(VaultData incoming) {
     final byId = <String, VaultItem>{
       for (final item in items) item.id: item,
@@ -476,24 +628,64 @@ class VaultData {
         byId[incomingItem.id] = incomingItem;
       }
     }
+    final mergedCategoriesById = <String, VaultCategory>{
+      for (final category in categories) category.id: category,
+    };
+    for (final incomingCategory in incoming.categories) {
+      final current = mergedCategoriesById[incomingCategory.id];
+      final sameNameCategory = categoryByName(incomingCategory.name);
+      if (current == null &&
+          sameNameCategory != null &&
+          !sameNameCategory.id.startsWith('legacy-folder-')) {
+        mergedCategoriesById[incomingCategory.id] = incomingCategory;
+        continue;
+      }
+      if (current == null ||
+          incomingCategory.updatedAt.isAfter(current.updatedAt)) {
+        mergedCategoriesById[incomingCategory.id] = incomingCategory;
+      }
+    }
     final mergedItems = byId.values.toList();
+    final mergedCategories = mergedCategoriesById.values.toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     final mergedUpdatedAt = [
       updatedAt,
       incoming.updatedAt,
       ...mergedItems.map((item) => item.updatedAt),
     ].reduce((a, b) => a.isAfter(b) ? a : b);
-    return VaultData(items: mergedItems, updatedAt: mergedUpdatedAt);
+    return VaultData(
+      items: mergedItems,
+      categories: mergedCategories,
+      updatedAt: mergedUpdatedAt,
+    );
   }
 
   VaultData copyWith({
     List<VaultItem>? items,
+    List<VaultCategory>? categories,
     DateTime? updatedAt,
   }) {
     return VaultData(
       items: items ?? this.items,
+      categories: categories ?? this.categories,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
+}
+
+List<VaultCategory> _readVaultCategories(dynamic value) {
+  if (value == null) {
+    return const [];
+  }
+  if (value is! List<dynamic>) {
+    throw const FormatException('Invalid vault category collection.');
+  }
+  return value.map((category) {
+    if (category is! Map<String, dynamic>) {
+      throw const FormatException('Vault category must be an object.');
+    }
+    return VaultCategory.fromJson(category);
+  }).toList();
 }
 
 enum ImportChangeKind {

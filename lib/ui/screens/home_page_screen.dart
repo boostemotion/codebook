@@ -1039,6 +1039,7 @@ class _VaultView extends StatefulWidget {
 
 class _VaultViewState extends State<_VaultView> {
   _VaultTab _tab = _VaultTab.passwords;
+  String? _selectedCategoryId;
   final TextEditingController _addTitleController = TextEditingController();
   final TextEditingController _addUsernameController = TextEditingController();
   final TextEditingController _addPasswordController = TextEditingController();
@@ -1054,6 +1055,7 @@ class _VaultViewState extends State<_VaultView> {
   ImportPlan? _pendingImportPlan;
   ImportMergeSummary? _importSummary;
   bool _addPasswordObscured = true;
+  String? _addSelectedCategoryId;
 
   @override
   void dispose() {
@@ -1181,7 +1183,7 @@ class _VaultViewState extends State<_VaultView> {
                           const SizedBox(height: 12),
                           Expanded(
                             child: _tab == _VaultTab.passwords
-                                ? _buildPasswordsPage(items, true)
+                                ? _buildFilteredPasswordsPage(items, true)
                                 : Align(
                                     alignment: Alignment.topLeft,
                                     child: ConstrainedBox(
@@ -1262,7 +1264,7 @@ class _VaultViewState extends State<_VaultView> {
               const SizedBox(height: 8),
               Expanded(
                 child: _tab == _VaultTab.passwords
-                    ? _buildPasswordsPage(items, isDesktopPlatform)
+                    ? _buildFilteredPasswordsPage(items, isDesktopPlatform)
                     : _buildActionPage(context),
               ),
             ],
@@ -1315,6 +1317,22 @@ class _VaultViewState extends State<_VaultView> {
     );
   }
 
+  Widget _buildFilteredPasswordsPage(
+    List<VaultItem> allFilteredItems,
+    bool isDesktopPlatform,
+  ) {
+    final items = allFilteredItems.where((item) {
+      if (_selectedCategoryId == null) {
+        return true;
+      }
+      if (_selectedCategoryId!.isEmpty) {
+        return item.folder.isEmpty;
+      }
+      return item.folder == _selectedCategoryId;
+    }).toList();
+    return _buildPasswordsPage(items, isDesktopPlatform);
+  }
+
   Widget _buildPasswordsPage(List<VaultItem> items, bool isDesktopPlatform) {
     if (items.isEmpty) {
       return _FrostedSurface(
@@ -1328,6 +1346,8 @@ class _VaultViewState extends State<_VaultView> {
         ),
       );
     }
+    final categories = widget.controller.vaultData.categories.toList()
+      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification is ScrollStartNotification ||
@@ -1340,40 +1360,118 @@ class _VaultViewState extends State<_VaultView> {
         return false;
       },
       child: isDesktopPlatform
-          ? ListView.separated(
-              key: const ValueKey('vault-list'),
-              controller: widget.scrollController,
-              separatorBuilder: (_, __) => const SizedBox(height: 4),
-              itemCount: items.length,
-              padding: const EdgeInsets.only(bottom: 16),
-              itemBuilder: (context, index) {
-                final item = items[index];
-                final accountInfo = [
-                  item.username.trim(),
-                  item.url.trim(),
-                ].where((part) => part.isNotEmpty).join(' · ');
-                return RepaintBoundary(
-                  child: _EntryCard(
-                    item: item,
-                    accountInfo: accountInfo,
-                    isDesktop: true,
-                    onView: () => _showItemDetails(
-                      context,
-                      controller: widget.controller,
-                      item: item,
-                    ),
-                    onCopy: () => widget.controller.copySecret(item.password),
-                    onEdit: () => _showItemEditor(
-                      context,
-                      controller: widget.controller,
-                      item: item,
-                    ),
-                    onDelete: () => _confirmDeleteItem(
-                      context,
-                      controller: widget.controller,
-                      item: item,
-                    ),
+          ? LayoutBuilder(
+              builder: (context, constraints) {
+                final showCategorySidebar = constraints.maxWidth >= 700;
+                final vaultList = ListView.separated(
+                  key: const ValueKey('vault-list'),
+                  controller: widget.scrollController,
+                  separatorBuilder: (_, __) => const SizedBox(height: 4),
+                  itemCount: items.length,
+                  padding: const EdgeInsets.only(
+                    bottom: 16,
+                    right: 4,
                   ),
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+                    final accountInfo = [
+                      item.username.trim(),
+                      item.url.trim(),
+                    ].where((part) => part.isNotEmpty).join(' · ');
+                    final entryCard = _EntryCard(
+                      item: item,
+                      accountInfo: accountInfo,
+                      isDesktop: true,
+                      onView: () => _showItemDetails(
+                        context,
+                        controller: widget.controller,
+                        item: item,
+                      ),
+                      onCopy: () => widget.controller.copySecret(item.password),
+                      onEdit: () => _showItemEditor(
+                        context,
+                        controller: widget.controller,
+                        item: item,
+                      ),
+                      onDelete: () => _confirmDeleteItem(
+                        context,
+                        controller: widget.controller,
+                        item: item,
+                      ),
+                    );
+                    if (!showCategorySidebar) {
+                      return RepaintBoundary(child: entryCard);
+                    }
+                    return RepaintBoundary(
+                      child: Draggable<VaultItem>(
+                        data: item,
+                        dragAnchorStrategy: pointerDragAnchorStrategy,
+                        feedback: _DraggedEntryCard(
+                          item: item,
+                          accountInfo: accountInfo,
+                        ),
+                        childWhenDragging: Opacity(
+                          opacity: 0.45,
+                          child: _EntryCard(
+                            item: item,
+                            accountInfo: accountInfo,
+                            isDesktop: true,
+                            onView: () {},
+                            onCopy: () {},
+                            onEdit: () {},
+                            onDelete: () {},
+                          ),
+                        ),
+                        child: entryCard,
+                      ),
+                    );
+                  },
+                );
+                if (!showCategorySidebar) {
+                  return vaultList;
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _DesktopCategorySidebar(
+                      categories: categories,
+                      categoryCounts: {
+                        for (final category in categories)
+                          category.id: widget.controller.vaultData.activeItems
+                              .where((item) => item.folder == category.id)
+                              .length,
+                      },
+                      selectedCategoryId: _selectedCategoryId,
+                      totalCount:
+                          widget.controller.vaultData.activeItems.length,
+                      uncategorizedCount: widget
+                          .controller.vaultData.activeItems
+                          .where((item) => item.folder.isEmpty)
+                          .length,
+                      onSelected: (categoryId) {
+                        _glassPerfBus.pulse(heavy: true);
+                        setState(() {
+                          _selectedCategoryId = categoryId;
+                        });
+                      },
+                      onCategoryDropped: (categoryId, itemId) {
+                        widget.controller.assignItemToCategory(
+                          itemId: itemId,
+                          categoryId: categoryId,
+                        );
+                      },
+                      onCategoryAdded: (name) =>
+                          widget.controller.addCategory(name),
+                      onCategoryRenamed: (categoryId, name) =>
+                          widget.controller.renameCategory(
+                        categoryId: categoryId,
+                        name: name,
+                      ),
+                      onCategoryDeleted: widget.controller.deleteCategory,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(child: vaultList),
+                  ],
                 );
               },
             )
@@ -1489,6 +1587,28 @@ class _VaultViewState extends State<_VaultView> {
               maxLines: 4,
               decoration: const InputDecoration(labelText: '备注'),
             ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              initialValue: _addSelectedCategoryId,
+              decoration: const InputDecoration(labelText: '分类'),
+              items: [
+                const DropdownMenuItem(
+                  value: '',
+                  child: Text('无分类'),
+                ),
+                for (final category in widget.controller.vaultData.categories)
+                  DropdownMenuItem(
+                    value: category.id,
+                    child: Text(category.name),
+                  ),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _addSelectedCategoryId =
+                      value == null || value.isEmpty ? null : value;
+                });
+              },
+            ),
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
@@ -1503,6 +1623,7 @@ class _VaultViewState extends State<_VaultView> {
                           url: _addUrlController.text,
                           notes: _addNotesController.text,
                           tags: const [],
+                          categoryId: _addSelectedCategoryId,
                         );
                         if (!mounted || !result.succeeded) {
                           return;
@@ -1516,6 +1637,7 @@ class _VaultViewState extends State<_VaultView> {
                         _addPasswordController.clear();
                         _addUrlController.clear();
                         _addNotesController.clear();
+                        _addSelectedCategoryId = null;
                       },
                 icon: const Icon(Icons.check_rounded),
                 label: const Text('保存条目'),
@@ -2043,6 +2165,399 @@ class _DesktopSidebarItem extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _DesktopCategorySidebar extends StatelessWidget {
+  const _DesktopCategorySidebar({
+    required this.categories,
+    required this.categoryCounts,
+    required this.selectedCategoryId,
+    required this.totalCount,
+    required this.uncategorizedCount,
+    required this.onSelected,
+    required this.onCategoryDropped,
+    required this.onCategoryAdded,
+    required this.onCategoryRenamed,
+    required this.onCategoryDeleted,
+  });
+
+  final List<VaultCategory> categories;
+  final Map<String, int> categoryCounts;
+  final String? selectedCategoryId;
+  final int totalCount;
+  final int uncategorizedCount;
+  final ValueChanged<String?> onSelected;
+  final void Function(String categoryId, String itemId) onCategoryDropped;
+  final Future<VaultOperationResult> Function(String name) onCategoryAdded;
+  final Future<VaultOperationResult> Function(String categoryId, String name)
+      onCategoryRenamed;
+  final Future<VaultOperationResult> Function(String categoryId)
+      onCategoryDeleted;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: 190,
+      child: Column(
+        key: const ValueKey('desktop-category-sidebar'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '分类',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              IconButton(
+                key: const ValueKey('desktop-category-add'),
+                tooltip: '新建分类',
+                onPressed: () => _showCategoryNameDialog(
+                  context,
+                  title: '新建分类',
+                  onSubmit: onCategoryAdded,
+                ),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.only(bottom: 16),
+              children: [
+                _CategoryDropTile(
+                  key: const ValueKey('desktop-category-all'),
+                  label: '全部密码',
+                  count: totalCount,
+                  icon: Icons.all_inbox_rounded,
+                  active: selectedCategoryId == null,
+                  onTap: () => onSelected(null),
+                ),
+                _CategoryDropTile(
+                  key: const ValueKey('desktop-category-uncategorized'),
+                  label: '未分类',
+                  count: uncategorizedCount,
+                  icon: Icons.inbox_outlined,
+                  active: selectedCategoryId == '',
+                  onTap: () => onSelected(''),
+                  onItemDropped: (itemId) => onCategoryDropped('', itemId),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Divider(height: 1),
+                ),
+                for (final category in categories)
+                  _CategoryDropTile(
+                    key: ValueKey('desktop-category-${category.id}'),
+                    label: category.name,
+                    count: categoryCounts[category.id] ?? 0,
+                    icon: Icons.folder_outlined,
+                    active: selectedCategoryId == category.id,
+                    onTap: () => onSelected(category.id),
+                    onItemDropped: (itemId) =>
+                        onCategoryDropped(category.id, itemId),
+                    onRename: () => _showCategoryNameDialog(
+                      context,
+                      title: '重命名分类',
+                      initialName: category.name,
+                      onSubmit: (name) => onCategoryRenamed(category.id, name),
+                    ),
+                    onDelete: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          title: const Text('删除分类？'),
+                          content: Text(
+                            '“${category.name}”中的密码会移回未分类，密码不会删除。',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.of(dialogContext).pop(false),
+                              child: const Text('取消'),
+                            ),
+                            FilledButton(
+                              onPressed: () =>
+                                  Navigator.of(dialogContext).pop(true),
+                              child: const Text('删除分类'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true) {
+                        await onCategoryDeleted(category.id);
+                        onSelected(selectedCategoryId == category.id
+                            ? null
+                            : selectedCategoryId);
+                      }
+                    },
+                  ),
+              ],
+            ),
+          ),
+          Text(
+            '拖动密码到分类即可归组',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: const Color(0xFF98A2B3),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryDropTile extends StatefulWidget {
+  const _CategoryDropTile({
+    super.key,
+    required this.label,
+    required this.count,
+    required this.icon,
+    required this.active,
+    required this.onTap,
+    this.onItemDropped,
+    this.onRename,
+    this.onDelete,
+  });
+
+  final String label;
+  final int count;
+  final IconData icon;
+  final bool active;
+  final VoidCallback onTap;
+  final ValueChanged<String>? onItemDropped;
+  final VoidCallback? onRename;
+  final VoidCallback? onDelete;
+
+  @override
+  State<_CategoryDropTile> createState() => _CategoryDropTileState();
+}
+
+class _CategoryDropTileState extends State<_CategoryDropTile> {
+  bool _hovering = false;
+  bool _dragging = false;
+
+  Widget _buildTile() {
+    final theme = Theme.of(context);
+    final activeColor = theme.colorScheme.primary;
+    final color = widget.active ? activeColor : const Color(0xFF475467);
+    return Container(
+      decoration: BoxDecoration(
+        color: _dragging
+            ? theme.colorScheme.primaryContainer
+            : (widget.active
+                ? activeColor.withValues(alpha: 0.08)
+                : Colors.transparent),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(
+          color: _dragging ? activeColor : Colors.transparent,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(7),
+          onTap: widget.onTap,
+          onHover: (value) {
+            if (_hovering != value) {
+              setState(() {
+                _hovering = value;
+              });
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+            child: Row(
+              children: [
+                Icon(widget.icon, size: 17, color: color),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 13,
+                      fontWeight:
+                          widget.active ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                ),
+                if (widget.onRename != null || widget.onDelete != null)
+                  if (_hovering)
+                    PopupMenuButton<String>(
+                      tooltip: '分类操作',
+                      icon: const Icon(Icons.more_horiz_rounded, size: 17),
+                      onSelected: (action) {
+                        if (action == 'rename') widget.onRename?.call();
+                        if (action == 'delete') widget.onDelete?.call();
+                      },
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'rename',
+                          child: Text('重命名'),
+                        ),
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Text('删除分类'),
+                        ),
+                      ],
+                    )
+                  else
+                    Text(
+                      '${widget.count}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF98A2B3),
+                      ),
+                    )
+                else
+                  Text(
+                    '${widget.count}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFF98A2B3),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dropTarget = DragTarget<VaultItem>(
+      onWillAcceptWithDetails: (_) => widget.onItemDropped != null,
+      onAcceptWithDetails: (details) =>
+          widget.onItemDropped?.call(details.data.id),
+      onMove: (_) {
+        if (!_dragging) {
+          setState(() {
+            _dragging = true;
+          });
+        }
+      },
+      onLeave: (_) {
+        if (_dragging) {
+          setState(() {
+            _dragging = false;
+          });
+        }
+      },
+      builder: (context, candidateData, rejectedData) => _buildTile(),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
+      child: dropTarget,
+    );
+  }
+}
+
+Future<void> _showCategoryNameDialog(
+  BuildContext context, {
+  required String title,
+  required Future<VaultOperationResult> Function(String name) onSubmit,
+  String initialName = '',
+}) async {
+  await showDialog<bool>(
+    context: context,
+    builder: (_) => _CategoryNameDialog(
+      title: title,
+      initialName: initialName,
+      onSubmit: onSubmit,
+    ),
+  );
+}
+
+class _CategoryNameDialog extends StatefulWidget {
+  const _CategoryNameDialog({
+    required this.title,
+    required this.initialName,
+    required this.onSubmit,
+  });
+
+  final String title;
+  final String initialName;
+  final Future<VaultOperationResult> Function(String name) onSubmit;
+
+  @override
+  State<_CategoryNameDialog> createState() => _CategoryNameDialogState();
+}
+
+class _CategoryNameDialogState extends State<_CategoryNameDialog> {
+  late final TextEditingController _nameController;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.initialName);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_saving) {
+      return;
+    }
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final result = await widget.onSubmit(_nameController.text);
+    if (!mounted) {
+      return;
+    }
+    if (result.succeeded) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+    setState(() {
+      _saving = false;
+      _error = result.error?.toString();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        key: const ValueKey('category-name-field'),
+        autofocus: true,
+        controller: _nameController,
+        maxLength: maxVaultTagLength,
+        decoration: InputDecoration(
+          labelText: '分类名称',
+          errorText: _error,
+        ),
+        onSubmitted: (_) => _submit(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _saving ? null : _submit,
+          child: Text(_saving ? '保存中…' : '保存'),
+        ),
+      ],
     );
   }
 }
@@ -2883,6 +3398,85 @@ class _DesktopActionCluster extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DraggedEntryCard extends StatelessWidget {
+  const _DraggedEntryCard({
+    required this.item,
+    required this.accountInfo,
+  });
+
+  final VaultItem item;
+  final String accountInfo;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = item.title.trim().isEmpty ? '未命名' : item.title;
+    final leadingText = title.isEmpty ? '•' : title[0].toUpperCase();
+    return Material(
+      elevation: 10,
+      borderRadius: BorderRadius.circular(8),
+      color: Colors.white,
+      child: Container(
+        width: 260,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFFB2DDFF)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF8FF),
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Text(
+                leadingText,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF175CD3),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF101828),
+                    ),
+                  ),
+                  if (accountInfo.isNotEmpty)
+                    Text(
+                      accountInfo,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF667085),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -3793,6 +4387,8 @@ Future<void> _showItemEditor(
   final passwordController = TextEditingController(text: item?.password ?? '');
   final urlController = TextEditingController(text: item?.url ?? '');
   final notesController = TextEditingController(text: item?.notes ?? '');
+  String? selectedCategoryId =
+      item == null || item.folder.isEmpty ? null : item.folder;
   var saving = false;
   var obscurePassword = true;
 
@@ -3919,6 +4515,33 @@ Future<void> _showItemEditor(
                                 decoration:
                                     const InputDecoration(labelText: '备注'),
                               ),
+                              const SizedBox(height: 10),
+                              DropdownButtonFormField<String>(
+                                initialValue: selectedCategoryId,
+                                decoration: const InputDecoration(
+                                  labelText: '分类',
+                                ),
+                                items: [
+                                  const DropdownMenuItem(
+                                    value: '',
+                                    child: Text('无分类'),
+                                  ),
+                                  for (final category
+                                      in controller.vaultData.categories)
+                                    DropdownMenuItem(
+                                      value: category.id,
+                                      child: Text(category.name),
+                                    ),
+                                ],
+                                onChanged: (value) {
+                                  setDialogState(() {
+                                    selectedCategoryId =
+                                        value == null || value.isEmpty
+                                            ? null
+                                            : value;
+                                  });
+                                },
+                              ),
                             ],
                           ),
                         ),
@@ -3950,6 +4573,7 @@ Future<void> _showItemEditor(
                                     notes: notesController.text,
                                     tags: item?.tags ?? const [],
                                     totpSecret: item?.totpSecret,
+                                    categoryId: selectedCategoryId,
                                   );
                                   if (result.succeeded &&
                                       dialogContext.mounted) {

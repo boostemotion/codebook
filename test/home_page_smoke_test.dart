@@ -151,6 +151,60 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('Windows category sidebar creates filters and moves items',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final controller = _buildController();
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await controller.addOrUpdateItem(
+      title: 'Alpha',
+      username: 'alice',
+      password: 'pw',
+      url: '',
+      notes: '',
+      tags: const [],
+    );
+    await tester.pumpWidget(
+      _buildApp(controller, platform: TargetPlatform.windows),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('desktop-category-add')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('category-name-field')),
+      '工作',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.pumpAndSettle();
+    expect(controller.vaultData.categories.single.name, '工作');
+
+    final item = controller.vaultData.activeItems.single;
+    await controller.assignItemToCategory(
+      itemId: item.id,
+      categoryId: controller.vaultData.categories.single.id,
+    );
+    await tester.pumpAndSettle();
+    expect(controller.vaultData.activeItems.single.folder,
+        controller.vaultData.categories.single.id);
+
+    await tester.tap(find.byKey(ValueKey(
+      'desktop-category-${controller.vaultData.categories.single.id}',
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('Alpha'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const ValueKey('desktop-category-uncategorized')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Alpha'), findsNothing);
+
+    controller.dispose();
+  });
+
   testWidgets('Windows sidebar exposes the pairing workspace', (tester) async {
     final controller = _buildController();
     await controller.bootstrap();

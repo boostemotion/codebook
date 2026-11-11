@@ -227,6 +227,7 @@ class VaultController extends ChangeNotifier {
         vaultData: VaultData(
           items: seededItems,
           updatedAt: now,
+          categories: _vaultData.categories,
         ),
         keyEncryptionKey: _requireSessionKek(),
       );
@@ -504,7 +505,8 @@ class VaultController extends ChangeNotifier {
       }
 
       await _saveState(
-        vaultData: VaultData(items: nextItems, updatedAt: DateTime.now()),
+        vaultData:
+            _vaultData.copyWith(items: nextItems, updatedAt: DateTime.now()),
         keyEncryptionKey: _requireSessionKek(),
       );
       _message = 'Bitwarden 导入完成：写入 $importedCount 条'
@@ -941,6 +943,7 @@ class VaultController extends ChangeNotifier {
     required String notes,
     required List<String> tags,
     String? totpSecret,
+    String? categoryId,
   }) {
     return _runMutation(() async {
       _ensureUnlocked();
@@ -973,7 +976,7 @@ class VaultController extends ChangeNotifier {
         updatedAt: now,
         deletedAt: null,
         kind: existing?.kind ?? VaultItemKind.login,
-        folder: existing?.folder ?? '',
+        folder: categoryId ?? existing?.folder ?? '',
         favorite: existing?.favorite ?? false,
       );
       item.validate();
@@ -982,6 +985,137 @@ class VaultController extends ChangeNotifier {
         keyEncryptionKey: _requireSessionKek(),
       );
       _message = existing == null ? '条目已新增。' : '条目已更新。';
+    });
+  }
+
+  Future<VaultOperationResult> addCategory(String name) {
+    return _runMutation(() async {
+      _ensureUnlocked();
+      final normalized = name.trim();
+      if (normalized.isEmpty) {
+        throw ArgumentError('分类名称不能为空。');
+      }
+      if (_vaultData.categoryByName(normalized) != null) {
+        throw StateError('已存在同名分类。');
+      }
+      if (_vaultData.categories.length >= maxVaultCategories) {
+        throw StateError('分类数量已达上限。');
+      }
+      final now = DateTime.now();
+      final category = VaultCategory(
+        id: _uuid.v4(),
+        name: normalized,
+        createdAt: now,
+        updatedAt: now,
+      );
+      category.validate();
+      await _saveState(
+        vaultData: _vaultData.copyWith(
+          categories: [..._vaultData.categories, category],
+        ),
+        keyEncryptionKey: _requireSessionKek(),
+      );
+      _message = '分类已新增。';
+    });
+  }
+
+  Future<VaultOperationResult> renameCategory({
+    required String categoryId,
+    required String name,
+  }) {
+    return _runMutation(() async {
+      _ensureUnlocked();
+      final normalized = name.trim();
+      if (normalized.isEmpty) {
+        throw ArgumentError('分类名称不能为空。');
+      }
+      final category = _vaultData.categoryById(categoryId);
+      if (category == null) {
+        throw StateError('未找到要重命名的分类。');
+      }
+      final duplicate = _vaultData.categoryByName(normalized);
+      if (duplicate != null && duplicate.id != category.id) {
+        throw StateError('已存在同名分类。');
+      }
+      final nextCategory = category.copyWith(
+        name: normalized,
+        updatedAt: DateTime.now(),
+      );
+      nextCategory.validate();
+      await _saveState(
+        vaultData: _vaultData.copyWith(
+          categories: [
+            for (final current in _vaultData.categories)
+              if (current.id == category.id) nextCategory else current,
+          ],
+        ),
+        keyEncryptionKey: _requireSessionKek(),
+      );
+      _message = '分类已重命名。';
+    });
+  }
+
+  Future<VaultOperationResult> deleteCategory(String categoryId) {
+    return _runMutation(() async {
+      _ensureUnlocked();
+      final category = _vaultData.categoryById(categoryId);
+      if (category == null) {
+        throw StateError('未找到要删除的分类。');
+      }
+      final now = DateTime.now();
+      final nextItems = _vaultData.items.map((item) {
+        if (item.isDeleted || item.folder != category.id) {
+          return item;
+        }
+        return item.copyWith(folder: '', updatedAt: now);
+      }).toList();
+      await _saveState(
+        vaultData: VaultData(
+          items: nextItems,
+          categories: _vaultData.categories
+              .where((current) => current.id != category.id)
+              .toList(),
+          updatedAt: now,
+        ),
+        keyEncryptionKey: _requireSessionKek(),
+      );
+      _message = '分类已删除，密码已移回全部密码。';
+    });
+  }
+
+  Future<VaultOperationResult> assignItemToCategory({
+    required String itemId,
+    String? categoryId,
+  }) {
+    return _runMutation(() async {
+      _ensureUnlocked();
+      final item =
+          _vaultData.items.where((item) => item.id == itemId).firstOrNull;
+      if (item == null || item.isDeleted) {
+        throw StateError('未找到可移动的条目。');
+      }
+      if (categoryId != null && categoryId.isNotEmpty) {
+        if (_vaultData.categoryById(categoryId) == null) {
+          throw StateError('目标分类不存在。');
+        }
+      }
+      if (item.folder == (categoryId ?? '')) {
+        _message = '密码已在该分类中。';
+        return;
+      }
+      final now = DateTime.now();
+      await _saveState(
+        vaultData: _vaultData
+            .withCategoryAssigned(
+              itemId: itemId,
+              categoryId: categoryId,
+              updatedAt: now,
+            )
+            .pruneCategories(updatedAt: now),
+        keyEncryptionKey: _requireSessionKek(),
+      );
+      _message =
+          categoryId == null || categoryId.isEmpty ? '密码已移出分类。' : '密码已移动到分类。';
     });
   }
 
