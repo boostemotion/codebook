@@ -19,6 +19,7 @@ final _GlassPerfBus _glassPerfBus = _GlassPerfBus();
 
 enum _AndroidOverflowAction {
   recycleBin,
+  categories,
   importVault,
   lanSync,
   exportVault,
@@ -91,6 +92,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _canSubmitMasterPassword = false;
   bool _androidSearchOpen = false;
   bool _androidFabExpanded = true;
+  String? _androidSelectedCategoryId;
 
   String _searchQuery = '';
   _SortMode _sortMode = _SortMode.recentlyUpdated;
@@ -281,6 +283,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         item.tags.join(' '),
       ].join(' ').toLowerCase();
       return haystack.contains(_searchQuery);
+    }).where((item) {
+      if (_androidSelectedCategoryId == null) {
+        return true;
+      }
+      if (_androidSelectedCategoryId!.isEmpty) {
+        return item.folder.isEmpty;
+      }
+      return item.folder == _androidSelectedCategoryId;
     }).toList()
       ..sort((a, b) {
         final byUpdatedAt = b.updatedAt.compareTo(a.updatedAt);
@@ -363,6 +373,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     child: ListTile(
                       leading: Icon(Icons.delete_outline_rounded),
                       title: Text('回收站'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: _AndroidOverflowAction.categories,
+                    child: ListTile(
+                      leading: Icon(Icons.folder_outlined),
+                      title: Text('分类管理'),
                     ),
                   ),
                   PopupMenuItem(
@@ -534,14 +551,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                   item: item,
                                 ),
                                 trailing: PopupMenuButton<String>(
+                                  key:
+                                      ValueKey('android-entry-menu-${item.id}'),
                                   tooltip: '条目操作',
-                                  onSelected: (action) {
+                                  onSelected: (action) async {
                                     switch (action) {
                                       case 'copy':
                                         controller.copySecret(item.password);
                                         break;
                                       case 'edit':
                                         _showItemEditor(
+                                          context,
+                                          controller: controller,
+                                          item: item,
+                                        );
+                                        break;
+                                      case 'category':
+                                        await _showAndroidCategoryPicker(
                                           context,
                                           controller: controller,
                                           item: item,
@@ -569,6 +595,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                       child: ListTile(
                                         leading: Icon(Icons.edit_outlined),
                                         title: Text('编辑'),
+                                      ),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'category',
+                                      child: ListTile(
+                                        leading: Icon(Icons.folder_outlined),
+                                        title: Text('移动到分类'),
                                       ),
                                     ),
                                     PopupMenuItem(
@@ -623,6 +656,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           context: context,
           isScrollControlled: true,
           builder: (context) => _RecycleBinSheet(controller: widget.controller),
+        );
+        return;
+      case _AndroidOverflowAction.categories:
+        await showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          builder: (_) =>
+              _AndroidCategoriesSheet(controller: widget.controller),
         );
         return;
       case _AndroidOverflowAction.importVault:
@@ -4235,6 +4276,8 @@ Future<void> _showAndroidItemEditor(
   final passwordController = TextEditingController(text: item?.password ?? '');
   final urlController = TextEditingController(text: item?.url ?? '');
   final notesController = TextEditingController(text: item?.notes ?? '');
+  String? androidSelectedCategoryId =
+      item == null || item.folder.isEmpty ? null : item.folder;
   var obscurePassword = true;
   var saving = false;
 
@@ -4323,6 +4366,28 @@ Future<void> _showAndroidItemEditor(
                     maxLines: 5,
                     decoration: const InputDecoration(labelText: '备注'),
                   ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: androidSelectedCategoryId,
+                    decoration: const InputDecoration(labelText: '分类'),
+                    items: [
+                      const DropdownMenuItem(
+                        value: '',
+                        child: Text('无分类'),
+                      ),
+                      for (final category in controller.vaultData.categories)
+                        DropdownMenuItem(
+                          value: category.id,
+                          child: Text(category.name),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      setSheetState(() {
+                        androidSelectedCategoryId =
+                            value == null || value.isEmpty ? null : value;
+                      });
+                    },
+                  ),
                   const SizedBox(height: 20),
                   FilledButton.icon(
                     key: const ValueKey('android-item-save'),
@@ -4341,6 +4406,7 @@ Future<void> _showAndroidItemEditor(
                               notes: notesController.text,
                               tags: item?.tags ?? const [],
                               totpSecret: item?.totpSecret,
+                              categoryId: androidSelectedCategoryId,
                             );
                             if (result.succeeded && sheetContext.mounted) {
                               Navigator.of(sheetContext).pop();
@@ -5701,6 +5767,265 @@ class _RecycleBinSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AndroidCategoriesSheet extends StatelessWidget {
+  const _AndroidCategoriesSheet({required this.controller});
+
+  final VaultController controller;
+
+  Future<void> _showNameDialog(
+    BuildContext context, {
+    required String title,
+    String initialName = '',
+    required Future<VaultOperationResult> Function(String name) onSubmit,
+  }) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _CategoryNameDialog(
+        title: title,
+        initialName: initialName,
+        onSubmit: onSubmit,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.68,
+      minChildSize: 0.45,
+      maxChildSize: 0.94,
+      builder: (context, scrollController) => SafeArea(
+        top: false,
+        child: AnimatedBuilder(
+          animation: controller,
+          builder: (context, _) {
+            final categories = controller.vaultData.categories.toList()
+              ..sort((a, b) =>
+                  a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+            final counts = <String, int>{
+              for (final category in categories)
+                category.id: controller.vaultData.activeItems
+                    .where((item) => item.folder == category.id)
+                    .length,
+            };
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '分类管理',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                      ),
+                      IconButton(
+                        key: const ValueKey('android-category-add'),
+                        tooltip: '新建分类',
+                        onPressed: controller.busy
+                            ? null
+                            : () => _showNameDialog(
+                                  context,
+                                  title: '新建分类',
+                                  onSubmit: controller.addCategory,
+                                ),
+                        icon: const Icon(Icons.add_rounded),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: categories.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.folder_off_outlined, size: 34),
+                                const SizedBox(height: 8),
+                                const Text('还没有分类'),
+                                Text(
+                                  '新增分类后，可在条目菜单中移动密码。',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          )
+                        : ListView.separated(
+                            controller: scrollController,
+                            itemCount: categories.length,
+                            separatorBuilder: (_, __) =>
+                                const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final category = categories[index];
+                              return ListTile(
+                                key:
+                                    ValueKey('android-category-${category.id}'),
+                                leading: const Icon(Icons.folder_outlined),
+                                title: Text(category.name),
+                                subtitle:
+                                    Text('${counts[category.id] ?? 0} 条密码'),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      tooltip: '重命名 ${category.name}',
+                                      icon: const Icon(Icons.edit_outlined),
+                                      onPressed: controller.busy
+                                          ? null
+                                          : () => _showNameDialog(
+                                                context,
+                                                title: '重命名分类',
+                                                initialName: category.name,
+                                                onSubmit: (name) =>
+                                                    controller.renameCategory(
+                                                  categoryId: category.id,
+                                                  name: name,
+                                                ),
+                                              ),
+                                    ),
+                                    IconButton(
+                                      tooltip: '删除 ${category.name}',
+                                      icon: const Icon(
+                                          Icons.delete_outline_rounded),
+                                      onPressed: controller.busy
+                                          ? null
+                                          : () async {
+                                              final confirmed =
+                                                  await showDialog<bool>(
+                                                context: context,
+                                                builder: (dialogContext) =>
+                                                    AlertDialog(
+                                                  title: const Text('删除分类？'),
+                                                  content: Text(
+                                                    '“${category.name}”中的密码会移回未分类，密码不会删除。',
+                                                  ),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () =>
+                                                          Navigator.of(
+                                                                  dialogContext)
+                                                              .pop(false),
+                                                      child: const Text('取消'),
+                                                    ),
+                                                    FilledButton(
+                                                      onPressed: () =>
+                                                          Navigator.of(
+                                                                  dialogContext)
+                                                              .pop(true),
+                                                      child: const Text('删除分类'),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                              if (confirmed == true) {
+                                                await controller.deleteCategory(
+                                                    category.id);
+                                              }
+                                            },
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _showAndroidCategoryPicker(
+  BuildContext context, {
+  required VaultController controller,
+  required VaultItem item,
+}) async {
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (sheetContext) => SafeArea(
+      child: AnimatedBuilder(
+        animation: controller,
+        builder: (context, _) {
+          final categories = controller.vaultData.categories.toList()
+            ..sort(
+                (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  '移动“${item.title}”',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '选择一个分类，或选择未分类。',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      ListTile(
+                        key: const ValueKey('android-category-none'),
+                        leading: const Icon(Icons.inbox_outlined),
+                        title: const Text('未分类'),
+                        trailing: item.folder.isEmpty
+                            ? const Icon(Icons.check_rounded)
+                            : null,
+                        onTap: () async {
+                          final result = await controller.assignItemToCategory(
+                            itemId: item.id,
+                          );
+                          if (!sheetContext.mounted) return;
+                          if (result.succeeded) {
+                            Navigator.of(sheetContext).pop();
+                          }
+                        },
+                      ),
+                      for (final category in categories)
+                        ListTile(
+                          key: ValueKey('android-move-${category.id}'),
+                          leading: const Icon(Icons.folder_outlined),
+                          title: Text(category.name),
+                          trailing: item.folder == category.id
+                              ? const Icon(Icons.check_rounded)
+                              : null,
+                          onTap: () async {
+                            final result =
+                                await controller.assignItemToCategory(
+                              itemId: item.id,
+                              categoryId: category.id,
+                            );
+                            if (!sheetContext.mounted) return;
+                            if (result.succeeded) {
+                              Navigator.of(sheetContext).pop();
+                            }
+                          },
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    ),
+  );
 }
 
 class _AndroidImportSheet extends StatefulWidget {

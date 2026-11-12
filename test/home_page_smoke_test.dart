@@ -54,6 +54,68 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('Android creates categories and assigns entries', (tester) async {
+    final controller = _buildController();
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await controller.addOrUpdateItem(
+      title: 'Alpha',
+      username: 'alice',
+      password: 'pw',
+      url: '',
+      notes: '',
+      tags: const [],
+    );
+    await tester.pumpWidget(_buildApp(controller));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('android-vault-overflow')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('分类管理'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('android-category-add')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('category-name-field')),
+      '工作',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '保存'));
+    await tester.pumpAndSettle();
+    final category = controller.vaultData.categories.single;
+    expect(category.name, '工作');
+
+    Navigator.of(tester.element(find.byType(DraggableScrollableSheet))).pop();
+    await tester.pumpAndSettle();
+    final item = controller.vaultData.activeItems.single;
+    final listEntry = find.byKey(ValueKey('android-vault-item-${item.id}'));
+    await tester.scrollUntilVisible(
+      listEntry,
+      100,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ValueKey('android-entry-menu-${item.id}')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('移动到分类'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ValueKey('android-move-${category.id}')));
+    await tester.pumpAndSettle();
+
+    expect(controller.vaultData.activeItems.single.folder, category.id);
+
+    await tester.tap(find.byKey(const ValueKey('android-vault-overflow')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('分类管理'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ValueKey('android-category-${category.id}')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alpha'), findsOneWidget);
+
+    controller.dispose();
+  });
+
   testWidgets('busy overlay is visible while creating vault', (tester) async {
     final controller = _buildController(
       cryptoService:
@@ -757,7 +819,15 @@ void main() {
     final titleField = find.byWidgetPredicate((widget) =>
         widget is TextField && widget.decoration?.labelText == '名称');
     await tester.enterText(titleField, 'Updated entry');
-    await tester.ensureVisible(find.byKey(const ValueKey('android-item-save')));
+    final editorScrollable = find.descendant(
+      of: find.byType(DraggableScrollableSheet),
+      matching: find.byType(Scrollable),
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('android-item-save')),
+      300,
+      scrollable: editorScrollable.first,
+    );
     await tester.drag(find.byType(ListView).last, const Offset(0, -220));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('android-item-save')));
@@ -821,6 +891,15 @@ void main() {
     await tester.tap(find.byTooltip('编辑条目'));
     await tester.pumpAndSettle();
     expect(find.text('编辑条目'), findsOneWidget);
+    final narrowEditorScrollable = find.descendant(
+      of: find.byType(DraggableScrollableSheet),
+      matching: find.byType(Scrollable),
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('android-item-save')),
+      300,
+      scrollable: narrowEditorScrollable.first,
+    );
     expect(find.byKey(const ValueKey('android-item-save')), findsOneWidget);
     expect(tester.takeException(), isNull);
     controller.dispose();
