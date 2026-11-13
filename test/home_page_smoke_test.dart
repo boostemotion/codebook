@@ -86,8 +86,9 @@ void main() {
     final category = controller.vaultData.categories.single;
     expect(category.name, '工作');
 
-    Navigator.of(tester.element(find.byType(DraggableScrollableSheet))).pop();
+    await tester.tap(find.byKey(const ValueKey('android-category-close')));
     await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('android-category-close')), findsNothing);
     final item = controller.vaultData.activeItems.single;
     final listEntry = find.byKey(ValueKey('android-vault-item-${item.id}'));
     await tester.scrollUntilVisible(
@@ -113,6 +114,92 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Alpha'), findsOneWidget);
+
+    controller.dispose();
+  });
+
+  testWidgets('Android category filter can return and always offers creation',
+      (tester) async {
+    final controller = _buildController();
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await controller.addCategory('工作');
+    await controller.addOrUpdateItem(
+      title: 'Alpha',
+      username: 'alice',
+      password: 'pw',
+      url: '',
+      notes: '',
+      tags: const [],
+    );
+    await controller.addOrUpdateItem(
+      title: 'Beta',
+      username: 'bob',
+      password: 'pw',
+      url: '',
+      notes: '',
+      tags: const [],
+    );
+    final alpha = controller.vaultData.activeItems
+        .singleWhere((item) => item.title == 'Alpha');
+    final category = controller.vaultData.categories.single;
+    await controller.assignItemToCategory(
+      itemId: alpha.id,
+      categoryId: category.id,
+    );
+    await tester.pumpWidget(_buildApp(controller));
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(ValueKey('android-category-bar-${category.id}')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alpha'), findsOneWidget);
+    expect(find.text('Beta'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('android-category-back')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('android-category-bar-add')),
+      findsOneWidget,
+    );
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alpha'), findsOneWidget);
+    expect(find.text('Beta'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(ValueKey('android-category-bar-${category.id}')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('android-category-back')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alpha'), findsOneWidget);
+    expect(find.text('Beta'), findsOneWidget);
+    expect(find.byKey(const ValueKey('android-category-back')), findsNothing);
+
+    await tester.tap(
+      find.byKey(const ValueKey('android-category-bar-add')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('分类管理'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('android-category-close')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('android-category-add')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('android-category-close')));
+    await tester.pumpAndSettle();
+    expect(find.text('分类管理'), findsNothing);
 
     controller.dispose();
   });
@@ -328,6 +415,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('desktop-category-sidebar')),
+        matching: find.text('新建'),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.byKey(const ValueKey('desktop-category-add')));
     await tester.pumpAndSettle();
     await tester.enterText(

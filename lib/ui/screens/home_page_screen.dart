@@ -299,12 +299,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
         return a.title.toLowerCase().compareTo(b.title.toLowerCase());
       });
+    final selectedCategory = _androidSelectedCategoryId == null ||
+            _androidSelectedCategoryId!.isEmpty
+        ? null
+        : controller.vaultData.categoryById(_androidSelectedCategoryId);
+    final categoryLabel = switch (_androidSelectedCategoryId) {
+      null => '全部密码',
+      '' => '未分类',
+      _ => selectedCategory?.name ?? '分类',
+    };
 
     return PopScope(
-      canPop: !_androidSearchOpen,
+      canPop: !_androidSearchOpen && _androidSelectedCategoryId == null,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && _androidSearchOpen) {
           _closeAndroidSearch();
+        } else if (!didPop && _androidSelectedCategoryId != null) {
+          setState(() {
+            _androidSelectedCategoryId = null;
+          });
         }
       },
       child: Listener(
@@ -318,7 +331,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     onPressed: _closeAndroidSearch,
                     icon: const Icon(Icons.arrow_back_rounded),
                   )
-                : null,
+                : _androidSelectedCategoryId == null
+                    ? null
+                    : IconButton(
+                        key: const ValueKey('android-category-back'),
+                        tooltip: '返回全部密码',
+                        onPressed: () {
+                          setState(() {
+                            _androidSelectedCategoryId = null;
+                          });
+                        },
+                        icon: const Icon(Icons.arrow_back_rounded),
+                      ),
             title: _androidSearchOpen
                 ? TextField(
                     key: const ValueKey('android-search-field'),
@@ -341,7 +365,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       });
                     },
                   )
-                : const Text('密码本'),
+                : Text(
+                    _androidSelectedCategoryId == null ? '密码本' : categoryLabel),
             actions: [
               if (!_androidSearchOpen)
                 IconButton(
@@ -421,7 +446,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
                 child: Text(
                   _searchQuery.isEmpty
-                      ? '全部密码  ·  ${items.length}'
+                      ? '$categoryLabel  ·  ${items.length}'
                       : '搜索结果  ·  ${items.length}',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -473,6 +498,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           categoryId: category.id,
                         ),
                       ),
+                    Padding(
+                      padding: const EdgeInsets.only(right: 16),
+                      child: ActionChip(
+                        key: const ValueKey('android-category-bar-add'),
+                        avatar: const Icon(Icons.add_rounded, size: 18),
+                        label: const Text('分类'),
+                        tooltip: '新建或管理分类',
+                        onPressed: () => _showAndroidCategoriesSheet(context),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -721,14 +756,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         );
         return;
       case _AndroidOverflowAction.categories:
-        await showModalBottomSheet<void>(
-          context: context,
-          isScrollControlled: true,
-          builder: (_) => _AndroidCategoriesSheet(
-            controller: widget.controller,
-            onReordered: widget.controller.reorderCategories,
-          ),
-        );
+        await _showAndroidCategoriesSheet(context);
         return;
       case _AndroidOverflowAction.importVault:
         await showModalBottomSheet<void>(
@@ -761,6 +789,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         );
         return;
     }
+  }
+
+  Future<void> _showAndroidCategoriesSheet(BuildContext context) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _AndroidCategoriesSheet(
+        controller: widget.controller,
+        onReordered: widget.controller.reorderCategories,
+      ),
+    );
   }
 
   @override
@@ -2320,16 +2359,20 @@ class _DesktopCategorySidebar extends StatelessWidget {
                   ),
                 ),
               ),
-              IconButton(
+              TextButton.icon(
                 key: const ValueKey('desktop-category-add'),
-                tooltip: '新建分类',
                 onPressed: () => _showCategoryNameDialog(
                   context,
                   title: '新建分类',
                   onSubmit: onCategoryAdded,
                 ),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text('新建'),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                ),
               ),
             ],
           ),
@@ -5884,15 +5927,21 @@ class _AndroidCategoriesSheet extends StatelessWidget {
                 children: [
                   Row(
                     children: [
+                      IconButton(
+                        key: const ValueKey('android-category-close'),
+                        tooltip: '返回密码列表',
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.arrow_back_rounded),
+                      ),
+                      const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           '分类管理',
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
                       ),
-                      IconButton(
+                      FilledButton.tonalIcon(
                         key: const ValueKey('android-category-add'),
-                        tooltip: '新建分类',
                         onPressed: controller.busy
                             ? null
                             : () => _showNameDialog(
@@ -5900,7 +5949,15 @@ class _AndroidCategoriesSheet extends StatelessWidget {
                                   title: '新建分类',
                                   onSubmit: controller.addCategory,
                                 ),
-                        icon: const Icon(Icons.add_rounded),
+                        icon: const Icon(Icons.add_rounded, size: 18),
+                        label: const Text('新建'),
+                        style: FilledButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -5917,6 +5974,20 @@ class _AndroidCategoriesSheet extends StatelessWidget {
                                 Text(
                                   '新增分类后，可在条目菜单中移动密码。',
                                   style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                                const SizedBox(height: 14),
+                                FilledButton.icon(
+                                  key: const ValueKey(
+                                      'android-category-empty-add'),
+                                  onPressed: controller.busy
+                                      ? null
+                                      : () => _showNameDialog(
+                                            context,
+                                            title: '新建分类',
+                                            onSubmit: controller.addCategory,
+                                          ),
+                                  icon: const Icon(Icons.add_rounded),
+                                  label: const Text('新建分类'),
                                 ),
                               ],
                             ),
