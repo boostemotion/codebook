@@ -1314,12 +1314,10 @@ class VaultController extends ChangeNotifier {
   }
 
   Future<void> handleAppLifecycle(AppLifecycleState state) async {
-    final isTerminalState = state == AppLifecycleState.paused ||
+    final shouldLock = state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached;
-    final pickerTemporarilyOwnsFocus =
-        state == AppLifecycleState.inactive && externalUiActive;
-    if (_isUnlocked && (isTerminalState || !pickerTemporarilyOwnsFocus)) {
+    if (_isUnlocked && shouldLock) {
       await lock();
     }
   }

@@ -665,6 +665,31 @@ void main() {
     controller.dispose();
   });
 
+  test('window focus loss keeps a copied secret available until hiding',
+      () async {
+    final clipboard = _MemoryClipboardService();
+    final controller = _controller(
+      repository: _MemoryVaultRepository(),
+      clipboardService: clipboard,
+    );
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await controller.copySecret('sensitive text');
+
+    await controller.handleAppLifecycle(AppLifecycleState.inactive);
+
+    expect(controller.isUnlocked, isTrue);
+    expect(clipboard.lastCopiedText, 'sensitive text');
+    expect(clipboard.clearCalls, 0);
+
+    await controller.handleAppLifecycle(AppLifecycleState.hidden);
+
+    expect(controller.isUnlocked, isFalse);
+    expect(clipboard.lastCopiedText, isNull);
+    expect(clipboard.clearCalls, 1);
+    controller.dispose();
+  });
+
   test('importing into an empty vault makes it unlockable after locking',
       () async {
     final repository = _MemoryVaultRepository();
