@@ -1007,6 +1007,7 @@ class VaultController extends ChangeNotifier {
         name: normalized,
         createdAt: now,
         updatedAt: now,
+        sortIndex: _vaultData.categories.length,
       );
       category.validate();
       await _saveState(
@@ -1083,6 +1084,44 @@ class VaultController extends ChangeNotifier {
     });
   }
 
+  Future<VaultOperationResult> reorderCategories(List<String> categoryIds) {
+    return _runMutation(() async {
+      _ensureUnlocked();
+      final currentIds = _vaultData.categories.map((category) => category.id);
+      if (categoryIds.length != _vaultData.categories.length ||
+          !currentIds.toSet().containsAll(categoryIds) ||
+          categoryIds.toSet().length != categoryIds.length) {
+        throw StateError('分类顺序无效。');
+      }
+      final ordered = [
+        for (final categoryId in categoryIds)
+          _vaultData.categories
+              .firstWhere((category) => category.id == categoryId),
+      ];
+      final orderedWithIndexes = [
+        for (var index = 0; index < ordered.length; index++)
+          ordered[index].sortIndex == index
+              ? ordered[index]
+              : ordered[index].copyWith(
+                  sortIndex: index,
+                  updatedAt: DateTime.now(),
+                ),
+      ];
+      final changed = [
+        for (var index = 0; index < ordered.length; index++)
+          ordered[index].id != _vaultData.categories[index].id,
+      ].any((changedItem) => changedItem);
+      if (!changed) {
+        return;
+      }
+      await _saveState(
+        vaultData: _vaultData.copyWith(categories: orderedWithIndexes),
+        keyEncryptionKey: _requireSessionKek(),
+      );
+      _message = '分类顺序已更新。';
+    });
+  }
+
   Future<VaultOperationResult> assignItemToCategory({
     required String itemId,
     String? categoryId,
@@ -1105,13 +1144,11 @@ class VaultController extends ChangeNotifier {
       }
       final now = DateTime.now();
       await _saveState(
-        vaultData: _vaultData
-            .withCategoryAssigned(
-              itemId: itemId,
-              categoryId: categoryId,
-              updatedAt: now,
-            )
-            .pruneCategories(updatedAt: now),
+        vaultData: _vaultData.withCategoryAssigned(
+          itemId: itemId,
+          categoryId: categoryId,
+          updatedAt: now,
+        ),
         keyEncryptionKey: _requireSessionKek(),
       );
       _message =
@@ -1443,7 +1480,11 @@ class VaultController extends ChangeNotifier {
   String _vaultFingerprint(VaultData data) {
     final items = data.items.map((item) => jsonEncode(item.toJson())).toList()
       ..sort();
-    return items.join('|');
+    final categories = data.categories
+        .map((category) =>
+            '${category.id}:${category.name}:${category.sortIndex}')
+        .toList();
+    return '${items.join('|')}#${categories.join('|')}';
   }
 
   void _ensureSessionCurrent(int expectedGeneration) {

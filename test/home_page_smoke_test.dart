@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -112,6 +113,100 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Alpha'), findsOneWidget);
+
+    controller.dispose();
+  });
+
+  testWidgets('Android drags entry onto category bar', (tester) async {
+    final controller = _buildController();
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await controller.addCategory('工作');
+    await controller.addOrUpdateItem(
+      title: 'Alpha',
+      username: 'alice',
+      password: 'pw',
+      url: '',
+      notes: '',
+      tags: const [],
+    );
+    await tester.pumpWidget(_buildApp(controller));
+    await tester.pumpAndSettle();
+
+    final item = controller.vaultData.activeItems.single;
+    final category = controller.vaultData.categories.single;
+    Future<void> dragEntryToChip(Key chipKey) async {
+      final entry = find.byKey(ValueKey('android-vault-item-${item.id}'));
+      final start = tester.getCenter(entry);
+      final gesture = await tester.startGesture(start);
+      await tester.pump(const Duration(milliseconds: 600));
+      await gesture.moveBy(tester.getCenter(find.byKey(chipKey)) - start);
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+    }
+
+    await dragEntryToChip(ValueKey('android-category-bar-${category.id}'));
+    await tester.pumpAndSettle();
+
+    expect(controller.vaultData.activeItems.single.folder, category.id);
+
+    await dragEntryToChip(const ValueKey('android-category-bar-none'));
+    await tester.pumpAndSettle();
+
+    expect(controller.vaultData.activeItems.single.folder, isEmpty);
+
+    controller.dispose();
+  });
+
+  testWidgets('Android reorders categories with the drag handle',
+      (tester) async {
+    final controller = _buildController();
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await controller.addCategory('第一');
+    await controller.addCategory('第二');
+    await controller.addOrUpdateItem(
+      title: 'Alpha',
+      username: 'alice',
+      password: 'pw',
+      url: '',
+      notes: '',
+      tags: const [],
+    );
+    final categoryId = controller.vaultData.categories.first.id;
+    await controller.assignItemToCategory(
+      itemId: controller.vaultData.activeItems.single.id,
+      categoryId: categoryId,
+    );
+    await tester.pumpWidget(_buildApp(controller));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('android-vault-overflow')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('分类管理'));
+    await tester.pumpAndSettle();
+
+    Future<void> dragFirstCategoryDown() async {
+      final categories = controller.vaultData.categories;
+      final handle = find.byKey(
+        ValueKey('android-category-drag-${categories.first.id}'),
+      );
+      final gesture = await tester.startGesture(tester.getCenter(handle));
+      await tester.pump(kPressTimeout);
+      await gesture.moveBy(const Offset(0, 50));
+      await tester.pump();
+      await gesture.up();
+      await tester.pumpAndSettle();
+    }
+
+    await dragFirstCategoryDown();
+    await tester.pumpAndSettle();
+
+    expect(
+      controller.vaultData.categories.map((category) => category.name),
+      ['第二', '第一'],
+    );
 
     controller.dispose();
   });

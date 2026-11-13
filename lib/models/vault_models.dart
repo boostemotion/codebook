@@ -373,22 +373,26 @@ class VaultCategory {
     required this.name,
     required this.createdAt,
     required this.updatedAt,
+    this.sortIndex = 0,
   });
 
   final String id;
   final String name;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final int sortIndex;
 
   VaultCategory copyWith({
     String? name,
     DateTime? updatedAt,
+    int? sortIndex,
   }) {
     return VaultCategory(
       id: id,
       name: name ?? this.name,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      sortIndex: sortIndex ?? this.sortIndex,
     );
   }
 
@@ -397,6 +401,7 @@ class VaultCategory {
         'name': name,
         'createdAt': createdAt.toUtc().toIso8601String(),
         'updatedAt': updatedAt.toUtc().toIso8601String(),
+        'sortIndex': sortIndex,
       };
 
   factory VaultCategory.fromJson(Map<String, dynamic> json) {
@@ -405,6 +410,7 @@ class VaultCategory {
       name: _readOptionalString(json, key: 'name'),
       createdAt: _readRequiredDateTime(json, key: 'createdAt'),
       updatedAt: _readRequiredDateTime(json, key: 'updatedAt'),
+      sortIndex: _readCategorySortIndex(json),
     );
     category.validate();
     return category;
@@ -418,6 +424,17 @@ class VaultCategory {
       throw const FormatException('Vault category exceeds supported limits.');
     }
   }
+}
+
+int _readCategorySortIndex(Map<String, dynamic> json) {
+  final value = json['sortIndex'];
+  if (value == null) {
+    return 0;
+  }
+  if (value is! int || value < 0) {
+    throw const FormatException('Invalid vault category sort index.');
+  }
+  return value;
 }
 
 enum VaultItemKind {
@@ -490,6 +507,7 @@ class VaultData {
           name: names[index],
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
+          sortIndex: index,
         ),
     ];
   }
@@ -647,7 +665,12 @@ class VaultData {
     }
     final mergedItems = byId.values.toList();
     final mergedCategories = mergedCategoriesById.values.toList()
-      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      ..sort((a, b) {
+        final sortDifference = a.sortIndex.compareTo(b.sortIndex);
+        return sortDifference != 0
+            ? sortDifference
+            : a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
     final mergedUpdatedAt = [
       updatedAt,
       incoming.updatedAt,

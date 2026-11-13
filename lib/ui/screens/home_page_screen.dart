@@ -428,6 +428,54 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       ),
                 ),
               ),
+              SizedBox(
+                height: 48,
+                child: ListView(
+                  key: const ValueKey('android-category-bar'),
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    _AndroidCategoryChip(
+                      key: const ValueKey('android-category-bar-all'),
+                      label: '全部',
+                      active: _androidSelectedCategoryId == null,
+                      onTap: () {
+                        setState(() {
+                          _androidSelectedCategoryId = null;
+                        });
+                      },
+                    ),
+                    _AndroidCategoryChip(
+                      key: const ValueKey('android-category-bar-none'),
+                      label: '未分类',
+                      active: _androidSelectedCategoryId == '',
+                      onTap: () {
+                        setState(() {
+                          _androidSelectedCategoryId = '';
+                        });
+                      },
+                      onItemDropped: (itemId) =>
+                          controller.assignItemToCategory(itemId: itemId),
+                    ),
+                    for (final category in controller.vaultData.categories)
+                      _AndroidCategoryChip(
+                        key: ValueKey('android-category-bar-${category.id}'),
+                        label: category.name,
+                        active: _androidSelectedCategoryId == category.id,
+                        onTap: () {
+                          setState(() {
+                            _androidSelectedCategoryId = category.id;
+                          });
+                        },
+                        onItemDropped: (itemId) =>
+                            controller.assignItemToCategory(
+                          itemId: itemId,
+                          categoryId: category.id,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
               Expanded(
                 child: items.isEmpty
                     ? Center(
@@ -491,7 +539,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             final subtitle = [item.username, item.url]
                                 .where((value) => value.trim().isNotEmpty)
                                 .join(' · ');
-                            return Material(
+                            final entryTile = Material(
                               key: ValueKey('android-vault-item-${item.id}'),
                               color: Colors.transparent,
                               clipBehavior: Clip.antiAlias,
@@ -616,6 +664,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                 ),
                               ),
                             );
+                            return LongPressDraggable<VaultItem>(
+                              key: ValueKey('android-draggable-${item.id}'),
+                              data: item,
+                              dragAnchorStrategy: pointerDragAnchorStrategy,
+                              feedback: _AndroidDraggedEntryCard(
+                                item: item,
+                                accountInfo: subtitle,
+                              ),
+                              childWhenDragging: Opacity(
+                                opacity: 0.45,
+                                child: entryTile,
+                              ),
+                              child: entryTile,
+                            );
                           },
                         ),
                       ),
@@ -662,8 +724,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         await showModalBottomSheet<void>(
           context: context,
           isScrollControlled: true,
-          builder: (_) =>
-              _AndroidCategoriesSheet(controller: widget.controller),
+          builder: (_) => _AndroidCategoriesSheet(
+            controller: widget.controller,
+            onReordered: widget.controller.reorderCategories,
+          ),
         );
         return;
       case _AndroidOverflowAction.importVault:
@@ -5770,9 +5834,13 @@ class _RecycleBinSheet extends StatelessWidget {
 }
 
 class _AndroidCategoriesSheet extends StatelessWidget {
-  const _AndroidCategoriesSheet({required this.controller});
+  const _AndroidCategoriesSheet({
+    required this.controller,
+    required this.onReordered,
+  });
 
   final VaultController controller;
+  final ValueChanged<List<String>> onReordered;
 
   Future<void> _showNameDialog(
     BuildContext context, {
@@ -5802,9 +5870,7 @@ class _AndroidCategoriesSheet extends StatelessWidget {
         child: AnimatedBuilder(
           animation: controller,
           builder: (context, _) {
-            final categories = controller.vaultData.categories.toList()
-              ..sort((a, b) =>
-                  a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+            final categories = controller.vaultData.categories.toList();
             final counts = <String, int>{
               for (final category in categories)
                 category.id: controller.vaultData.activeItems
@@ -5855,11 +5921,10 @@ class _AndroidCategoriesSheet extends StatelessWidget {
                               ],
                             ),
                           )
-                        : ListView.separated(
-                            controller: scrollController,
+                        : ReorderableListView.builder(
+                            scrollController: scrollController,
+                            buildDefaultDragHandles: false,
                             itemCount: categories.length,
-                            separatorBuilder: (_, __) =>
-                                const Divider(height: 1),
                             itemBuilder: (context, index) {
                               final category = categories[index];
                               return ListTile(
@@ -5872,6 +5937,19 @@ class _AndroidCategoriesSheet extends StatelessWidget {
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
+                                    ReorderableDragStartListener(
+                                      index: index,
+                                      child: Tooltip(
+                                        message: '拖动调整分类顺序',
+                                        child: SizedBox(
+                                          key: ValueKey(
+                                              'android-category-drag-${category.id}'),
+                                          width: 48,
+                                          height: 48,
+                                          child: const Icon(Icons.drag_handle),
+                                        ),
+                                      ),
+                                    ),
                                     IconButton(
                                       tooltip: '重命名 ${category.name}',
                                       icon: const Icon(Icons.edit_outlined),
@@ -5932,6 +6010,14 @@ class _AndroidCategoriesSheet extends StatelessWidget {
                                 ),
                               );
                             },
+                            onReorderItem: (oldIndex, newIndex) {
+                              final orderedIds = categories
+                                  .map((category) => category.id)
+                                  .toList();
+                              final movedId = orderedIds.removeAt(oldIndex);
+                              orderedIds.insert(newIndex, movedId);
+                              onReordered(orderedIds);
+                            },
                           ),
                   ),
                 ],
@@ -5956,9 +6042,7 @@ Future<void> _showAndroidCategoryPicker(
       child: AnimatedBuilder(
         animation: controller,
         builder: (context, _) {
-          final categories = controller.vaultData.categories.toList()
-            ..sort(
-                (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+          final categories = controller.vaultData.categories.toList();
           return Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             child: Column(
@@ -6026,6 +6110,147 @@ Future<void> _showAndroidCategoryPicker(
       ),
     ),
   );
+}
+
+class _AndroidCategoryChip extends StatefulWidget {
+  const _AndroidCategoryChip({
+    super.key,
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.onItemDropped,
+  });
+
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  final ValueChanged<String>? onItemDropped;
+
+  @override
+  State<_AndroidCategoryChip> createState() => _AndroidCategoryChipState();
+}
+
+class _AndroidCategoryChipState extends State<_AndroidCategoryChip> {
+  bool _dragging = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final chip = Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: FilterChip(
+        selected: widget.active,
+        showCheckmark: false,
+        label: Text(widget.label),
+        onSelected: (_) => widget.onTap(),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(
+            color: _dragging ? colorScheme.primary : colorScheme.outlineVariant,
+          ),
+        ),
+      ),
+    );
+    if (widget.onItemDropped == null) {
+      return chip;
+    }
+    return DragTarget<VaultItem>(
+      onWillAcceptWithDetails: (_) => true,
+      onAcceptWithDetails: (details) =>
+          widget.onItemDropped?.call(details.data.id),
+      onMove: (_) {
+        if (!_dragging) {
+          setState(() {
+            _dragging = true;
+          });
+        }
+      },
+      onLeave: (_) {
+        if (_dragging) {
+          setState(() {
+            _dragging = false;
+          });
+        }
+      },
+      builder: (context, candidateData, rejectedData) => chip,
+    );
+  }
+}
+
+class _AndroidDraggedEntryCard extends StatelessWidget {
+  const _AndroidDraggedEntryCard({
+    required this.item,
+    required this.accountInfo,
+  });
+
+  final VaultItem item;
+  final String accountInfo;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = item.title.trim().isEmpty ? '未命名' : item.title;
+    final leadingText = title.isEmpty ? '•' : title[0].toUpperCase();
+    return Material(
+      elevation: 8,
+      borderRadius: BorderRadius.circular(12),
+      color: Theme.of(context).colorScheme.surface,
+      child: Container(
+        width: 250,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Theme.of(context).colorScheme.primary),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.secondaryContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                leadingText,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: Theme.of(context).colorScheme.onSecondaryContainer,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (accountInfo.isNotEmpty)
+                    Text(
+                      accountInfo,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _AndroidImportSheet extends StatefulWidget {

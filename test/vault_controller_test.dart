@@ -136,6 +136,100 @@ void main() {
     }
   });
 
+  test('category order syncs across devices and survives later merges',
+      () async {
+    final directories = <Directory>[];
+    final controllers = <VaultController>[];
+    final repositories = <_MemoryVaultRepository>[];
+    final hosts = <LanSyncHost>[];
+    addTearDown(() async {
+      for (final controller in controllers) {
+        await controller.stopLanSyncShare();
+        controller.dispose();
+      }
+      for (final directory in directories) {
+        await directory.delete(recursive: true);
+      }
+    });
+    for (var index = 0; index < 2; index++) {
+      final directory =
+          await Directory.systemTemp.createTemp('cipherbook-order-sync-');
+      directories.add(directory);
+      final store = LanPairingStore(directory: directory);
+      final repository = _MemoryVaultRepository();
+      repositories.add(repository);
+      final controller = _controller(
+        repository: repository,
+        pairingStore: store,
+        lanSyncService: _LocalPeersService(store, hosts),
+      );
+      controllers.add(controller);
+      await controller.bootstrap();
+      if (index == 1) {
+        final plan = await controller.previewImportBytes(
+          repositories.first.document!.encode(),
+          'shared-password',
+        );
+        expect((await controller.applyImportPlan(plan!)).succeeded, isTrue);
+      } else {
+        expect((await controller.createVault('shared-password')).succeeded,
+            isTrue);
+      }
+    }
+    await controllers.first.addCategory('工作');
+    await controllers.first.addCategory('生活');
+    expect((await controllers.first.startLanSyncShare()).succeeded, isTrue);
+    hosts.add(controllers.first.lanSyncHost!);
+    expect((await controllers.last.startLanSyncShare()).succeeded, isTrue);
+    hosts.add(controllers.last.lanSyncHost!);
+
+    expect(
+        (await controllers.first.syncLanWithPassword('shared-password'))
+            .succeeded,
+        isTrue);
+    expect(
+      controllers.map((controller) =>
+          controller.vaultData.categories.map((category) => category.name)),
+      everyElement(['工作', '生活']),
+    );
+
+    final phoneOrder = controllers.first.vaultData.categories
+        .map((category) => category.id)
+        .toList()
+        .reversed
+        .toList();
+    expect((await controllers.first.reorderCategories(phoneOrder)).succeeded,
+        isTrue);
+    expect(
+        (await controllers.first.syncLanWithPassword('shared-password'))
+            .succeeded,
+        isTrue);
+    expect(
+      controllers.map((controller) =>
+          controller.vaultData.categories.map((category) => category.name)),
+      everyElement(['生活', '工作']),
+    );
+
+    await controllers.last.addOrUpdateItem(
+      title: 'Tablet entry',
+      username: 'tablet',
+      password: 'secret',
+      url: '',
+      notes: '',
+      tags: const [],
+    );
+    expect(
+        (await controllers.last.syncLanWithPassword('shared-password'))
+            .succeeded,
+        isTrue);
+    expect(controllers.first.vaultData.activeItems.last.title, 'Tablet entry');
+    expect(
+      controllers.map((controller) =>
+          controller.vaultData.categories.map((category) => category.name)),
+      everyElement(['生活', '工作']),
+    );
+  });
+
   test('quick unlock can reopen and continue saving', () async {
     final repository = _MemoryVaultRepository();
     final deviceKeyStore = _MemoryDeviceKeyStore();
