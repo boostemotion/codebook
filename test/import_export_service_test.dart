@@ -6,11 +6,13 @@ import 'package:cipherbook/services/import_export_service.dart';
 
 void main() {
   test('rejects an oversized import before reading its contents', () async {
-    final directory =
-        await Directory.systemTemp.createTemp('cipherbook-import-');
+    final directory = await Directory.systemTemp.createTemp(
+      'cipherbook-import-',
+    );
     addTearDown(() => directory.delete(recursive: true));
-    final file =
-        File('${directory.path}${Platform.pathSeparator}oversized.pwv');
+    final file = File(
+      '${directory.path}${Platform.pathSeparator}oversized.pwv',
+    );
     await file.create();
     final handle = await file.open(mode: FileMode.write);
     await handle.truncate(ImportExportService.maxVaultImportFileBytes + 1);

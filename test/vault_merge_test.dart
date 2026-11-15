@@ -41,11 +41,9 @@ void main() {
     final merged = local.merge(remote);
 
     expect(
-        merged.items.map((item) => item.id),
-        containsAll([
-          'device-a-entry',
-          'device-b-entry',
-        ]));
+      merged.items.map((item) => item.id),
+      containsAll(['device-a-entry', 'device-b-entry']),
+    );
   });
 
   test('merge keeps latest item update', () {
@@ -158,8 +156,10 @@ void main() {
 
     final merged = local.merge(remote);
 
-    expect(merged.categories.map((category) => category.id),
-        containsAll(['local-category', 'remote-category']));
+    expect(
+      merged.categories.map((category) => category.id),
+      containsAll(['local-category', 'remote-category']),
+    );
   });
 
   test('legacy folder text migrates to stable categories', () {

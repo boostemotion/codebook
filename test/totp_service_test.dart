@@ -29,10 +29,7 @@ void main() {
   test('rejects invalid secret', () async {
     const service = TotpService();
 
-    expect(
-      service.generate('***'),
-      throwsArgumentError,
-    );
+    expect(service.generate('***'), throwsArgumentError);
   });
 
   test('rejects invalid otpauth settings', () async {

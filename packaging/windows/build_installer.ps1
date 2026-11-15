@@ -17,13 +17,7 @@ if ([string]::IsNullOrWhiteSpace($OutputPath)) {
     $OutputPath = Join-Path $RepositoryRoot "dist\Cipherbook-$appVersion+$buildNumber-windows-setup.exe"
 }
 
-$buildReleasePath = Join-Path $RepositoryRoot 'build\windows\x64\runner\Release'
-$fallbackReleasePath = Join-Path $RepositoryRoot 'release\windows\x64\runner\Release'
-$releasePath = if (Test-Path -LiteralPath (Join-Path $buildReleasePath 'cipherbook.exe')) {
-    $buildReleasePath
-} else {
-    $fallbackReleasePath
-}
+$releasePath = Join-Path $RepositoryRoot 'build\windows\x64\runner\Release'
 $installScriptPath = Join-Path $PSScriptRoot 'install.ps1'
 $installCommandPath = Join-Path $PSScriptRoot 'install.cmd'
 $iconPath = Join-Path $RepositoryRoot 'windows\runner\resources\app_icon.ico'
@@ -31,7 +25,7 @@ $iexpressPath = Join-Path $env:WINDIR 'System32\iexpress.exe'
 $cmdPath = Join-Path $env:WINDIR 'System32\cmd.exe'
 
 if (-not (Test-Path -LiteralPath (Join-Path $releasePath 'cipherbook.exe'))) {
-    throw "找不到 Windows Release 产物: $buildReleasePath 或 $fallbackReleasePath"
+    throw "找不到 Windows Release 产物: $releasePath。请先执行 flutter build windows --release。"
 }
 $binaryVersion = (Get-Item -LiteralPath (Join-Path $releasePath 'cipherbook.exe')).VersionInfo
 if ($binaryVersion.FileMajorPart -ne [int]$appVersion.Split('.')[0] -or

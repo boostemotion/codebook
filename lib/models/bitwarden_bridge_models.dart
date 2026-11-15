@@ -1,9 +1,6 @@
 import 'vault_models.dart';
 
-enum BitwardenExchangeFormat {
-  json,
-  csv,
-}
+enum BitwardenExchangeFormat { json, csv }
 
 enum BitwardenImportMatchKind {
   exactDuplicate,
@@ -11,11 +8,7 @@ enum BitwardenImportMatchKind {
   possibleDuplicate,
 }
 
-enum BitwardenImportAction {
-  keepBoth,
-  useImported,
-  keepLocal,
-}
+enum BitwardenImportAction { keepBoth, useImported, keepLocal }
 
 class BitwardenImportReview {
   const BitwardenImportReview({

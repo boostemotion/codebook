@@ -11,6 +11,8 @@ import 'services/quick_unlock_preference_store.dart';
 import 'services/vault_repository.dart';
 import 'state/vault_controller.dart';
 import 'ui/home_page.dart';
+import 'presentation/app/cipherbook_prism_app.dart';
+import 'presentation/app/frontend_flag.dart';
 
 class CipherbookApp extends StatefulWidget {
   const CipherbookApp({super.key});
@@ -54,12 +56,13 @@ class _CipherbookAppState extends State<CipherbookApp> {
 
   @override
   Widget build(BuildContext context) {
+    if (cipherbookFrontendV2) {
+      return CipherbookPrismApp(controller: _controller);
+    }
     return MaterialApp(
       title: '密码本',
       locale: const Locale('zh', 'CN'),
-      supportedLocales: const [
-        Locale('zh', 'CN'),
-      ],
+      supportedLocales: const [Locale('zh', 'CN')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       themeMode: defaultTargetPlatform == TargetPlatform.android
           ? ThemeMode.system
@@ -83,11 +86,13 @@ ThemeData _buildTheme(Brightness brightness) {
       brightness: brightness,
       surface: isDark ? const Color(0xFF191D1C) : const Color(0xFFFFFFFF),
     );
-    final androidBackground =
-        isDark ? const Color(0xFF121514) : const Color(0xFFF8F9F7);
+    final androidBackground = isDark
+        ? const Color(0xFF121514)
+        : const Color(0xFFF8F9F7);
     final androidSurface = androidScheme.surface;
-    final androidBorder =
-        isDark ? const Color(0xFF343D39) : const Color(0xFFDDE4DF);
+    final androidBorder = isDark
+        ? const Color(0xFF343D39)
+        : const Color(0xFFDDE4DF);
     return ThemeData(
       useMaterial3: true,
       colorScheme: androidScheme,
@@ -122,8 +127,10 @@ ThemeData _buildTheme(Brightness brightness) {
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide(color: androidBorder),
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
@@ -168,9 +175,7 @@ ThemeData _buildTheme(Brightness brightness) {
       filled: true,
       fillColor: const Color(0xFFFFFFFF),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
         borderSide: const BorderSide(color: Color(0xFFD9DEE5)),
@@ -185,9 +190,7 @@ ThemeData _buildTheme(Brightness brightness) {
     dialogTheme: DialogThemeData(
       backgroundColor: const Color(0xE8FFFFFF),
       surfaceTintColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
     snackBarTheme: SnackBarThemeData(
       backgroundColor: const Color(0xFF1D2939),

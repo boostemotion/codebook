@@ -23,8 +23,9 @@ class ImportExportService {
   );
 
   Future<String?> pickImportPath() {
-    return openFile(acceptedTypeGroups: const [vaultFileGroup])
-        .then((file) => file?.path);
+    return openFile(
+      acceptedTypeGroups: const [vaultFileGroup],
+    ).then((file) => file?.path);
   }
 
   Future<String?> pickExportPath() {
@@ -43,8 +44,9 @@ class ImportExportService {
   }
 
   Future<String?> pickBitwardenImportPath() {
-    return openFile(acceptedTypeGroups: const [bitwardenFileGroup])
-        .then((file) => file?.path);
+    return openFile(
+      acceptedTypeGroups: const [bitwardenFileGroup],
+    ).then((file) => file?.path);
   }
 
   Future<String?> pickBitwardenExportPath({required bool csv}) {

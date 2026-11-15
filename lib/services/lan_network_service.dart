@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 
 class LanNetworkService {
   LanNetworkService({MethodChannel? channel})
-      : _channel = channel ?? const MethodChannel(_channelName);
+    : _channel = channel ?? const MethodChannel(_channelName);
 
   static const String _channelName = 'dev.codex.cipherbook/lan_network';
 

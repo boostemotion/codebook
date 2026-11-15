@@ -20,215 +20,266 @@ import 'package:cipherbook/state/vault_controller.dart';
 
 void main() {
   test(
-      'one password sync merges phone, imported tablet and independent peer both ways',
-      () async {
-    final directories = <Directory>[];
-    final controllers = <VaultController>[];
-    final repositories = <_MemoryVaultRepository>[];
-    final hosts = <LanSyncHost>[];
-    addTearDown(() async {
-      for (final controller in controllers) {
-        await controller.stopLanSyncShare();
-        controller.dispose();
-      }
-      for (final directory in directories) {
-        await directory.delete(recursive: true);
-      }
-    });
-    for (var index = 0; index < 3; index++) {
-      final directory =
-          await Directory.systemTemp.createTemp('cipherbook-all-sync-');
-      directories.add(directory);
-      final store = LanPairingStore(directory: directory);
-      final repository = _MemoryVaultRepository();
-      repositories.add(repository);
-      final controller = _controller(
-        repository: repository,
-        pairingStore: store,
-        lanSyncService: _LocalPeersService(store, hosts),
-      );
-      controllers.add(controller);
-      await controller.bootstrap();
-      if (index == 1) {
-        final plan = await controller.previewImportBytes(
-          repositories.first.document!.encode(),
-          'shared-password',
+    'one password sync merges phone, imported tablet and independent peer both ways',
+    () async {
+      final directories = <Directory>[];
+      final controllers = <VaultController>[];
+      final repositories = <_MemoryVaultRepository>[];
+      final hosts = <LanSyncHost>[];
+      addTearDown(() async {
+        for (final controller in controllers) {
+          await controller.stopLanSyncShare();
+          controller.dispose();
+        }
+        for (final directory in directories) {
+          await directory.delete(recursive: true);
+        }
+      });
+      for (var index = 0; index < 3; index++) {
+        final directory = await Directory.systemTemp.createTemp(
+          'cipherbook-all-sync-',
         );
-        expect(plan, isNotNull);
-        expect((await controller.applyImportPlan(plan!)).succeeded, isTrue);
-      } else {
-        expect((await controller.createVault('shared-password')).succeeded,
-            isTrue);
+        directories.add(directory);
+        final store = LanPairingStore(directory: directory);
+        final repository = _MemoryVaultRepository();
+        repositories.add(repository);
+        final controller = _controller(
+          repository: repository,
+          pairingStore: store,
+          lanSyncService: _LocalPeersService(store, hosts),
+        );
+        controllers.add(controller);
+        await controller.bootstrap();
+        if (index == 1) {
+          final plan = await controller.previewImportBytes(
+            repositories.first.document!.encode(),
+            'shared-password',
+          );
+          expect(plan, isNotNull);
+          expect((await controller.applyImportPlan(plan!)).succeeded, isTrue);
+        } else {
+          expect(
+            (await controller.createVault('shared-password')).succeeded,
+            isTrue,
+          );
+        }
       }
-    }
-    for (var index = 0; index < controllers.length; index++) {
-      await controllers[index].addOrUpdateItem(
-        title: 'Device $index entry',
-        username: 'user',
+      for (var index = 0; index < controllers.length; index++) {
+        await controllers[index].addOrUpdateItem(
+          title: 'Device $index entry',
+          username: 'user',
+          password: 'secret',
+          url: '',
+          notes: '',
+          tags: const [],
+        );
+        expect(
+          (await controllers[index].startLanSyncShare()).succeeded,
+          isTrue,
+        );
+        hosts.add(controllers[index].lanSyncHost!);
+      }
+      expect(
+        repositories[0].document!.metadata!.vaultId,
+        repositories[1].document!.metadata!.vaultId,
+      );
+      expect(
+        repositories[0].document!.metadata!.vaultId,
+        isNot(repositories[2].document!.metadata!.vaultId),
+      );
+      final rejected = await controllers.first.syncLanWithPassword(
+        'wrong-password',
+      );
+      expect(rejected.succeeded, isFalse);
+      expect(controllers.first.vaultData.activeItems, hasLength(1));
+
+      final result = await controllers.first.syncLanWithPassword(
+        'shared-password',
+      );
+      expect(result.succeeded, isTrue, reason: controllers.first.message);
+      expect(controllers.first.lanSyncPeers, hasLength(2));
+      expect(controllers.first.message, contains('2 台设备'));
+      expect(controllers.first.lanSyncCompletionRevision, 1);
+      expect(controllers[1].message, contains('同步成功'));
+      expect(controllers[1].message, contains('已接收并合并'));
+      expect(controllers[1].lanSyncCompletionRevision, 1);
+      expect(controllers[2].message, contains('同步成功'));
+      expect(controllers[2].message, contains('已接收并合并'));
+      expect(controllers[2].lanSyncCompletionRevision, 1);
+      final ids = controllers.first.vaultData.activeItems
+          .map((item) => item.id)
+          .toSet();
+      expect(ids, hasLength(3));
+      for (final controller in controllers) {
+        expect(
+          controller.vaultData.activeItems.map((item) => item.id).toSet(),
+          ids,
+        );
+      }
+      final revisions = repositories
+          .map((repo) => repo.document!.metadata!.revision)
+          .toList();
+      expect(
+        (await controllers[1].syncLanWithPassword('shared-password')).succeeded,
+        isTrue,
+      );
+      expect(controllers[0].message, contains('同步成功'));
+      expect(controllers[0].message, contains('已是最新'));
+      expect(controllers[0].lanSyncCompletionRevision, 2);
+      expect(controllers[2].message, contains('同步成功'));
+      expect(controllers[2].message, contains('已是最新'));
+      expect(controllers[1].lanSyncCompletionRevision, 2);
+      expect(controllers[2].lanSyncCompletionRevision, 2);
+      expect(
+        repositories.map((repo) => repo.document!.metadata!.revision).toList(),
+        revisions,
+      );
+
+      await controllers.first.addOrUpdateItem(
+        title: 'Added on phone after first sync',
+        username: 'new',
+        password: 'new-secret',
+        url: '',
+        notes: '',
+        tags: const [],
+      );
+      controllers[2].clearMessage();
+      repositories[2].failNextSave = true;
+      final partial = await controllers[1].syncLanWithPassword(
+        'shared-password',
+      );
+      expect(partial.succeeded, isTrue);
+      expect(controllers[1].message, contains('1 台设备未完成'));
+      expect(controllers[2].message, isNull);
+      expect(controllers[1].vaultData.activeItems, hasLength(4));
+      expect(controllers[2].vaultData.activeItems, hasLength(3));
+      final retry = await controllers[1].syncLanWithPassword('shared-password');
+      expect(retry.succeeded, isTrue);
+      for (final controller in controllers) {
+        expect(controller.vaultData.activeItems, hasLength(4));
+        expect(
+          controller.vaultData.activeItems.map((item) => item.title),
+          contains('Added on phone after first sync'),
+        );
+      }
+    },
+  );
+
+  test(
+    'category order syncs across devices and survives later merges',
+    () async {
+      final directories = <Directory>[];
+      final controllers = <VaultController>[];
+      final repositories = <_MemoryVaultRepository>[];
+      final hosts = <LanSyncHost>[];
+      addTearDown(() async {
+        for (final controller in controllers) {
+          await controller.stopLanSyncShare();
+          controller.dispose();
+        }
+        for (final directory in directories) {
+          await directory.delete(recursive: true);
+        }
+      });
+      for (var index = 0; index < 2; index++) {
+        final directory = await Directory.systemTemp.createTemp(
+          'cipherbook-order-sync-',
+        );
+        directories.add(directory);
+        final store = LanPairingStore(directory: directory);
+        final repository = _MemoryVaultRepository();
+        repositories.add(repository);
+        final controller = _controller(
+          repository: repository,
+          pairingStore: store,
+          lanSyncService: _LocalPeersService(store, hosts),
+        );
+        controllers.add(controller);
+        await controller.bootstrap();
+        if (index == 1) {
+          final plan = await controller.previewImportBytes(
+            repositories.first.document!.encode(),
+            'shared-password',
+          );
+          expect((await controller.applyImportPlan(plan!)).succeeded, isTrue);
+        } else {
+          expect(
+            (await controller.createVault('shared-password')).succeeded,
+            isTrue,
+          );
+        }
+      }
+      await controllers.first.addCategory('工作');
+      await controllers.first.addCategory('生活');
+      expect((await controllers.first.startLanSyncShare()).succeeded, isTrue);
+      hosts.add(controllers.first.lanSyncHost!);
+      expect((await controllers.last.startLanSyncShare()).succeeded, isTrue);
+      hosts.add(controllers.last.lanSyncHost!);
+
+      expect(
+        (await controllers.first.syncLanWithPassword(
+          'shared-password',
+        )).succeeded,
+        isTrue,
+      );
+      expect(
+        controllers.map(
+          (controller) =>
+              controller.vaultData.categories.map((category) => category.name),
+        ),
+        everyElement(['工作', '生活']),
+      );
+
+      final phoneOrder = controllers.first.vaultData.categories
+          .map((category) => category.id)
+          .toList()
+          .reversed
+          .toList();
+      expect(
+        (await controllers.first.reorderCategories(phoneOrder)).succeeded,
+        isTrue,
+      );
+      expect(
+        (await controllers.first.syncLanWithPassword(
+          'shared-password',
+        )).succeeded,
+        isTrue,
+      );
+      expect(
+        controllers.map(
+          (controller) =>
+              controller.vaultData.categories.map((category) => category.name),
+        ),
+        everyElement(['生活', '工作']),
+      );
+
+      await controllers.last.addOrUpdateItem(
+        title: 'Tablet entry',
+        username: 'tablet',
         password: 'secret',
         url: '',
         notes: '',
         tags: const [],
       );
-      expect((await controllers[index].startLanSyncShare()).succeeded, isTrue);
-      hosts.add(controllers[index].lanSyncHost!);
-    }
-    expect(repositories[0].document!.metadata!.vaultId,
-        repositories[1].document!.metadata!.vaultId);
-    expect(repositories[0].document!.metadata!.vaultId,
-        isNot(repositories[2].document!.metadata!.vaultId));
-    final rejected =
-        await controllers.first.syncLanWithPassword('wrong-password');
-    expect(rejected.succeeded, isFalse);
-    expect(controllers.first.vaultData.activeItems, hasLength(1));
-
-    final result =
-        await controllers.first.syncLanWithPassword('shared-password');
-    expect(result.succeeded, isTrue, reason: controllers.first.message);
-    expect(controllers.first.lanSyncPeers, hasLength(2));
-    expect(controllers.first.message, contains('2 台设备'));
-    expect(controllers[1].message, contains('同步成功'));
-    expect(controllers[1].message, contains('已接收并合并'));
-    expect(controllers[2].message, contains('同步成功'));
-    expect(controllers[2].message, contains('已接收并合并'));
-    final ids =
-        controllers.first.vaultData.activeItems.map((item) => item.id).toSet();
-    expect(ids, hasLength(3));
-    for (final controller in controllers) {
       expect(
-          controller.vaultData.activeItems.map((item) => item.id).toSet(), ids);
-    }
-    final revisions =
-        repositories.map((repo) => repo.document!.metadata!.revision).toList();
-    expect(
-        (await controllers[1].syncLanWithPassword('shared-password')).succeeded,
-        isTrue);
-    expect(controllers[0].message, contains('同步成功'));
-    expect(controllers[0].message, contains('已是最新'));
-    expect(controllers[2].message, contains('同步成功'));
-    expect(controllers[2].message, contains('已是最新'));
-    expect(
-        repositories.map((repo) => repo.document!.metadata!.revision).toList(),
-        revisions);
-
-    await controllers.first.addOrUpdateItem(
-      title: 'Added on phone after first sync',
-      username: 'new',
-      password: 'new-secret',
-      url: '',
-      notes: '',
-      tags: const [],
-    );
-    controllers[2].clearMessage();
-    repositories[2].failNextSave = true;
-    final partial = await controllers[1].syncLanWithPassword('shared-password');
-    expect(partial.succeeded, isTrue);
-    expect(controllers[1].message, contains('1 台设备未完成'));
-    expect(controllers[2].message, isNull);
-    expect(controllers[1].vaultData.activeItems, hasLength(4));
-    expect(controllers[2].vaultData.activeItems, hasLength(3));
-    final retry = await controllers[1].syncLanWithPassword('shared-password');
-    expect(retry.succeeded, isTrue);
-    for (final controller in controllers) {
-      expect(controller.vaultData.activeItems, hasLength(4));
-      expect(controller.vaultData.activeItems.map((item) => item.title),
-          contains('Added on phone after first sync'));
-    }
-  });
-
-  test('category order syncs across devices and survives later merges',
-      () async {
-    final directories = <Directory>[];
-    final controllers = <VaultController>[];
-    final repositories = <_MemoryVaultRepository>[];
-    final hosts = <LanSyncHost>[];
-    addTearDown(() async {
-      for (final controller in controllers) {
-        await controller.stopLanSyncShare();
-        controller.dispose();
-      }
-      for (final directory in directories) {
-        await directory.delete(recursive: true);
-      }
-    });
-    for (var index = 0; index < 2; index++) {
-      final directory =
-          await Directory.systemTemp.createTemp('cipherbook-order-sync-');
-      directories.add(directory);
-      final store = LanPairingStore(directory: directory);
-      final repository = _MemoryVaultRepository();
-      repositories.add(repository);
-      final controller = _controller(
-        repository: repository,
-        pairingStore: store,
-        lanSyncService: _LocalPeersService(store, hosts),
-      );
-      controllers.add(controller);
-      await controller.bootstrap();
-      if (index == 1) {
-        final plan = await controller.previewImportBytes(
-          repositories.first.document!.encode(),
+        (await controllers.last.syncLanWithPassword(
           'shared-password',
-        );
-        expect((await controller.applyImportPlan(plan!)).succeeded, isTrue);
-      } else {
-        expect((await controller.createVault('shared-password')).succeeded,
-            isTrue);
-      }
-    }
-    await controllers.first.addCategory('工作');
-    await controllers.first.addCategory('生活');
-    expect((await controllers.first.startLanSyncShare()).succeeded, isTrue);
-    hosts.add(controllers.first.lanSyncHost!);
-    expect((await controllers.last.startLanSyncShare()).succeeded, isTrue);
-    hosts.add(controllers.last.lanSyncHost!);
-
-    expect(
-        (await controllers.first.syncLanWithPassword('shared-password'))
-            .succeeded,
-        isTrue);
-    expect(
-      controllers.map((controller) =>
-          controller.vaultData.categories.map((category) => category.name)),
-      everyElement(['工作', '生活']),
-    );
-
-    final phoneOrder = controllers.first.vaultData.categories
-        .map((category) => category.id)
-        .toList()
-        .reversed
-        .toList();
-    expect((await controllers.first.reorderCategories(phoneOrder)).succeeded,
-        isTrue);
-    expect(
-        (await controllers.first.syncLanWithPassword('shared-password'))
-            .succeeded,
-        isTrue);
-    expect(
-      controllers.map((controller) =>
-          controller.vaultData.categories.map((category) => category.name)),
-      everyElement(['生活', '工作']),
-    );
-
-    await controllers.last.addOrUpdateItem(
-      title: 'Tablet entry',
-      username: 'tablet',
-      password: 'secret',
-      url: '',
-      notes: '',
-      tags: const [],
-    );
-    expect(
-        (await controllers.last.syncLanWithPassword('shared-password'))
-            .succeeded,
-        isTrue);
-    expect(controllers.first.vaultData.activeItems.last.title, 'Tablet entry');
-    expect(
-      controllers.map((controller) =>
-          controller.vaultData.categories.map((category) => category.name)),
-      everyElement(['生活', '工作']),
-    );
-  });
+        )).succeeded,
+        isTrue,
+      );
+      expect(
+        controllers.first.vaultData.activeItems.last.title,
+        'Tablet entry',
+      );
+      expect(
+        controllers.map(
+          (controller) =>
+              controller.vaultData.categories.map((category) => category.name),
+        ),
+        everyElement(['生活', '工作']),
+      );
+    },
+  );
 
   test('quick unlock can reopen and continue saving', () async {
     final repository = _MemoryVaultRepository();
@@ -263,37 +314,38 @@ void main() {
   });
 
   test(
-      'quick unlock requires the master password after a cold start by default',
-      () async {
-    final repository = _MemoryVaultRepository();
-    final deviceKeyStore = _MemoryDeviceKeyStore();
-    final preferenceStore = MemoryQuickUnlockPreferenceStore();
-    final firstController = _controller(
-      repository: repository,
-      deviceKeyStore: deviceKeyStore,
-      quickUnlockPreferenceStore: preferenceStore,
-    );
+    'quick unlock requires the master password after a cold start by default',
+    () async {
+      final repository = _MemoryVaultRepository();
+      final deviceKeyStore = _MemoryDeviceKeyStore();
+      final preferenceStore = MemoryQuickUnlockPreferenceStore();
+      final firstController = _controller(
+        repository: repository,
+        deviceKeyStore: deviceKeyStore,
+        quickUnlockPreferenceStore: preferenceStore,
+      );
 
-    await firstController.bootstrap();
-    await firstController.createVault('master-pass');
-    await firstController.enableQuickUnlock();
-    firstController.dispose();
+      await firstController.bootstrap();
+      await firstController.createVault('master-pass');
+      await firstController.enableQuickUnlock();
+      firstController.dispose();
 
-    final coldStartController = _controller(
-      repository: repository,
-      deviceKeyStore: deviceKeyStore,
-      quickUnlockPreferenceStore: preferenceStore,
-    );
-    await coldStartController.bootstrap();
+      final coldStartController = _controller(
+        repository: repository,
+        deviceKeyStore: deviceKeyStore,
+        quickUnlockPreferenceStore: preferenceStore,
+      );
+      await coldStartController.bootstrap();
 
-    expect(coldStartController.allowQuickUnlockOnFirstLaunch, isFalse);
-    expect(coldStartController.canUseQuickUnlockNow, isFalse);
-    final result = await coldStartController.unlockWithQuickUnlock();
-    expect(result.succeeded, isFalse);
-    expect(coldStartController.isUnlocked, isFalse);
-    expect(coldStartController.message, contains('冷启动直接快速解锁'));
-    coldStartController.dispose();
-  });
+      expect(coldStartController.allowQuickUnlockOnFirstLaunch, isFalse);
+      expect(coldStartController.canUseQuickUnlockNow, isFalse);
+      final result = await coldStartController.unlockWithQuickUnlock();
+      expect(result.succeeded, isFalse);
+      expect(coldStartController.isUnlocked, isFalse);
+      expect(coldStartController.message, contains('冷启动直接快速解锁'));
+      coldStartController.dispose();
+    },
+  );
 
   test('quick unlock can open on cold start when explicitly enabled', () async {
     final repository = _MemoryVaultRepository();
@@ -308,8 +360,8 @@ void main() {
     await firstController.bootstrap();
     await firstController.createVault('master-pass');
     await firstController.enableQuickUnlock();
-    final preferenceResult =
-        await firstController.setAllowQuickUnlockOnFirstLaunch(true);
+    final preferenceResult = await firstController
+        .setAllowQuickUnlockOnFirstLaunch(true);
     expect(preferenceResult.succeeded, isTrue);
     expect(firstController.allowQuickUnlockOnFirstLaunch, isTrue);
     firstController.dispose();
@@ -357,31 +409,62 @@ void main() {
   });
 
   test(
-      'reports quick unlock as unavailable when the native store is unsupported',
-      () async {
-    final controller = _controller(
-      repository: _MemoryVaultRepository(),
-      deviceKeyStore: _MemoryDeviceKeyStore(supported: false),
-    );
-    await controller.bootstrap();
-    await controller.createVault('master-pass');
+    'reports quick unlock as unavailable when the native store is unsupported',
+    () async {
+      final controller = _controller(
+        repository: _MemoryVaultRepository(),
+        deviceKeyStore: _MemoryDeviceKeyStore(supported: false),
+      );
+      await controller.bootstrap();
+      await controller.createVault('master-pass');
 
-    final result = await controller.enableQuickUnlock();
+      final result = await controller.enableQuickUnlock();
 
-    expect(result.succeeded, isFalse);
-    expect(result.error, isA<StateError>());
-    expect(controller.quickUnlockSupported, isFalse);
-    expect(controller.quickUnlockEnabled, isFalse);
-    expect(controller.message, contains('不支持快速解锁'));
-    controller.dispose();
-  });
+      expect(result.succeeded, isFalse);
+      expect(result.error, isA<StateError>());
+      expect(controller.quickUnlockSupported, isFalse);
+      expect(controller.quickUnlockEnabled, isFalse);
+      expect(controller.message, contains('不支持快速解锁'));
+      controller.dispose();
+    },
+  );
 
-  test('controlled Windows external UI ignores inactive but locks when hidden',
-      () async {
-    for (final terminalState in [
-      AppLifecycleState.paused,
-      AppLifecycleState.hidden,
-    ]) {
+  test(
+    'controlled Windows external UI ignores inactive but locks when hidden',
+    () async {
+      for (final terminalState in [
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+      ]) {
+        final picker = _ControlledExportService();
+        final controller = _controller(
+          repository: _MemoryVaultRepository(),
+          importExportService: picker,
+        );
+        await controller.bootstrap();
+        await controller.createVault('master-pass');
+
+        final exporting = controller.exportVault();
+        await picker.exportPickerOpened;
+        expect(controller.externalUiActive, isTrue);
+
+        await controller.handleAppLifecycle(AppLifecycleState.inactive);
+        expect(controller.isUnlocked, isTrue);
+
+        await controller.handleAppLifecycle(terminalState);
+        expect(controller.isUnlocked, isFalse);
+
+        picker.cancelExportPicker();
+        expect((await exporting).succeeded, isFalse);
+        expect(picker.writeCalls, 0);
+        controller.dispose();
+      }
+    },
+  );
+
+  test(
+    'controlled Android external UI ignores inactive but locks when hidden',
+    () async {
       final picker = _ControlledExportService();
       final controller = _controller(
         repository: _MemoryVaultRepository(),
@@ -392,48 +475,18 @@ void main() {
 
       final exporting = controller.exportVault();
       await picker.exportPickerOpened;
-      expect(controller.externalUiActive, isTrue);
 
-      await controller.handleAppLifecycle(
-        AppLifecycleState.inactive,
-      );
+      await controller.handleAppLifecycle(AppLifecycleState.inactive);
       expect(controller.isUnlocked, isTrue);
 
-      await controller.handleAppLifecycle(terminalState);
+      await controller.handleAppLifecycle(AppLifecycleState.hidden);
       expect(controller.isUnlocked, isFalse);
 
       picker.cancelExportPicker();
-      expect((await exporting).succeeded, isFalse);
-      expect(picker.writeCalls, 0);
+      await exporting;
       controller.dispose();
-    }
-  });
-
-  test('controlled Android external UI ignores inactive but locks when hidden',
-      () async {
-    final picker = _ControlledExportService();
-    final controller = _controller(
-      repository: _MemoryVaultRepository(),
-      importExportService: picker,
-    );
-    await controller.bootstrap();
-    await controller.createVault('master-pass');
-
-    final exporting = controller.exportVault();
-    await picker.exportPickerOpened;
-
-    await controller.handleAppLifecycle(
-      AppLifecycleState.inactive,
-    );
-    expect(controller.isUnlocked, isTrue);
-
-    await controller.handleAppLifecycle(AppLifecycleState.hidden);
-    expect(controller.isUnlocked, isFalse);
-
-    picker.cancelExportPicker();
-    await exporting;
-    controller.dispose();
-  });
+    },
+  );
 
   test('export fails if the session locks while the picker is open', () async {
     final picker = _ControlledExportService();
@@ -459,35 +512,37 @@ void main() {
     controller.dispose();
   });
 
-  test('export fails if the session locks during dedicated export crypto',
-      () async {
-    final crypto = _ControllableCryptoService();
-    final picker = _ControlledExportService();
-    final controller = _controller(
-      repository: _MemoryVaultRepository(),
-      cryptoService: crypto,
-      importExportService: picker,
-    );
-    await controller.bootstrap();
-    await controller.createVault('master-pass');
-    crypto.blockNextPasswordProtectedExport();
+  test(
+    'export fails if the session locks during dedicated export crypto',
+    () async {
+      final crypto = _ControllableCryptoService();
+      final picker = _ControlledExportService();
+      final controller = _controller(
+        repository: _MemoryVaultRepository(),
+        cryptoService: crypto,
+        importExportService: picker,
+      );
+      await controller.bootstrap();
+      await controller.createVault('master-pass');
+      crypto.blockNextPasswordProtectedExport();
 
-    final exporting = controller.exportVault(exportPassword: 'export-pass');
-    await picker.exportPickerOpened;
-    picker.completeExportPicker('export.pwv');
-    await crypto.passwordProtectedExportStarted;
-    await controller.lock();
-    crypto.completeBlockedPasswordProtectedExport();
+      final exporting = controller.exportVault(exportPassword: 'export-pass');
+      await picker.exportPickerOpened;
+      picker.completeExportPicker('export.pwv');
+      await crypto.passwordProtectedExportStarted;
+      await controller.lock();
+      crypto.completeBlockedPasswordProtectedExport();
 
-    final result = await exporting;
+      final result = await exporting;
 
-    expect(result.succeeded, isFalse);
-    expect(result.error, isA<StateError>());
-    expect(picker.writeCalls, 0);
-    expect(picker.writtenBytes, isNull);
-    expect(controller.isUnlocked, isFalse);
-    controller.dispose();
-  });
+      expect(result.succeeded, isFalse);
+      expect(result.error, isA<StateError>());
+      expect(picker.writeCalls, 0);
+      expect(picker.writtenBytes, isNull);
+      expect(controller.isUnlocked, isFalse);
+      controller.dispose();
+    },
+  );
 
   test('export fails if the session locks during raw export loading', () async {
     final repository = _MemoryVaultRepository();
@@ -517,61 +572,68 @@ void main() {
     controller.dispose();
   });
 
-  test('import preview is canceled if the session locks while reading',
-      () async {
-    final crypto = CryptoService();
-    final importedDocument = await crypto.createVault(password: 'import-pass');
-    final importService = _ControlledImportService(importedDocument.encode());
-    final controller = _controller(
-      repository: _MemoryVaultRepository(),
-      importExportService: importService,
-    );
-    await controller.bootstrap();
+  test(
+    'import preview is canceled if the session locks while reading',
+    () async {
+      final crypto = CryptoService();
+      final importedDocument = await crypto.createVault(
+        password: 'import-pass',
+      );
+      final importService = _ControlledImportService(importedDocument.encode());
+      final controller = _controller(
+        repository: _MemoryVaultRepository(),
+        importExportService: importService,
+      );
+      await controller.bootstrap();
 
-    final previewing = controller.previewImport('import-pass');
-    await importService.importPickerOpened;
-    importService.completeImportPicker('import.pwv');
-    await importService.readStarted;
-    await controller.lock();
-    importService.completeRead();
+      final previewing = controller.previewImport('import-pass');
+      await importService.importPickerOpened;
+      importService.completeImportPicker('import.pwv');
+      await importService.readStarted;
+      await controller.lock();
+      importService.completeRead();
 
-    final plan = await previewing;
+      final plan = await previewing;
 
-    expect(plan, isNull);
-    expect(controller.message, contains('会话'));
-    controller.dispose();
-  });
+      expect(plan, isNull);
+      expect(controller.message, contains('会话'));
+      controller.dispose();
+    },
+  );
 
-  test('import preview is canceled if the session locks during decryption',
-      () async {
-    final importCrypto = CryptoService();
-    final importedDocument =
-        await importCrypto.createVault(password: 'import-pass');
-    final crypto = _ControllableCryptoService();
-    final importService = _ControlledImportService(importedDocument.encode());
-    final controller = _controller(
-      repository: _MemoryVaultRepository(),
-      cryptoService: crypto,
-      importExportService: importService,
-    );
-    await controller.bootstrap();
-    crypto.blockNextOpen();
+  test(
+    'import preview is canceled if the session locks during decryption',
+    () async {
+      final importCrypto = CryptoService();
+      final importedDocument = await importCrypto.createVault(
+        password: 'import-pass',
+      );
+      final crypto = _ControllableCryptoService();
+      final importService = _ControlledImportService(importedDocument.encode());
+      final controller = _controller(
+        repository: _MemoryVaultRepository(),
+        cryptoService: crypto,
+        importExportService: importService,
+      );
+      await controller.bootstrap();
+      crypto.blockNextOpen();
 
-    final previewing = controller.previewImport('import-pass');
-    await importService.importPickerOpened;
-    importService.completeImportPicker('import.pwv');
-    await importService.readStarted;
-    importService.completeRead();
-    await crypto.openStarted;
-    await controller.lock();
-    crypto.completeBlockedOpen();
+      final previewing = controller.previewImport('import-pass');
+      await importService.importPickerOpened;
+      importService.completeImportPicker('import.pwv');
+      await importService.readStarted;
+      importService.completeRead();
+      await crypto.openStarted;
+      await controller.lock();
+      crypto.completeBlockedOpen();
 
-    final plan = await previewing;
+      final plan = await previewing;
 
-    expect(plan, isNull);
-    expect(controller.message, contains('会话'));
-    controller.dispose();
-  });
+      expect(plan, isNull);
+      expect(controller.message, contains('会话'));
+      controller.dispose();
+    },
+  );
 
   test('locked session rejects a previously previewed import plan', () async {
     final crypto = CryptoService();
@@ -627,25 +689,27 @@ void main() {
     controller.dispose();
   });
 
-  test('explicit lock clears the unlocked session and clipboard owner',
-      () async {
-    final clipboard = _MemoryClipboardService();
-    final controller = _controller(
-      repository: _MemoryVaultRepository(),
-      clipboardService: clipboard,
-    );
-    await controller.bootstrap();
-    await controller.createVault('master-pass');
-    await controller.copySecret('sensitive text');
+  test(
+    'explicit lock clears the unlocked session and clipboard owner',
+    () async {
+      final clipboard = _MemoryClipboardService();
+      final controller = _controller(
+        repository: _MemoryVaultRepository(),
+        clipboardService: clipboard,
+      );
+      await controller.bootstrap();
+      await controller.createVault('master-pass');
+      await controller.copySecret('sensitive text');
 
-    await controller.lock();
+      await controller.lock();
 
-    expect(controller.isUnlocked, isFalse);
-    expect(controller.vaultData.activeItems, isEmpty);
-    expect(clipboard.lastCopiedText, isNull);
-    expect(clipboard.clearCalls, 1);
-    controller.dispose();
-  });
+      expect(controller.isUnlocked, isFalse);
+      expect(controller.vaultData.activeItems, isEmpty);
+      expect(clipboard.lastCopiedText, isNull);
+      expect(clipboard.clearCalls, 1);
+      controller.dispose();
+    },
+  );
 
   test('copying a secret after locking is rejected', () async {
     final clipboard = _MemoryClipboardService();
@@ -665,173 +729,183 @@ void main() {
     controller.dispose();
   });
 
-  test('window focus loss keeps a copied secret available until hiding',
-      () async {
-    final clipboard = _MemoryClipboardService();
-    final controller = _controller(
-      repository: _MemoryVaultRepository(),
-      clipboardService: clipboard,
-    );
-    await controller.bootstrap();
-    await controller.createVault('master-pass');
-    await controller.copySecret('sensitive text');
+  test(
+    'window focus loss keeps a copied secret available until hiding',
+    () async {
+      final clipboard = _MemoryClipboardService();
+      final controller = _controller(
+        repository: _MemoryVaultRepository(),
+        clipboardService: clipboard,
+      );
+      await controller.bootstrap();
+      await controller.createVault('master-pass');
+      await controller.copySecret('sensitive text');
 
-    await controller.handleAppLifecycle(AppLifecycleState.inactive);
+      await controller.handleAppLifecycle(AppLifecycleState.inactive);
 
-    expect(controller.isUnlocked, isTrue);
-    expect(clipboard.lastCopiedText, 'sensitive text');
-    expect(clipboard.clearCalls, 0);
+      expect(controller.isUnlocked, isTrue);
+      expect(clipboard.lastCopiedText, 'sensitive text');
+      expect(clipboard.clearCalls, 0);
 
-    await controller.handleAppLifecycle(AppLifecycleState.hidden);
+      await controller.handleAppLifecycle(AppLifecycleState.hidden);
 
-    expect(controller.isUnlocked, isFalse);
-    expect(clipboard.lastCopiedText, isNull);
-    expect(clipboard.clearCalls, 1);
-    controller.dispose();
-  });
+      expect(controller.isUnlocked, isFalse);
+      expect(clipboard.lastCopiedText, isNull);
+      expect(clipboard.clearCalls, 1);
+      controller.dispose();
+    },
+  );
 
-  test('importing into an empty vault makes it unlockable after locking',
-      () async {
-    final repository = _MemoryVaultRepository();
-    final crypto = CryptoService();
-    final controller = VaultController(
-      repository: repository,
-      cryptoService: crypto,
-      importExportService: _NoopImportExportService(),
-      deviceKeyStore: _MemoryDeviceKeyStore(),
-      passwordGeneratorService: PasswordGeneratorService(random: Random(2)),
-      clipboardService: _MemoryClipboardService(),
-    );
-    final document = await crypto.createVault(password: 'import-pass');
-    final session = await crypto.openVault(
-      document: document,
-      password: 'import-pass',
-    );
+  test(
+    'importing into an empty vault makes it unlockable after locking',
+    () async {
+      final repository = _MemoryVaultRepository();
+      final crypto = CryptoService();
+      final controller = VaultController(
+        repository: repository,
+        cryptoService: crypto,
+        importExportService: _NoopImportExportService(),
+        deviceKeyStore: _MemoryDeviceKeyStore(),
+        passwordGeneratorService: PasswordGeneratorService(random: Random(2)),
+        clipboardService: _MemoryClipboardService(),
+      );
+      final document = await crypto.createVault(password: 'import-pass');
+      final session = await crypto.openVault(
+        document: document,
+        password: 'import-pass',
+      );
 
-    await controller.bootstrap();
-    await controller.applyImportPlan(
-      ImportPlan(
-        sessionGeneration: 0,
-        hadVaultAtPreview: false,
-        rawBytes: document.encode(),
-        importedDocument: document,
-        importedSession: session,
-        summary: const ImportMergeSummary(
-          incomingItems: 0,
-          newItems: 0,
-          updatedItems: 0,
-          deletedItems: 0,
-          unchangedItems: 0,
-          replacesLocalVault: true,
-          details: [],
+      await controller.bootstrap();
+      await controller.applyImportPlan(
+        ImportPlan(
+          sessionGeneration: 0,
+          hadVaultAtPreview: false,
+          rawBytes: document.encode(),
+          importedDocument: document,
+          importedSession: session,
+          summary: const ImportMergeSummary(
+            incomingItems: 0,
+            newItems: 0,
+            updatedItems: 0,
+            deletedItems: 0,
+            unchangedItems: 0,
+            replacesLocalVault: true,
+            details: [],
+          ),
         ),
-      ),
-    );
-    await controller.lock();
-    await controller.unlock('import-pass');
+      );
+      await controller.lock();
+      await controller.unlock('import-pass');
 
-    expect(controller.storageState, VaultStorageState.available);
-    expect(controller.isUnlocked, isTrue);
-  });
+      expect(controller.storageState, VaultStorageState.available);
+      expect(controller.isUnlocked, isTrue);
+    },
+  );
 
-  test('serializes concurrent item mutations without losing either item',
-      () async {
-    final repository = _MemoryVaultRepository();
-    final controller = VaultController(
-      repository: repository,
-      cryptoService: CryptoService(),
-      importExportService: _NoopImportExportService(),
-      deviceKeyStore: _MemoryDeviceKeyStore(),
-      passwordGeneratorService: PasswordGeneratorService(random: Random(3)),
-      clipboardService: _MemoryClipboardService(),
-    );
+  test(
+    'serializes concurrent item mutations without losing either item',
+    () async {
+      final repository = _MemoryVaultRepository();
+      final controller = VaultController(
+        repository: repository,
+        cryptoService: CryptoService(),
+        importExportService: _NoopImportExportService(),
+        deviceKeyStore: _MemoryDeviceKeyStore(),
+        passwordGeneratorService: PasswordGeneratorService(random: Random(3)),
+        clipboardService: _MemoryClipboardService(),
+      );
 
-    await controller.bootstrap();
-    await controller.createVault('master-pass');
-    await Future.wait([
-      controller.addOrUpdateItem(
-        title: 'First',
-        username: '',
+      await controller.bootstrap();
+      await controller.createVault('master-pass');
+      await Future.wait([
+        controller.addOrUpdateItem(
+          title: 'First',
+          username: '',
+          password: 'one',
+          url: '',
+          notes: '',
+          tags: const [],
+        ),
+        controller.addOrUpdateItem(
+          title: 'Second',
+          username: '',
+          password: 'two',
+          url: '',
+          notes: '',
+          tags: const [],
+        ),
+      ]);
+
+      expect(
+        controller.vaultData.activeItems.map((item) => item.title).toSet(),
+        {'First', 'Second'},
+      );
+    },
+  );
+
+  test(
+    'reports a failed item save without changing the displayed item state',
+    () async {
+      final repository = _MemoryVaultRepository();
+      final controller = _controller(repository: repository);
+      await controller.bootstrap();
+      await controller.createVault('master-pass');
+      await controller.addOrUpdateItem(
+        title: 'Original',
+        username: 'alice',
         password: 'one',
         url: '',
         notes: '',
         tags: const [],
-      ),
-      controller.addOrUpdateItem(
-        title: 'Second',
-        username: '',
+      );
+      final original = controller.vaultData.activeItems.single;
+      repository.failNextSave = true;
+
+      final result = await controller.addOrUpdateItem(
+        id: original.id,
+        title: 'Edited',
+        username: 'alice',
         password: 'two',
         url: '',
         notes: '',
         tags: const [],
-      ),
-    ]);
+      );
 
-    expect(
-      controller.vaultData.activeItems.map((item) => item.title).toSet(),
-      {'First', 'Second'},
-    );
-  });
+      expect(result.succeeded, isFalse);
+      expect(result.error, isA<FileSystemException>());
+      expect(controller.vaultData.activeItems.single.title, 'Original');
+      expect(controller.message, isNotNull);
+    },
+  );
 
-  test('reports a failed item save without changing the displayed item state',
-      () async {
-    final repository = _MemoryVaultRepository();
-    final controller = _controller(repository: repository);
-    await controller.bootstrap();
-    await controller.createVault('master-pass');
-    await controller.addOrUpdateItem(
-      title: 'Original',
-      username: 'alice',
-      password: 'one',
-      url: '',
-      notes: '',
-      tags: const [],
-    );
-    final original = controller.vaultData.activeItems.single;
-    repository.failNextSave = true;
+  test(
+    'locking while a save is in flight cannot restore an unlocked session',
+    () async {
+      final repository = _MemoryVaultRepository();
+      final controller = _controller(repository: repository);
+      await controller.bootstrap();
+      await controller.createVault('master-pass');
+      repository.blockNextSave();
 
-    final result = await controller.addOrUpdateItem(
-      id: original.id,
-      title: 'Edited',
-      username: 'alice',
-      password: 'two',
-      url: '',
-      notes: '',
-      tags: const [],
-    );
+      final saving = controller.addOrUpdateItem(
+        title: 'Deferred',
+        username: '',
+        password: 'secret',
+        url: '',
+        notes: '',
+        tags: const [],
+      );
+      await repository.saveStarted;
+      await controller.lock();
+      repository.completeBlockedSave();
 
-    expect(result.succeeded, isFalse);
-    expect(result.error, isA<FileSystemException>());
-    expect(controller.vaultData.activeItems.single.title, 'Original');
-    expect(controller.message, isNotNull);
-  });
+      final result = await saving;
 
-  test('locking while a save is in flight cannot restore an unlocked session',
-      () async {
-    final repository = _MemoryVaultRepository();
-    final controller = _controller(repository: repository);
-    await controller.bootstrap();
-    await controller.createVault('master-pass');
-    repository.blockNextSave();
-
-    final saving = controller.addOrUpdateItem(
-      title: 'Deferred',
-      username: '',
-      password: 'secret',
-      url: '',
-      notes: '',
-      tags: const [],
-    );
-    await repository.saveStarted;
-    await controller.lock();
-    repository.completeBlockedSave();
-
-    final result = await saving;
-
-    expect(result.succeeded, isFalse);
-    expect(controller.isUnlocked, isFalse);
-    expect(controller.vaultData.activeItems, isEmpty);
-  });
+      expect(result.succeeded, isFalse);
+      expect(controller.isUnlocked, isFalse);
+      expect(controller.vaultData.activeItems, isEmpty);
+    },
+  );
 
   test('locking while unlock is in flight cannot restore plaintext', () async {
     final crypto = _ControllableCryptoService();
@@ -856,82 +930,89 @@ void main() {
     expect(controller.vaultData.activeItems, isEmpty);
   });
 
-  test('a queued import cannot start after a lock invalidates its session',
-      () async {
-    final crypto = _ControllableCryptoService();
-    final repository = _MemoryVaultRepository();
-    final controller =
-        _controller(repository: repository, cryptoService: crypto);
-    final importCrypto = CryptoService();
-    final importDocument =
-        await importCrypto.createVault(password: 'import-pass');
-    final importSession = await importCrypto.openVault(
-      document: importDocument,
-      password: 'import-pass',
-    );
-    await controller.bootstrap();
-    crypto.blockNextCreate();
+  test(
+    'a queued import cannot start after a lock invalidates its session',
+    () async {
+      final crypto = _ControllableCryptoService();
+      final repository = _MemoryVaultRepository();
+      final controller = _controller(
+        repository: repository,
+        cryptoService: crypto,
+      );
+      final importCrypto = CryptoService();
+      final importDocument = await importCrypto.createVault(
+        password: 'import-pass',
+      );
+      final importSession = await importCrypto.openVault(
+        document: importDocument,
+        password: 'import-pass',
+      );
+      await controller.bootstrap();
+      crypto.blockNextCreate();
 
-    final creating = controller.createVault('master-pass');
-    await crypto.createStarted;
-    final importing = controller.applyImportPlan(
-      ImportPlan(
-        sessionGeneration: 0,
-        hadVaultAtPreview: false,
-        rawBytes: importDocument.encode(),
-        importedDocument: importDocument,
-        importedSession: importSession,
-        summary: const ImportMergeSummary(
-          incomingItems: 0,
-          newItems: 0,
-          updatedItems: 0,
-          deletedItems: 0,
-          unchangedItems: 0,
-          replacesLocalVault: true,
-          details: [],
+      final creating = controller.createVault('master-pass');
+      await crypto.createStarted;
+      final importing = controller.applyImportPlan(
+        ImportPlan(
+          sessionGeneration: 0,
+          hadVaultAtPreview: false,
+          rawBytes: importDocument.encode(),
+          importedDocument: importDocument,
+          importedSession: importSession,
+          summary: const ImportMergeSummary(
+            incomingItems: 0,
+            newItems: 0,
+            updatedItems: 0,
+            deletedItems: 0,
+            unchangedItems: 0,
+            replacesLocalVault: true,
+            details: [],
+          ),
         ),
-      ),
-    );
-    await controller.lock();
-    crypto.completeBlockedCreate();
+      );
+      await controller.lock();
+      crypto.completeBlockedCreate();
 
-    expect((await creating).succeeded, isFalse);
-    expect((await importing).succeeded, isFalse);
-    expect(controller.isUnlocked, isFalse);
-    expect(controller.hasVault, isFalse);
-  });
+      expect((await creating).succeeded, isFalse);
+      expect((await importing).succeeded, isFalse);
+      expect(controller.isUnlocked, isFalse);
+      expect(controller.hasVault, isFalse);
+    },
+  );
 
-  test('validates TOTP before saving and preserves the previous entry',
-      () async {
-    final controller = _controller(repository: _MemoryVaultRepository());
-    await controller.bootstrap();
-    await controller.createVault('master-pass');
-    await controller.addOrUpdateItem(
-      title: 'Authenticator',
-      username: 'alice',
-      password: 'secret',
-      url: '',
-      notes: '',
-      tags: const [],
-      totpSecret: 'JBSWY3DPEHPK3PXP',
-    );
-    final existing = controller.vaultData.activeItems.single;
+  test(
+    'validates TOTP before saving and preserves the previous entry',
+    () async {
+      final controller = _controller(repository: _MemoryVaultRepository());
+      await controller.bootstrap();
+      await controller.createVault('master-pass');
+      await controller.addOrUpdateItem(
+        title: 'Authenticator',
+        username: 'alice',
+        password: 'secret',
+        url: '',
+        notes: '',
+        tags: const [],
+        totpSecret: 'JBSWY3DPEHPK3PXP',
+      );
+      final existing = controller.vaultData.activeItems.single;
 
-    final result = await controller.addOrUpdateItem(
-      id: existing.id,
-      title: 'Changed title',
-      username: 'alice',
-      password: 'new-secret',
-      url: '',
-      notes: '',
-      tags: const [],
-      totpSecret: 'not a valid TOTP secret',
-    );
+      final result = await controller.addOrUpdateItem(
+        id: existing.id,
+        title: 'Changed title',
+        username: 'alice',
+        password: 'new-secret',
+        url: '',
+        notes: '',
+        tags: const [],
+        totpSecret: 'not a valid TOTP secret',
+      );
 
-    expect(result.succeeded, isFalse);
-    expect(controller.vaultData.activeItems.single.title, 'Authenticator');
-    expect(controller.vaultData.activeItems.single.password, 'secret');
-  });
+      expect(result.succeeded, isFalse);
+      expect(controller.vaultData.activeItems.single.title, 'Authenticator');
+      expect(controller.vaultData.activeItems.single.password, 'secret');
+    },
+  );
 
   test('editing a deleted item does not restore it', () async {
     final controller = _controller(repository: _MemoryVaultRepository());
@@ -964,6 +1045,45 @@ void main() {
     controller.dispose();
   });
 
+  test('favorites and unfavorites an item with persisted state', () async {
+    final repository = _MemoryVaultRepository();
+    final controller = _controller(repository: repository);
+    await controller.bootstrap();
+    await controller.createVault('master-pass');
+    await controller.addOrUpdateItem(
+      title: 'Favorite me',
+      username: 'alice',
+      password: 'secret',
+      url: 'https://example.com',
+      notes: '',
+      tags: const [],
+    );
+    final item = controller.vaultData.activeItems.single;
+    expect(item.favorite, isFalse);
+
+    final favoriteResult = await controller.setItemFavorite(
+      itemId: item.id,
+      favorite: true,
+    );
+    expect(favoriteResult.succeeded, isTrue, reason: controller.message);
+    expect(controller.vaultData.activeItems.single.favorite, isTrue);
+    expect(controller.message, '已收藏。');
+
+    await controller.lock();
+    expect((await controller.unlock('master-pass')).succeeded, isTrue);
+    expect(controller.vaultData.activeItems.single.favorite, isTrue);
+
+    final unfavoriteResult = await controller.setItemFavorite(
+      itemId: item.id,
+      favorite: false,
+    );
+    expect(unfavoriteResult.succeeded, isTrue, reason: controller.message);
+    expect(controller.vaultData.activeItems.single.favorite, isFalse);
+    expect(controller.message, '已取消收藏。');
+
+    controller.dispose();
+  });
+
   test('restores and permanently removes items from the recycle bin', () async {
     final controller = _controller(repository: _MemoryVaultRepository());
     await controller.bootstrap();
@@ -990,16 +1110,18 @@ void main() {
     expect(controller.vaultData.items, isEmpty);
   });
 
-  test('changes the session-only auto-lock duration using conservative presets',
-      () async {
-    final controller = _controller(repository: _MemoryVaultRepository());
+  test(
+    'changes the session-only auto-lock duration using conservative presets',
+    () async {
+      final controller = _controller(repository: _MemoryVaultRepository());
 
-    expect(controller.autoLockPreset, AutoLockPreset.twoMinutes);
-    controller.setAutoLockPreset(AutoLockPreset.fiveMinutes);
+      expect(controller.autoLockPreset, AutoLockPreset.twoMinutes);
+      controller.setAutoLockPreset(AutoLockPreset.fiveMinutes);
 
-    expect(controller.autoLockPreset, AutoLockPreset.fiveMinutes);
-    expect(controller.autoLockDuration, const Duration(minutes: 5));
-  });
+      expect(controller.autoLockPreset, AutoLockPreset.fiveMinutes);
+      expect(controller.autoLockDuration, const Duration(minutes: 5));
+    },
+  );
 
   test('custom auto-lock duration has no selected preset', () {
     final controller = VaultController(
@@ -1028,39 +1150,39 @@ VaultController _controller({
   LanPairingStore? pairingStore,
   LanSyncService? lanSyncService,
   QuickUnlockPreferenceStore? quickUnlockPreferenceStore,
-}) =>
-    VaultController(
-      repository: repository,
-      cryptoService: cryptoService ?? CryptoService(),
-      importExportService: importExportService ?? _NoopImportExportService(),
-      deviceKeyStore: deviceKeyStore ?? _MemoryDeviceKeyStore(),
-      passwordGeneratorService: PasswordGeneratorService(random: Random(4)),
-      clipboardService: clipboardService ?? _MemoryClipboardService(),
-      pairingStore: pairingStore,
-      lanSyncService: lanSyncService,
-      quickUnlockPreferenceStore: quickUnlockPreferenceStore,
-    );
+}) => VaultController(
+  repository: repository,
+  cryptoService: cryptoService ?? CryptoService(),
+  importExportService: importExportService ?? _NoopImportExportService(),
+  deviceKeyStore: deviceKeyStore ?? _MemoryDeviceKeyStore(),
+  passwordGeneratorService: PasswordGeneratorService(random: Random(4)),
+  clipboardService: clipboardService ?? _MemoryClipboardService(),
+  pairingStore: pairingStore,
+  lanSyncService: lanSyncService,
+  quickUnlockPreferenceStore: quickUnlockPreferenceStore,
+);
 
 class _LocalPeersService extends LanSyncService {
   _LocalPeersService(LanPairingStore store, this.hosts)
-      : super(pairingStore: store);
+    : super(pairingStore: store);
   final List<LanSyncHost> hosts;
 
   @override
-  Future<List<LanSyncPeer>> discover(
-          {Duration timeout = const Duration(seconds: 2)}) async =>
-      [
-        for (final host in hosts)
-          LanSyncPeer(
-              address: '127.0.0.1',
-              port: host.port,
-              deviceName: host.deviceName,
-              deviceId: host.deviceId,
-              vaultId: host.vaultId,
-              revision: host.revision,
-              kdf: host.kdf,
-              challenge: host.challenge),
-      ];
+  Future<List<LanSyncPeer>> discover({
+    Duration timeout = const Duration(seconds: 2),
+  }) async => [
+    for (final host in hosts)
+      LanSyncPeer(
+        address: '127.0.0.1',
+        port: host.port,
+        deviceName: host.deviceName,
+        deviceId: host.deviceId,
+        vaultId: host.vaultId,
+        revision: host.revision,
+        kdf: host.kdf,
+        challenge: host.challenge,
+      ),
+  ];
 }
 
 class _ControllableCryptoService extends CryptoService {

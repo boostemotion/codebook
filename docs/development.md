@@ -37,6 +37,16 @@ flutter test --no-pub test\bitwarden_interchange_service_test.dart
 
 涉及加密、存储、导入、同步、锁定或快速解锁的修改，不允许只做手工界面验证。
 
+Prism 前端还有独立的截图回归测试；更新基线前先阅读
+[`design/README.md`](design/README.md)：
+
+```powershell
+flutter test --no-pub test\frontend_visual_refresh_screenshot_test.dart
+flutter test --no-pub test\category_workbench_screenshot_test.dart
+flutter test --no-pub test\mobile_category_alignment_screenshot_test.dart
+flutter test --no-pub test\password_inspector_screenshot_test.dart
+```
+
 ## Windows
 
 ### 开发运行
@@ -98,7 +108,7 @@ build\app\outputs\flutter-apk\app-release.apk
 ```powershell
 $adb = 'D:\DevTools\android-sdk\platform-tools\adb.exe'
 & $adb devices -l
-& $adb install -r dist\Cipherbook-1.4.0+6-android.apk
+& $adb install -r dist\Cipherbook-1.5.4+27-android.apk
 & $adb shell monkey -p com.example.cipherbook -c android.intent.category.LAUNCHER 1
 ```
 
@@ -130,10 +140,17 @@ flutter run -d windows --dart-define=CIPHERBOOK_SEED_DEBUG_VAULT=true
 该逻辑只会在 `kDebugMode` 且本地不存在密码库时执行。不要在 Release 构建中依赖它，
 也不要把真实凭据放进调试种子。
 
+应用图标可通过以下脚本从代码重新生成：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tool\create_windows_icon.ps1
+```
+
 ## 代码约定
 
 - Dart 文件使用 `snake_case.dart`，类名使用 `PascalCase`，方法和变量使用 `lowerCamelCase`。
-- 业务逻辑放在 `lib/services/` 或 `lib/state/`，Widget 只负责交互和显示。
+- 业务逻辑放在 `lib/services/` 或 `lib/state/`，默认 Widget 放在 `lib/presentation/`。
+- `lib/ui/` 只保留旧 Material 回退界面，不继续增加新功能。
 - 平台密钥、网络协议、文件路径和剪贴板操作不得直接写进 Widget。
 - 不打印主密码、DEK/KEK、TOTP 密钥、Bitwarden 明文导出内容或设备 token。
 - 新测试文件必须以 `_test.dart` 结尾。
@@ -148,7 +165,7 @@ flutter run -d windows --dart-define=CIPHERBOOK_SEED_DEBUG_VAULT=true
 ### Android 构建提示 Gradle / AGP / Kotlin 即将停止支持
 
 当前 Flutter 工具链会提示升级 Gradle、Android Gradle Plugin 和 Kotlin 版本。
-这些预警在 `1.4.0+6` 构建中仍可通过，但发布前应单独完成工具链升级并重新验证
+这些预警在 `1.5.4+27` 构建中仍可通过，但发布前应单独完成工具链升级并重新验证
 Keystore、Biometric 和局域网插件。
 
 ### 局域网只看到一台设备

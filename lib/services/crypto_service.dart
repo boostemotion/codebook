@@ -17,7 +17,7 @@ class VaultUnlockException implements Exception {
 
 class CryptoService {
   CryptoService({Cryptography? cryptography})
-      : _cryptography = cryptography ?? Cryptography.instance;
+    : _cryptography = cryptography ?? Cryptography.instance;
 
   static const int currentVersion = vaultDocumentVersion;
   static const int _keyLength = 32;
@@ -67,9 +67,7 @@ class CryptoService {
     } on VaultUnlockException {
       rethrow;
     } on SecretBoxAuthenticationError {
-      throw const VaultUnlockException(
-        '解锁失败：密码错误或密码库文件已被修改。',
-      );
+      throw const VaultUnlockException('解锁失败：密码错误或密码库文件已被修改。');
     } on FormatException {
       throw const VaultUnlockException('密码库文件格式无效。');
     } on Object {
@@ -98,9 +96,7 @@ class CryptoService {
         keyEncryptionKey: Uint8List.fromList(keyEncryptionKey),
       );
     } on SecretBoxAuthenticationError {
-      throw const VaultUnlockException(
-        '解锁失败：密码错误或密码库文件已被修改。',
-      );
+      throw const VaultUnlockException('解锁失败：密码错误或密码库文件已被修改。');
     } on FormatException {
       throw const VaultUnlockException('密码库文件格式无效。');
     } on Object {
@@ -114,7 +110,8 @@ class CryptoService {
     required Uint8List dataEncryptionKey,
     KdfConfig? kdfOverride,
   }) async {
-    final kdf = kdfOverride ??
+    final kdf =
+        kdfOverride ??
         KdfConfig(
           memoryKiB: _argonMemoryKiB,
           iterations: _argonIterations,
@@ -192,8 +189,7 @@ class CryptoService {
   Future<EncryptedVaultDocument> createPasswordProtectedExport({
     required VaultData vaultData,
     required String password,
-  }) =>
-      createVault(password: password, vaultData: vaultData);
+  }) => createVault(password: password, vaultData: vaultData);
 
   Future<Uint8List> deriveKekBytes(String password, KdfConfig kdf) async {
     kdf.validate();
@@ -264,23 +260,23 @@ class CryptoService {
   }
 
   KdfConfig _newKdf() => KdfConfig(
-        memoryKiB: _argonMemoryKiB,
-        iterations: _argonIterations,
-        parallelism: _argonParallelism,
-        salt: _randomBytes(vaultKdfSaltLength),
-      );
+    memoryKiB: _argonMemoryKiB,
+    iterations: _argonIterations,
+    parallelism: _argonParallelism,
+    salt: _randomBytes(vaultKdfSaltLength),
+  );
 
   VaultMetadata _newMetadata() => VaultMetadata(
-        vaultId: base64UrlEncode(_randomBytes(18)).replaceAll('=', ''),
-        keyGeneration: 1,
-        revision: 0,
-      );
+    vaultId: base64UrlEncode(_randomBytes(18)).replaceAll('=', ''),
+    keyGeneration: 1,
+    revision: 0,
+  );
 
   CipherPayload _placeholderPayload() => CipherPayload(
-        nonce: Uint8List(xchacha20NonceLength),
-        cipherText: Uint8List.fromList([0]),
-        mac: Uint8List(poly1305MacLength),
-      );
+    nonce: Uint8List(xchacha20NonceLength),
+    cipherText: Uint8List.fromList([0]),
+    mac: Uint8List(poly1305MacLength),
+  );
 
   String _dekWrapAadFor(EncryptedVaultDocument document) {
     if (document.version == legacyVaultDocumentVersion) {

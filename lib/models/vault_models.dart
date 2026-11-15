@@ -38,12 +38,12 @@ class KdfConfig {
   final Uint8List salt;
 
   Map<String, dynamic> toJson() => {
-        'algorithm': vaultKdfAlgorithmArgon2id,
-        'memoryKiB': memoryKiB,
-        'iterations': iterations,
-        'parallelism': parallelism,
-        'salt': base64Encode(salt),
-      };
+    'algorithm': vaultKdfAlgorithmArgon2id,
+    'memoryKiB': memoryKiB,
+    'iterations': iterations,
+    'parallelism': parallelism,
+    'salt': base64Encode(salt),
+  };
 
   factory KdfConfig.fromJson(Map<String, dynamic> json) {
     final algorithm = _readRequiredString(json, key: 'algorithm');
@@ -96,20 +96,16 @@ class CipherPayload {
   final Uint8List mac;
 
   Map<String, dynamic> toJson() => {
-        'nonce': base64Encode(nonce),
-        'cipherText': base64Encode(cipherText),
-        'mac': base64Encode(mac),
-      };
+    'nonce': base64Encode(nonce),
+    'cipherText': base64Encode(cipherText),
+    'mac': base64Encode(mac),
+  };
 
   factory CipherPayload.fromJson(Map<String, dynamic> json) {
     final nonce = _readBase64Bytes(json, key: 'nonce');
     final cipherText = _readBase64Bytes(json, key: 'cipherText');
     final mac = _readBase64Bytes(json, key: 'mac');
-    return CipherPayload(
-      nonce: nonce,
-      cipherText: cipherText,
-      mac: mac,
-    );
+    return CipherPayload(nonce: nonce, cipherText: cipherText, mac: mac);
   }
 }
 
@@ -125,10 +121,10 @@ class VaultMetadata {
   final int revision;
 
   Map<String, dynamic> toJson() => {
-        'vaultId': vaultId,
-        'keyGeneration': keyGeneration,
-        'revision': revision,
-      };
+    'vaultId': vaultId,
+    'keyGeneration': keyGeneration,
+    'revision': revision,
+  };
 
   factory VaultMetadata.fromJson(Map<String, dynamic> json) {
     final metadata = VaultMetadata(
@@ -161,20 +157,21 @@ class EncryptedVaultDocument {
   final VaultMetadata? metadata;
 
   Map<String, dynamic> toJson() => {
-        'version': version,
-        'kdf': kdf.toJson(),
-        'wrappedDek': wrappedDek.toJson(),
-        'payload': payload.toJson(),
-        if (metadata != null) 'metadata': metadata!.toJson(),
-      };
+    'version': version,
+    'kdf': kdf.toJson(),
+    'wrappedDek': wrappedDek.toJson(),
+    'payload': payload.toJson(),
+    if (metadata != null) 'metadata': metadata!.toJson(),
+  };
 
   factory EncryptedVaultDocument.fromJson(Map<String, dynamic> json) {
     final version = _readRequiredInt(json, key: 'version');
     final document = EncryptedVaultDocument(
       version: version,
       kdf: KdfConfig.fromJson(_readRequiredMap(json, key: 'kdf')),
-      wrappedDek:
-          CipherPayload.fromJson(_readRequiredMap(json, key: 'wrappedDek')),
+      wrappedDek: CipherPayload.fromJson(
+        _readRequiredMap(json, key: 'wrappedDek'),
+      ),
       payload: CipherPayload.fromJson(_readRequiredMap(json, key: 'payload')),
       metadata: version == vaultDocumentVersion
           ? VaultMetadata.fromJson(_readRequiredMap(json, key: 'metadata'))
@@ -215,10 +212,7 @@ class EncryptedVaultDocument {
     _validatePayload(payload, fieldName: 'payload');
   }
 
-  void _validatePayload(
-    CipherPayload payload, {
-    required String fieldName,
-  }) {
+  void _validatePayload(CipherPayload payload, {required String fieldName}) {
     if (payload.nonce.length != xchacha20NonceLength) {
       throw FormatException(
         'Invalid $fieldName nonce length: ${payload.nonce.length}. '
@@ -312,21 +306,21 @@ class VaultItem {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'username': username,
-        'password': password,
-        'url': url,
-        'notes': notes,
-        'tags': tags,
-        'totpSecret': totpSecret,
-        'createdAt': createdAt.toUtc().toIso8601String(),
-        'updatedAt': updatedAt.toUtc().toIso8601String(),
-        'deletedAt': deletedAt?.toUtc().toIso8601String(),
-        'kind': kind.name,
-        'folder': folder,
-        'favorite': favorite,
-      };
+    'id': id,
+    'title': title,
+    'username': username,
+    'password': password,
+    'url': url,
+    'notes': notes,
+    'tags': tags,
+    'totpSecret': totpSecret,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+    'updatedAt': updatedAt.toUtc().toIso8601String(),
+    'deletedAt': deletedAt?.toUtc().toIso8601String(),
+    'kind': kind.name,
+    'folder': folder,
+    'favorite': favorite,
+  };
 
   factory VaultItem.fromJson(Map<String, dynamic> json) {
     final item = VaultItem(
@@ -382,11 +376,7 @@ class VaultCategory {
   final DateTime updatedAt;
   final int sortIndex;
 
-  VaultCategory copyWith({
-    String? name,
-    DateTime? updatedAt,
-    int? sortIndex,
-  }) {
+  VaultCategory copyWith({String? name, DateTime? updatedAt, int? sortIndex}) {
     return VaultCategory(
       id: id,
       name: name ?? this.name,
@@ -397,12 +387,12 @@ class VaultCategory {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'createdAt': createdAt.toUtc().toIso8601String(),
-        'updatedAt': updatedAt.toUtc().toIso8601String(),
-        'sortIndex': sortIndex,
-      };
+    'id': id,
+    'name': name,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+    'updatedAt': updatedAt.toUtc().toIso8601String(),
+    'sortIndex': sortIndex,
+  };
 
   factory VaultCategory.fromJson(Map<String, dynamic> json) {
     final category = VaultCategory(
@@ -437,10 +427,7 @@ int _readCategorySortIndex(Map<String, dynamic> json) {
   return value;
 }
 
-enum VaultItemKind {
-  login,
-  secureNote,
-}
+enum VaultItemKind { login, secureNote }
 
 class VaultData {
   const VaultData({
@@ -453,16 +440,14 @@ class VaultData {
   final DateTime updatedAt;
   final List<VaultCategory> categories;
 
-  static VaultData empty() => VaultData(
-        items: const [],
-        updatedAt: DateTime.now(),
-      );
+  static VaultData empty() =>
+      VaultData(items: const [], updatedAt: DateTime.now());
 
   Map<String, dynamic> toJson() => {
-        'items': items.map((item) => item.toJson()).toList(),
-        'updatedAt': updatedAt.toUtc().toIso8601String(),
-        'categories': categories.map((category) => category.toJson()).toList(),
-      };
+    'items': items.map((item) => item.toJson()).toList(),
+    'updatedAt': updatedAt.toUtc().toIso8601String(),
+    'categories': categories.map((category) => category.toJson()).toList(),
+  };
 
   factory VaultData.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'];
@@ -533,10 +518,10 @@ class VaultData {
     }
   }
 
-  List<VaultItem> get activeItems => items
-      .where((item) => !item.isDeleted)
-      .toList()
-    ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+  List<VaultItem> get activeItems =>
+      items.where((item) => !item.isDeleted).toList()..sort(
+        (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+      );
 
   List<VaultItem> get deletedItems =>
       items.where((item) => item.isDeleted).toList()
@@ -556,10 +541,7 @@ class VaultData {
       if (item.id != id) {
         return item;
       }
-      return item.copyWith(
-        deletedAt: deletedAt,
-        updatedAt: deletedAt,
-      );
+      return item.copyWith(deletedAt: deletedAt, updatedAt: deletedAt);
     }).toList();
     return copyWith(items: nextItems, updatedAt: deletedAt);
   }
@@ -575,9 +557,9 @@ class VaultData {
   }
 
   VaultData removePermanently(String id, DateTime removedAt) => copyWith(
-        items: items.where((item) => item.id != id).toList(),
-        updatedAt: removedAt,
-      );
+    items: items.where((item) => item.id != id).toList(),
+    updatedAt: removedAt,
+  );
 
   VaultCategory? categoryById(String? categoryId) {
     if (categoryId == null || categoryId.isEmpty) {
@@ -613,10 +595,7 @@ class VaultData {
       if (item.id != itemId) {
         return item;
       }
-      return item.copyWith(
-        folder: categoryId ?? '',
-        updatedAt: updatedAt,
-      );
+      return item.copyWith(folder: categoryId ?? '', updatedAt: updatedAt);
     }).toList();
     return copyWith(items: nextItems, updatedAt: updatedAt);
   }
@@ -632,13 +611,14 @@ class VaultData {
     return nextCategories.length == categories.length
         ? this
         : copyWith(
-            items: items, categories: nextCategories, updatedAt: updatedAt);
+            items: items,
+            categories: nextCategories,
+            updatedAt: updatedAt,
+          );
   }
 
   VaultData merge(VaultData incoming) {
-    final byId = <String, VaultItem>{
-      for (final item in items) item.id: item,
-    };
+    final byId = <String, VaultItem>{for (final item in items) item.id: item};
     for (final incomingItem in incoming.items) {
       final current = byId[incomingItem.id];
       if (current == null ||
@@ -711,12 +691,7 @@ List<VaultCategory> _readVaultCategories(dynamic value) {
   }).toList();
 }
 
-enum ImportChangeKind {
-  newItem,
-  updatedItem,
-  deletedItem,
-  unchangedItem,
-}
+enum ImportChangeKind { newItem, updatedItem, deletedItem, unchangedItem }
 
 class ImportChangeDetail {
   const ImportChangeDetail({
@@ -828,8 +803,10 @@ VaultItemKind _readVaultItemKind(Object? value) {
   return VaultItemKind.login;
 }
 
-DateTime _readRequiredDateTime(Map<String, dynamic> json,
-    {required String key}) {
+DateTime _readRequiredDateTime(
+  Map<String, dynamic> json, {
+  required String key,
+}) {
   final value = _readRequiredString(json, key: key);
   try {
     return DateTime.parse(value).toLocal();

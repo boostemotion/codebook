@@ -47,21 +47,21 @@ class VaultController extends ChangeNotifier {
     LanPairingStore? pairingStore,
     QuickUnlockPreferenceStore? quickUnlockPreferenceStore,
     Duration autoLockDuration = const Duration(minutes: 2),
-  })  : _repository = repository,
-        _cryptoService = cryptoService,
-        _importExportService = importExportService,
-        _deviceKeyStore = deviceKeyStore,
-        _passwordGeneratorService = passwordGeneratorService,
-        _clipboardService = clipboardService,
-        _bitwardenInterchangeService =
-            bitwardenInterchangeService ?? const BitwardenInterchangeService(),
-        _pairingStore = pairingStore ?? LanPairingStore(),
-        _lanSyncService =
-            lanSyncService ?? LanSyncService(pairingStore: pairingStore),
-        _quickUnlockPreferenceStore =
-            quickUnlockPreferenceStore ?? MemoryQuickUnlockPreferenceStore(),
-        _autoLockDuration = autoLockDuration,
-        _autoLockPreset = _presetForDuration(autoLockDuration);
+  }) : _repository = repository,
+       _cryptoService = cryptoService,
+       _importExportService = importExportService,
+       _deviceKeyStore = deviceKeyStore,
+       _passwordGeneratorService = passwordGeneratorService,
+       _clipboardService = clipboardService,
+       _bitwardenInterchangeService =
+           bitwardenInterchangeService ?? const BitwardenInterchangeService(),
+       _pairingStore = pairingStore ?? LanPairingStore(),
+       _lanSyncService =
+           lanSyncService ?? LanSyncService(pairingStore: pairingStore),
+       _quickUnlockPreferenceStore =
+           quickUnlockPreferenceStore ?? MemoryQuickUnlockPreferenceStore(),
+       _autoLockDuration = autoLockDuration,
+       _autoLockPreset = _presetForDuration(autoLockDuration);
 
   final VaultRepository _repository;
   final CryptoService _cryptoService;
@@ -100,6 +100,8 @@ class VaultController extends ChangeNotifier {
   Future<void> _mutationTail = Future<void>.value();
   LanSyncHost? _lanSyncHost;
   List<LanSyncPeer> _lanSyncPeers = const [];
+  int _lanSyncCompletionRevision = 0;
+  String? _lanSyncCompletionMessage;
 
   bool get busy => _busy;
   bool get hasVault => _hasVault;
@@ -122,6 +124,8 @@ class VaultController extends ChangeNotifier {
   Duration get autoLockDuration => _autoLockDuration;
   LanSyncHost? get lanSyncHost => _lanSyncHost;
   List<LanSyncPeer> get lanSyncPeers => List.unmodifiable(_lanSyncPeers);
+  int get lanSyncCompletionRevision => _lanSyncCompletionRevision;
+  String? get lanSyncCompletionMessage => _lanSyncCompletionMessage;
 
   void setAutoLockPreset(AutoLockPreset preset) {
     if (_autoLockPreset == preset && _autoLockDuration == preset.duration) {
@@ -139,13 +143,15 @@ class VaultController extends ChangeNotifier {
     return _run(() async {
       final result = await _repository.inspect();
       _storageState = result.state;
-      _document =
-          result.state == VaultStorageState.available ? result.document : null;
+      _document = result.state == VaultStorageState.available
+          ? result.document
+          : null;
       _hasVault = !result.canCreate;
       _quickUnlockSupported = await _deviceKeyStore.isSupported();
       _quickUnlockEnabled =
           _quickUnlockSupported && await _deviceKeyStore.hasWrappedDekCache();
-      _allowQuickUnlockOnFirstLaunch = _quickUnlockSupported &&
+      _allowQuickUnlockOnFirstLaunch =
+          _quickUnlockSupported &&
           await _quickUnlockPreferenceStore.allowQuickUnlockOnFirstLaunch();
       _masterPasswordVerifiedThisLaunch = result.canCreate;
       if (!result.canCreate && result.state != VaultStorageState.available) {
@@ -186,8 +192,9 @@ class VaultController extends ChangeNotifier {
 
       const debugPassword = 'debug-only-password';
       final sessionGeneration = _sessionGeneration;
-      final document =
-          await _cryptoService.createVault(password: debugPassword);
+      final document = await _cryptoService.createVault(
+        password: debugPassword,
+      );
       _ensureSessionCurrent(sessionGeneration);
       await _repository.save(document);
       await _ensureSessionCurrentAfterWrite(sessionGeneration);
@@ -451,9 +458,7 @@ class VaultController extends ChangeNotifier {
         for (final review in plan.reviews) review.importedItem.id: review,
       };
       final nextItems = List<VaultItem>.from(_vaultData.items);
-      final usedIds = <String>{
-        for (final item in nextItems) item.id,
-      };
+      final usedIds = <String>{for (final item in nextItems) item.id};
       var importedCount = 0;
       var keptLocalCount = 0;
       for (final importedItem in plan.importedItems) {
@@ -469,9 +474,7 @@ class VaultController extends ChangeNotifier {
             throw StateError('导入计划中的冲突条目已失效，请重新预览。');
           }
           if (review.hasAmbiguousMatches) {
-            throw StateError(
-              '该导入项匹配到多个同强度本机账号，请保留两边并在密码库中人工核对。',
-            );
+            throw StateError('该导入项匹配到多个同强度本机账号，请保留两边并在密码库中人工核对。');
           }
           final localId = review.localItem.id;
           nextItems.removeWhere((item) => item.id == localId);
@@ -505,18 +508,19 @@ class VaultController extends ChangeNotifier {
       }
 
       await _saveState(
-        vaultData:
-            _vaultData.copyWith(items: nextItems, updatedAt: DateTime.now()),
+        vaultData: _vaultData.copyWith(
+          items: nextItems,
+          updatedAt: DateTime.now(),
+        ),
         keyEncryptionKey: _requireSessionKek(),
       );
-      _message = 'Bitwarden 导入完成：写入 $importedCount 条'
+      _message =
+          'Bitwarden 导入完成：写入 $importedCount 条'
           '${keptLocalCount == 0 ? '' : '，保留本机 $keptLocalCount 条'}。';
     });
   }
 
-  Future<VaultOperationResult> exportBitwarden(
-    BitwardenExchangeFormat format,
-  ) {
+  Future<VaultOperationResult> exportBitwarden(BitwardenExchangeFormat format) {
     final sessionGeneration = _sessionGeneration;
     return _run(() async {
       _ensureUnlocked();
@@ -539,7 +543,8 @@ class VaultController extends ChangeNotifier {
       _ensureSessionCurrent(sessionGeneration);
       _ensureUnlocked();
       _restartAutoLockTimer();
-      _message = '已导出 ${format.name.toUpperCase()} 明文交换文件。'
+      _message =
+          '已导出 ${format.name.toUpperCase()} 明文交换文件。'
           '请立即导入 Bitwarden，完成后删除该文件。';
     });
   }
@@ -579,7 +584,8 @@ class VaultController extends ChangeNotifier {
       _ensureSessionCurrent(plan.sessionGeneration);
       _ensureUnlocked();
       _restartAutoLockTimer();
-      _message = '已导出 ${plan.missingItemCount} 条 Bitwarden 缺失项。'
+      _message =
+          '已导出 ${plan.missingItemCount} 条 Bitwarden 缺失项。'
           '请立即导入 Bitwarden，完成后删除该文件。';
     });
   }
@@ -660,9 +666,9 @@ class VaultController extends ChangeNotifier {
     final peers = await _lanSyncService.discover(timeout: timeout);
     final identity = await _pairingStore.loadOrCreateIdentity();
     final records = await _pairingStore.loadPeers();
-    return peers
-        .where((peer) => peer.deviceId != identity.deviceId)
-        .map((peer) {
+    return peers.where((peer) => peer.deviceId != identity.deviceId).map((
+      peer,
+    ) {
       final record = records.where((candidate) {
         return candidate.deviceId == peer.deviceId ||
             (candidate.address == peer.address &&
@@ -681,7 +687,9 @@ class VaultController extends ChangeNotifier {
       if (_hasVault) {
         _ensureUnlocked();
         await _cryptoService.openVault(
-            document: _document!, password: password);
+          document: _document!,
+          password: password,
+        );
         _ensureSessionCurrent(generation);
         _lanAutoHostSuppressed = false;
         await _ensureLanAutoHost();
@@ -692,12 +700,15 @@ class VaultController extends ChangeNotifier {
       if (peers.isEmpty) {
         throw StateError('未发现其他设备，请确认其他设备在同一局域网且密码本已解锁。');
       }
-      final targets = <(
-        LanSyncPeer,
-        LanSyncDownloadResult,
-        EncryptedVaultDocument,
-        VaultSession
-      )>[];
+      final targets =
+          <
+            (
+              LanSyncPeer,
+              LanSyncDownloadResult,
+              EncryptedVaultDocument,
+              VaultSession,
+            )
+          >[];
       var failed = 0;
       for (final peer in peers) {
         try {
@@ -744,7 +755,9 @@ class VaultController extends ChangeNotifier {
         }
         if (_vaultFingerprint(union) != _vaultFingerprint(_vaultData)) {
           await _saveState(
-              vaultData: union, keyEncryptionKey: _requireSessionKek());
+            vaultData: union,
+            keyEncryptionKey: _requireSessionKek(),
+          );
         }
       });
       _mutationTail = mergeOperation.then<void>((_) {}).catchError((_) {});
@@ -772,16 +785,18 @@ class VaultController extends ChangeNotifier {
           );
           _ensureSessionCurrent(generation);
           if (result.deviceId != null) {
-            await _pairingStore.savePeer(LanPairingRecord(
-              deviceId: result.deviceId!,
-              deviceName: peer.deviceName,
-              address: peer.address,
-              port: peer.port,
-              vaultId: peer.vaultId,
-              accessToken: token,
-              revision: document.metadata?.revision ?? 0,
-              lastSeen: DateTime.now(),
-            ));
+            await _pairingStore.savePeer(
+              LanPairingRecord(
+                deviceId: result.deviceId!,
+                deviceName: peer.deviceName,
+                address: peer.address,
+                port: peer.port,
+                vaultId: peer.vaultId,
+                accessToken: token,
+                revision: document.metadata?.revision ?? 0,
+                lastSeen: DateTime.now(),
+              ),
+            );
           }
           synced++;
         } on Object {
@@ -792,9 +807,17 @@ class VaultController extends ChangeNotifier {
       if (synced == 0) {
         throw StateError('已将对端数据合并到本机，但对端未确认接收；请更新所有设备后重试。');
       }
-      _message = '已与 $synced 台设备完成双向合并。'
+      final message =
+          '同步成功：已与 $synced 台设备完成双向合并。'
           '${failed == 0 ? '' : '另有 $failed 台设备未完成，请检查版本、主密码和解锁状态后重试。'}';
+      _markLanSyncCompletion(message);
     });
+  }
+
+  void _markLanSyncCompletion(String message) {
+    _message = message;
+    _lanSyncCompletionMessage = message;
+    _lanSyncCompletionRevision++;
   }
 
   Future<void> _receiveLanMerge(Uint8List bytes) async {
@@ -816,10 +839,13 @@ class VaultController extends ChangeNotifier {
           _vaultFingerprint(merged) != _vaultFingerprint(_vaultData);
       if (hasChanges) {
         await _saveState(
-            vaultData: merged, keyEncryptionKey: _requireSessionKek());
+          vaultData: merged,
+          keyEncryptionKey: _requireSessionKek(),
+        );
       }
-      _message =
-          hasChanges ? '同步成功：已接收并合并其他设备的密码本更新。' : '同步成功：其他设备已完成同步，当前密码本已是最新。';
+      _markLanSyncCompletion(
+        hasChanges ? '同步成功：已接收并合并其他设备的密码本更新。' : '同步成功：其他设备已完成同步，当前密码本已是最新。',
+      );
       _notifyListeners();
     });
     _mutationTail = operation.then<void>((_) {}).catchError((_) {});
@@ -1095,8 +1121,9 @@ class VaultController extends ChangeNotifier {
       }
       final ordered = [
         for (final categoryId in categoryIds)
-          _vaultData.categories
-              .firstWhere((category) => category.id == categoryId),
+          _vaultData.categories.firstWhere(
+            (category) => category.id == categoryId,
+          ),
       ];
       final orderedWithIndexes = [
         for (var index = 0; index < ordered.length; index++)
@@ -1128,8 +1155,9 @@ class VaultController extends ChangeNotifier {
   }) {
     return _runMutation(() async {
       _ensureUnlocked();
-      final item =
-          _vaultData.items.where((item) => item.id == itemId).firstOrNull;
+      final item = _vaultData.items
+          .where((item) => item.id == itemId)
+          .firstOrNull;
       if (item == null || item.isDeleted) {
         throw StateError('未找到可移动的条目。');
       }
@@ -1151,8 +1179,38 @@ class VaultController extends ChangeNotifier {
         ),
         keyEncryptionKey: _requireSessionKek(),
       );
-      _message =
-          categoryId == null || categoryId.isEmpty ? '密码已移出分类。' : '密码已移动到分类。';
+      _message = categoryId == null || categoryId.isEmpty
+          ? '密码已移出分类。'
+          : '密码已移动到分类。';
+    });
+  }
+
+  Future<VaultOperationResult> setItemFavorite({
+    required String itemId,
+    required bool favorite,
+  }) {
+    return _runMutation(() async {
+      _ensureUnlocked();
+      final item = _vaultData.items
+          .where((item) => item.id == itemId)
+          .firstOrNull;
+      if (item == null || item.isDeleted) {
+        throw StateError('未找到可收藏的条目。');
+      }
+      if (item.favorite == favorite) {
+        _message = favorite ? '该条目已收藏。' : '该条目未收藏。';
+        return;
+      }
+      final updatedItem = item.copyWith(
+        favorite: favorite,
+        updatedAt: DateTime.now(),
+      );
+      updatedItem.validate();
+      await _saveState(
+        vaultData: _vaultData.upsert(updatedItem),
+        keyEncryptionKey: _requireSessionKek(),
+      );
+      _message = favorite ? '已收藏。' : '已取消收藏。';
     });
   }
 
@@ -1257,8 +1315,9 @@ class VaultController extends ChangeNotifier {
   Future<VaultOperationResult> disableQuickUnlock() {
     return _runMutation(() async {
       if (_allowQuickUnlockOnFirstLaunch) {
-        await _quickUnlockPreferenceStore
-            .setAllowQuickUnlockOnFirstLaunch(false);
+        await _quickUnlockPreferenceStore.setAllowQuickUnlockOnFirstLaunch(
+          false,
+        );
         _allowQuickUnlockOnFirstLaunch = false;
       }
       await _deviceKeyStore.clear();
@@ -1267,9 +1326,7 @@ class VaultController extends ChangeNotifier {
     });
   }
 
-  Future<VaultOperationResult> setAllowQuickUnlockOnFirstLaunch(
-    bool value,
-  ) {
+  Future<VaultOperationResult> setAllowQuickUnlockOnFirstLaunch(bool value) {
     return _runMutation(() async {
       _ensureUnlocked();
       if (!_quickUnlockSupported || !_quickUnlockEnabled) {
@@ -1314,7 +1371,8 @@ class VaultController extends ChangeNotifier {
   }
 
   Future<void> handleAppLifecycle(AppLifecycleState state) async {
-    final shouldLock = state == AppLifecycleState.paused ||
+    final shouldLock =
+        state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden ||
         state == AppLifecycleState.detached;
     if (_isUnlocked && shouldLock) {
@@ -1444,8 +1502,9 @@ class VaultController extends ChangeNotifier {
       throw StateError('密码库会话已锁定。');
     }
     final currentMetadata = currentDocument.metadata;
-    final nextRevision =
-        currentMetadata == null ? 0 : currentMetadata.revision + 1;
+    final nextRevision = currentMetadata == null
+        ? 0
+        : currentMetadata.revision + 1;
     final metadata = currentMetadata == null
         ? VaultMetadata(vaultId: _uuid.v4(), keyGeneration: 1, revision: 0)
         : VaultMetadata(
@@ -1479,8 +1538,9 @@ class VaultController extends ChangeNotifier {
     final items = data.items.map((item) => jsonEncode(item.toJson())).toList()
       ..sort();
     final categories = data.categories
-        .map((category) =>
-            '${category.id}:${category.name}:${category.sortIndex}')
+        .map(
+          (category) => '${category.id}:${category.name}:${category.sortIndex}',
+        )
         .toList();
     return '${items.join('|')}#${categories.join('|')}';
   }
@@ -1497,8 +1557,9 @@ class VaultController extends ChangeNotifier {
     } on StateError {
       final result = await _repository.inspect();
       _storageState = result.state;
-      _document =
-          result.state == VaultStorageState.available ? result.document : null;
+      _document = result.state == VaultStorageState.available
+          ? result.document
+          : null;
       _hasVault = !result.canCreate;
       rethrow;
     }
@@ -1512,9 +1573,7 @@ class VaultController extends ChangeNotifier {
 
   Uint8List _requireSessionKek() {
     if (_sessionKek == null) {
-      throw StateError(
-        '此操作需要快速解锁或已通过密码认证的会话。',
-      );
+      throw StateError('此操作需要快速解锁或已通过密码认证的会话。');
     }
     return _sessionKek!;
   }
@@ -1684,9 +1743,7 @@ class VaultController extends ChangeNotifier {
           continue;
         }
         final savedPeer = savedPeers
-            .where(
-              (candidate) => candidate.deviceId == peer.deviceId,
-            )
+            .where((candidate) => candidate.deviceId == peer.deviceId)
             .firstOrNull;
         // revision is scoped to each peer. Comparing it with our own revision
         // skips legitimate changes made independently on both devices.
@@ -1719,10 +1776,7 @@ class VaultController extends ChangeNotifier {
     _notifyListeners();
   }
 
-  Future<void> _autoMergePeer(
-    LanSyncPeer peer,
-    Uint8List currentKek,
-  ) async {
+  Future<void> _autoMergePeer(LanSyncPeer peer, Uint8List currentKek) async {
     final generation = _sessionGeneration;
     final operation = _mutationTail.then((_) async {
       _ensureSessionCurrent(generation);

@@ -13,9 +13,9 @@ class LanPairingIdentity {
   final String accessToken;
 
   Map<String, dynamic> toJson() => {
-        'deviceId': deviceId,
-        'accessToken': accessToken,
-      };
+    'deviceId': deviceId,
+    'accessToken': accessToken,
+  };
 
   factory LanPairingIdentity.fromJson(Map<String, dynamic> json) {
     final deviceId = json['deviceId'];
@@ -52,15 +52,15 @@ class LanPairingRecord {
   final DateTime lastSeen;
 
   Map<String, dynamic> toJson() => {
-        'deviceId': deviceId,
-        'deviceName': deviceName,
-        'address': address,
-        'port': port,
-        'vaultId': vaultId,
-        'accessToken': accessToken,
-        'revision': revision,
-        'lastSeen': lastSeen.toUtc().toIso8601String(),
-      };
+    'deviceId': deviceId,
+    'deviceName': deviceName,
+    'address': address,
+    'port': port,
+    'vaultId': vaultId,
+    'accessToken': accessToken,
+    'revision': revision,
+    'lastSeen': lastSeen.toUtc().toIso8601String(),
+  };
 
   factory LanPairingRecord.fromJson(Map<String, dynamic> json) {
     final deviceId = json['deviceId'];
@@ -109,25 +109,24 @@ class LanPairingRecord {
     String? accessToken,
     int? revision,
     DateTime? lastSeen,
-  }) =>
-      LanPairingRecord(
-        deviceId: deviceId,
-        deviceName: deviceName ?? this.deviceName,
-        address: address ?? this.address,
-        port: port ?? this.port,
-        vaultId: vaultId ?? this.vaultId,
-        accessToken: accessToken ?? this.accessToken,
-        revision: revision ?? this.revision,
-        lastSeen: lastSeen ?? this.lastSeen,
-      );
+  }) => LanPairingRecord(
+    deviceId: deviceId,
+    deviceName: deviceName ?? this.deviceName,
+    address: address ?? this.address,
+    port: port ?? this.port,
+    vaultId: vaultId ?? this.vaultId,
+    accessToken: accessToken ?? this.accessToken,
+    revision: revision ?? this.revision,
+    lastSeen: lastSeen ?? this.lastSeen,
+  );
 }
 
 class LanPairingStore {
   LanPairingStore({
     Directory? directory,
     Future<Directory> Function()? directoryProvider,
-  })  : _directory = directory,
-        _directoryProvider = directoryProvider;
+  }) : _directory = directory,
+       _directoryProvider = directoryProvider;
 
   static final Random _random = Random.secure();
   final Directory? _directory;
@@ -175,8 +174,9 @@ class LanPairingStore {
 
   Future<void> savePeer(LanPairingRecord record) async {
     final peers = await loadPeers();
-    final existing =
-        peers.where((peer) => peer.deviceId == record.deviceId).firstOrNull;
+    final existing = peers
+        .where((peer) => peer.deviceId == record.deviceId)
+        .firstOrNull;
     final nextRecord = existing == null
         ? record
         : existing.copyWith(
@@ -211,8 +211,9 @@ class LanPairingStore {
       directory = _directory;
     } else {
       try {
-        directory = await (_directoryProvider?.call() ??
-            getApplicationSupportDirectory());
+        directory =
+            await (_directoryProvider?.call() ??
+                getApplicationSupportDirectory());
       } on Object {
         directory = Directory(
           '${Directory.systemTemp.path}${Platform.pathSeparator}cipherbook-lan-sync',
@@ -223,8 +224,8 @@ class LanPairingStore {
   }
 
   String _token(int byteCount) => base64UrlEncode(
-        List<int>.generate(byteCount, (_) => _random.nextInt(256)),
-      ).replaceAll('=', '');
+    List<int>.generate(byteCount, (_) => _random.nextInt(256)),
+  ).replaceAll('=', '');
 }
 
 extension<T> on Iterable<T> {

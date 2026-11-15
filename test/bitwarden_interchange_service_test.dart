@@ -9,8 +9,13 @@ import 'package:cipherbook/services/bitwarden_interchange_service.dart';
 
 void main() {
   const service = BitwardenInterchangeService();
-  const testEmail = 'demo.user' '@' 'example.test';
-  const testPhone = '155' '00001111';
+  const testEmail =
+      'demo.user'
+      '@'
+      'example.test';
+  const testPhone =
+      '155'
+      '00001111';
 
   test('decodes Bitwarden logins, secure notes, folders, and bridge ids', () {
     final parsed = service.decode(
@@ -49,11 +54,7 @@ void main() {
             'name': '安全笔记',
             'notes': '这是一条笔记',
           },
-          <String, Object?>{
-            'id': 'unsupported-card',
-            'type': 3,
-            'name': '银行卡',
-          },
+          <String, Object?>{'id': 'unsupported-card', 'type': 3, 'name': '银行卡'},
         ],
       }),
     );
@@ -71,54 +72,50 @@ void main() {
     expect(parsed.items.last.kind, VaultItemKind.secureNote);
   });
 
-  test('matches mixed phone and email aliases as a manual duplicate candidate',
-      () {
-    final now = DateTime(2026, 1, 1);
-    final local = VaultData(
-      items: <VaultItem>[
-        VaultItem(
-          id: 'local',
-          title: '示例站点',
-          username: '$testPhone / $testEmail',
-          password: 'same-password',
-          url: 'https://www.example.com/login',
-          notes: '',
-          tags: const [],
-          createdAt: now,
-          updatedAt: now,
-        ),
-      ],
-      updatedAt: now,
-    );
-    final imported = VaultItem(
-      id: 'imported',
-      title: 'Example',
-      username: testEmail,
-      password: 'same-password',
-      url: 'https://www.example.com',
-      notes: '',
-      tags: const [],
-      createdAt: now,
-      updatedAt: now,
-    );
+  test(
+    'matches mixed phone and email aliases as a manual duplicate candidate',
+    () {
+      final now = DateTime(2026, 1, 1);
+      final local = VaultData(
+        items: <VaultItem>[
+          VaultItem(
+            id: 'local',
+            title: '示例站点',
+            username: '$testPhone / $testEmail',
+            password: 'same-password',
+            url: 'https://www.example.com/login',
+            notes: '',
+            tags: const [],
+            createdAt: now,
+            updatedAt: now,
+          ),
+        ],
+        updatedAt: now,
+      );
+      final imported = VaultItem(
+        id: 'imported',
+        title: 'Example',
+        username: testEmail,
+        password: 'same-password',
+        url: 'https://www.example.com',
+        notes: '',
+        tags: const [],
+        createdAt: now,
+        updatedAt: now,
+      );
 
-    final plan = service.createImportPlan(
-      importedItems: <VaultItem>[imported],
-      localVault: local,
-      sessionGeneration: 1,
-      expectedRevision: 2,
-    );
+      final plan = service.createImportPlan(
+        importedItems: <VaultItem>[imported],
+        localVault: local,
+        sessionGeneration: 1,
+        expectedRevision: 2,
+      );
 
-    expect(plan.reviews, hasLength(1));
-    expect(
-      plan.reviews.single.kind,
-      BitwardenImportMatchKind.exactDuplicate,
-    );
-    expect(
-      plan.reviews.single.sharedAliases,
-      contains('email:$testEmail'),
-    );
-  });
+      expect(plan.reviews, hasLength(1));
+      expect(plan.reviews.single.kind, BitwardenImportMatchKind.exactDuplicate);
+      expect(plan.reviews.single.sharedAliases, contains('email:$testEmail'));
+    },
+  );
 
   test('same password on another site is reported as reuse, not duplicate', () {
     final now = DateTime(2026, 1, 1);
@@ -193,10 +190,7 @@ void main() {
     );
 
     expect(plan.reviews, hasLength(1));
-    expect(
-      plan.reviews.single.kind,
-      BitwardenImportMatchKind.passwordConflict,
-    );
+    expect(plan.reviews.single.kind, BitwardenImportMatchKind.passwordConflict);
   });
 
   test('delta export contains only Codebook items missing from Bitwarden', () {
@@ -207,18 +201,17 @@ void main() {
       required String username,
       required String password,
       required String url,
-    }) =>
-        VaultItem(
-          id: id,
-          title: title,
-          username: username,
-          password: password,
-          url: url,
-          notes: '',
-          tags: const [],
-          createdAt: now,
-          updatedAt: now,
-        );
+    }) => VaultItem(
+      id: id,
+      title: title,
+      username: username,
+      password: password,
+      url: url,
+      notes: '',
+      tags: const [],
+      createdAt: now,
+      updatedAt: now,
+    );
     final matched = login(
       id: 'matched',
       title: '已有站点',
@@ -281,51 +274,53 @@ void main() {
     );
   });
 
-  test('delta export matches notes and collapses exact Codebook duplicates',
-      () {
-    final now = DateTime(2026, 1, 1);
-    VaultItem note(String id) => VaultItem(
-          id: id,
-          title: '相同笔记',
-          username: '',
-          password: '',
-          url: '',
-          notes: '完全相同的内容',
-          tags: const [],
-          createdAt: now,
-          updatedAt: now,
-          kind: VaultItemKind.secureNote,
-        );
-    final local = VaultData(
-      items: <VaultItem>[note('note-a'), note('note-b')],
-      updatedAt: now,
-    );
+  test(
+    'delta export matches notes and collapses exact Codebook duplicates',
+    () {
+      final now = DateTime(2026, 1, 1);
+      VaultItem note(String id) => VaultItem(
+        id: id,
+        title: '相同笔记',
+        username: '',
+        password: '',
+        url: '',
+        notes: '完全相同的内容',
+        tags: const [],
+        createdAt: now,
+        updatedAt: now,
+        kind: VaultItemKind.secureNote,
+      );
+      final local = VaultData(
+        items: <VaultItem>[note('note-a'), note('note-b')],
+        updatedAt: now,
+      );
 
-    final plan = service.createDeltaExportPlan(
-      localVault: local,
-      bitwardenItems: const <VaultItem>[],
-      sessionGeneration: 1,
-      expectedRevision: 1,
-    );
+      final plan = service.createDeltaExportPlan(
+        localVault: local,
+        bitwardenItems: const <VaultItem>[],
+        sessionGeneration: 1,
+        expectedRevision: 1,
+      );
 
-    expect(plan.matchedItemCount, 0);
-    expect(plan.missingItemCount, 1);
-    expect(plan.duplicateCodebookCount, 1);
-  });
+      expect(plan.matchedItemCount, 0);
+      expect(plan.missingItemCount, 1);
+      expect(plan.duplicateCodebookCount, 1);
+    },
+  );
 
   test('equally strong matches are marked as ambiguous for manual review', () {
     final now = DateTime(2026, 1, 1);
     VaultItem localItem(String id, String title) => VaultItem(
-          id: id,
-          title: title,
-          username: testEmail,
-          password: 'same-password',
-          url: 'https://example.com',
-          notes: '',
-          tags: const [],
-          createdAt: now,
-          updatedAt: now,
-        );
+      id: id,
+      title: title,
+      username: testEmail,
+      password: 'same-password',
+      url: 'https://example.com',
+      notes: '',
+      tags: const [],
+      createdAt: now,
+      updatedAt: now,
+    );
     final local = VaultData(
       items: <VaultItem>[
         localItem('local-a', '账号 A'),
@@ -350,10 +345,7 @@ void main() {
   test('rejects encrypted Bitwarden JSON with a clear instruction', () {
     expect(
       () => service.decode(
-        _jsonBytes(<String, Object?>{
-          'encrypted': true,
-          'data': 'encrypted',
-        }),
+        _jsonBytes(<String, Object?>{'encrypted': true, 'data': 'encrypted'}),
       ),
       throwsA(
         isA<FormatException>().having(

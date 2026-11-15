@@ -5,6 +5,7 @@
 .packages
 build/
 dist/
+release/
 
 # Local runtime/cache folders (privacy + machine-specific)
 .android/
@@ -30,9 +31,9 @@ dist/
 .gitconfig.flutter
 
 # Toolchains and downloaded installers are machine-local
-tools/flutter/
-tools/cmdline-tools-extract/
-tools/*.zip
+tool/flutter/
+tool/cmdline-tools-extract/
+tool/*.zip
 
 # Android/Windows signing secrets
 *.jks

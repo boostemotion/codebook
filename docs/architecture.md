@@ -31,11 +31,16 @@ Flutter UI
 - `lib/models/`：密码库文档、条目、KDF、同步状态和 Bitwarden 交换模型。
 - `lib/services/`：无 UI 的加密、文件、导入导出、TOTP、网络的平台适配逻辑。
 - `lib/state/`：`VaultController` 编排解锁、锁定、写操作、同步和导入计划。
-- `lib/ui/`：当前面向 Android / Windows 的平台自适应界面，只调用控制器公开接口。
+- `lib/presentation/`：默认 Prism 前端、页面、主题和 Riverpod 状态桥接，只调用控制器公开接口。
+- `lib/ui/`：旧 Material 界面，仅作为 `CIPHERBOOK_FRONTEND_V2=false` 的临时回退。
+- `packages/prism_shell/`：响应式应用壳、导航和页面保持，不含产品或平台数据。
+- `plugins/prism_ui/`：Prism 组件、动效、形状、图标和主题，来自 FlClash 前端工作台。
 - `android/`、`windows/`：平台桥接。系统认证和本地密钥包装不进入 Widget。
 
-`main.dart` 创建 `CipherbookApp`，应用在启动时装配具体服务，并把同一个
-`VaultController` 注入 `HomePage`。UI 通过 `ChangeNotifier` 观察状态。
+`main.dart` 创建 `CipherbookApp`，应用在启动时装配具体服务。默认入口把同一个
+`VaultController` 注入 `CipherbookPrismApp`，页面通过 Riverpod provider 观察控制器状态；
+旧 `HomePage` 只在显式关闭 Prism 前端时启用。前端边界和目录说明见
+[`frontend.md`](frontend.md)。
 
 ## 会话模型
 

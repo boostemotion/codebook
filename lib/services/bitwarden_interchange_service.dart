@@ -50,8 +50,7 @@ class BitwardenInterchangeService {
     final folderNames = <String>{
       for (final item in activeItems)
         if (item.folder.trim().isNotEmpty) item.folder.trim(),
-    }.toList()
-      ..sort();
+    }.toList()..sort();
     final folders = <Map<String, Object?>>[
       for (var index = 0; index < folderNames.length; index++)
         <String, Object?>{
@@ -69,10 +68,7 @@ class BitwardenInterchangeService {
       'folders': folders,
       'items': [
         for (final item in activeItems)
-          _itemToBitwardenJson(
-            item,
-            folderId: folderIds[item.folder.trim()],
-          ),
+          _itemToBitwardenJson(item, folderId: folderIds[item.folder.trim()]),
       ],
     };
     return Uint8List.fromList(
@@ -202,7 +198,8 @@ class BitwardenInterchangeService {
       final folder =
           folderNames[folderId] ?? _optionalString(rawItem['folder']);
       final createdAt = _readDate(rawItem['creationDate']) ?? DateTime.now();
-      final updatedAt = _readDate(rawItem['revisionDate']) ??
+      final updatedAt =
+          _readDate(rawItem['revisionDate']) ??
           _readDate(rawItem['updateDate']) ??
           createdAt;
 
@@ -498,10 +495,7 @@ class BitwardenInterchangeService {
           'totp': _totpForBitwarden(item),
           'uris': <Map<String, Object?>>[
             if (item.url.trim().isNotEmpty)
-              <String, Object?>{
-                'match': null,
-                'uri': item.url.trim(),
-              },
+              <String, Object?>{'match': null, 'uri': item.url.trim()},
           ],
         },
       'creationDate': item.createdAt.toUtc().toIso8601String(),
@@ -528,8 +522,10 @@ class BitwardenInterchangeService {
       final sameSource = local.id == imported.id;
       final titleMatches =
           normalizedText(local.title) == normalizedText(imported.title);
-      final passwordsEqual =
-          _passwordValuesEqual(local.password, imported.password);
+      final passwordsEqual = _passwordValuesEqual(
+        local.password,
+        imported.password,
+      );
       final localAliases = identityAliases(local.username);
       sharedAliases.addAll(importedAliases.intersection(localAliases));
 
@@ -540,7 +536,8 @@ class BitwardenInterchangeService {
       } else if (imported.kind == VaultItemKind.secureNote) {
         final titleMatches =
             normalizedText(local.title) == normalizedText(imported.title);
-        final notesMatch = normalizedText(local.notes).isNotEmpty &&
+        final notesMatch =
+            normalizedText(local.notes).isNotEmpty &&
             normalizedText(local.notes) == normalizedText(imported.notes);
         if (!titleMatches && !notesMatch) {
           continue;
@@ -549,8 +546,8 @@ class BitwardenInterchangeService {
         reason = titleMatches && notesMatch
             ? '安全笔记标题和内容相同'
             : titleMatches
-                ? '安全笔记标题相同'
-                : '安全笔记内容相同';
+            ? '安全笔记标题相同'
+            : '安全笔记内容相同';
       } else {
         final localHost = normalizedHost(local.url);
         final hostsComparable = importedHost != null && localHost != null;
@@ -589,7 +586,8 @@ class BitwardenInterchangeService {
           continue;
         }
       }
-      final notesMatch = imported.kind == VaultItemKind.secureNote &&
+      final notesMatch =
+          imported.kind == VaultItemKind.secureNote &&
           normalizedText(local.notes).isNotEmpty &&
           normalizedText(local.notes) == normalizedText(imported.notes);
       final exactMatch = imported.kind == VaultItemKind.secureNote
@@ -598,8 +596,8 @@ class BitwardenInterchangeService {
       final kind = exactMatch
           ? BitwardenImportMatchKind.exactDuplicate
           : sameSource || sharedAliases.isNotEmpty || titleMatches
-              ? BitwardenImportMatchKind.passwordConflict
-              : BitwardenImportMatchKind.possibleDuplicate;
+          ? BitwardenImportMatchKind.passwordConflict
+          : BitwardenImportMatchKind.possibleDuplicate;
       bestScore = score;
       equallyRankedMatchCount = 1;
       best = BitwardenImportReview(
@@ -640,7 +638,8 @@ class BitwardenInterchangeService {
           continue;
         }
         final localHost = normalizedHost(local.url);
-        final sameAccount = importedHost != null &&
+        final sameAccount =
+            importedHost != null &&
             localHost != null &&
             importedHost == localHost &&
             importedAliases
@@ -660,9 +659,7 @@ class BitwardenInterchangeService {
     if (value.isEmpty) {
       return null;
     }
-    final uri = Uri.tryParse(
-      value.contains('://') ? value : 'https://$value',
-    );
+    final uri = Uri.tryParse(value.contains('://') ? value : 'https://$value');
     var host = uri?.host.trim().toLowerCase();
     if (host == null || host.isEmpty) {
       return null;
@@ -696,9 +693,7 @@ class BitwardenInterchangeService {
     if (trimmed.isEmpty) {
       return const <String>{};
     }
-    final aliases = <String>{
-      'raw:${trimmed.toLowerCase()}',
-    };
+    final aliases = <String>{'raw:${trimmed.toLowerCase()}'};
     for (final match in RegExp(
       r'[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}',
       caseSensitive: false,
@@ -711,10 +706,7 @@ class BitwardenInterchangeService {
     }
 
     final withoutEmails = trimmed.replaceAll(
-      RegExp(
-        r'[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}',
-        caseSensitive: false,
-      ),
+      RegExp(r'[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}', caseSensitive: false),
       ' ',
     );
     for (final match in RegExp(
@@ -789,11 +781,7 @@ class BitwardenInterchangeService {
     return '"${value.replaceAll('"', '""')}"';
   }
 
-  static String _cell(
-    List<String> row,
-    Map<String, int> header,
-    String name,
-  ) {
+  static String _cell(List<String> row, Map<String, int> header, String name) {
     final index = header[name];
     if (index == null || index < 0 || index >= row.length) {
       return '';
@@ -875,8 +863,9 @@ class BitwardenInterchangeService {
     if (value.toLowerCase().startsWith('otpauth://')) {
       return value;
     }
-    final label =
-        item.username.trim().isEmpty ? item.title.trim() : item.username.trim();
+    final label = item.username.trim().isEmpty
+        ? item.title.trim()
+        : item.username.trim();
     final secret = value.toUpperCase().replaceAll(RegExp(r'[\s-]'), '');
     return 'otpauth://totp/${Uri.encodeComponent(label)}'
         '?secret=${Uri.encodeComponent(secret)}';

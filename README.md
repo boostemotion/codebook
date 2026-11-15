@@ -3,7 +3,7 @@
 Cipherbook 是一个本地优先的 Android / Windows 密码库。密码库默认只以加密文件保存在当前设备，
 不需要账号、云端服务或自建后端；需要多设备协作时，可在同一局域网内验证共同主密码后双向合并。
 
-当前应用版本：`1.4.0+6`（以 [`pubspec.yaml`](pubspec.yaml) 为唯一来源）。
+当前应用版本：`1.5.4+27`（以 [`pubspec.yaml`](pubspec.yaml) 为唯一来源）。
 
 > 当前构建用于本地测试和自用验证。Android 仍使用 debug 签名，Windows 安装包尚无正式代码签名；
 > iOS 尚未提供官方构建或安装包。正式分发前请先阅读
@@ -12,7 +12,7 @@ Cipherbook 是一个本地优先的 Android / Windows 密码库。密码库默�
 ## 功能概览
 
 - 本地加密密码库：Argon2id + XChaCha20-Poly1305，主密码不会上传。
-- 登录项与安全笔记：新增、编辑、搜索、复制、收藏、文件夹和回收站。
+- 登录项与安全笔记：新增、编辑、搜索、复制、收藏、文件夹和回收站；桌面端可直接拖动密码到分类。
 - TOTP：兼容已有验证器密钥和 `otpauth://totp` URI。
 - 加密备份：`.pwv` 导入、导出、导入预览和异常文件恢复。
 - 局域网同步：UDP 发现，验证共同主密码后收集并双向合并多台设备的数据。
@@ -126,15 +126,24 @@ Bitwarden 加密 JSON 不能直接导入，需要先在 Bitwarden 中导出未�
 lib/models/       密码库、KDF、同步与 Bitwarden 交换模型
 lib/services/     加密、存储、导入导出、TOTP、快速解锁和局域网同步
 lib/state/        VaultController、会话锁定、导入计划和合并编排
-lib/ui/           Android / Windows 共享与平台自适应界面
+lib/presentation/ 默认 Prism 前端、页面、主题和 Riverpod 桥接
+lib/ui/           旧 Material 回退界面，仅由 CIPHERBOOK_FRONTEND_V2=false 启用
+packages/prism_shell/ 响应式应用壳与导航
+plugins/prism_ui/     Prism 组件、动效、形状和主题
 android/          Android 宿主、Keystore、Biometric 和网络桥接
 windows/          Windows 宿主、Windows Hello 和 DPAPI 桥接
 packaging/        Windows IExpress 安装器
-docs/             架构、开发、安全与发布文档
+docs/             架构、前端、设计、安全、开发和发布文档
 test/             单元测试和 Flutter 流程测试
+tool/             调试种子、图标和本地工具脚本
 ```
 
-更多设计说明见 [`docs/architecture.md`](docs/architecture.md)。
+更多说明：
+
+- [`docs/architecture.md`](docs/architecture.md)：整体分层和核心数据边界
+- [`docs/frontend.md`](docs/frontend.md)：当前前端结构和旧界面回退方式
+- [`docs/design/README.md`](docs/design/README.md)：视觉基线与截图索引
+- [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)：Prism/FlClash 来源与许可证
 
 ## 开发与验证
 
@@ -162,6 +171,8 @@ flutter build windows --release --no-pub
 - Android Release 目前使用 debug 签名，`applicationId` 仍是 `com.example.cipherbook`；
   正式发布前必须替换唯一 ID 并配置独立签名密钥。
 - Windows 安装包尚未配置正式代码签名证书。
+- 根项目尚未声明统一的整体许可证；内置 Prism 前端组件按 GPL-3.0 提供，发布或复用到其他
+  产品前需要完成许可证兼容性审查，详见 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)。
 - 当前没有 GitHub Actions 或其他自动发布流水线；公开仓库可以后续增加 macOS 编译任务，
   但签名、TestFlight 和 App Store 上传仍需 Apple 开发者凭据。
 - 构建产物位于本地 `build/` 和 `dist/`，不提交到 Git；如需公开提供，应作为 GitHub Release

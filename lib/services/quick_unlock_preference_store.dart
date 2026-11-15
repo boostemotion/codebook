@@ -41,7 +41,7 @@ class FileQuickUnlockPreferenceStore implements QuickUnlockPreferenceStore {
 
 class MemoryQuickUnlockPreferenceStore implements QuickUnlockPreferenceStore {
   MemoryQuickUnlockPreferenceStore({bool allowOnFirstLaunch = false})
-      : _allowOnFirstLaunch = allowOnFirstLaunch;
+    : _allowOnFirstLaunch = allowOnFirstLaunch;
 
   bool _allowOnFirstLaunch;
 

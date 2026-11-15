@@ -10,7 +10,7 @@
 - 不兼容变更：递增主版本，并补充迁移说明；
 - 每次重新打包都必须递增构建号。
 
-当前版本为 `1.4.0+6`。仅修改文档也应先确认是否需要发版；若二进制没有变化，不必只为文档递增构建号。
+当前版本为 `1.5.4+27`。仅修改文档也应先确认是否需要发版；若二进制没有变化，不必只为文档递增构建号。
 
 ## 平台状态
 
@@ -23,13 +23,15 @@
 
 1. 确认 `README.md`、`CHANGELOG.md`、`docs/` 与实际功能一致。
 2. 确认 `pubspec.yaml` 版本和构建号已更新。
-3. 确认没有提交密钥、真实密码库、Bitwarden 明文导出、`build/` 或 `dist/`。
+3. 确认没有提交密钥、真实密码库、Bitwarden 明文导出、`build/`、`dist/` 或 `release/`。
 4. 执行静态分析和完整测试。
 5. 构建 Android 与 Windows Release。
 6. 生成安装包，记录大小和 SHA-256。
 7. 在至少一台 Android 设备和一台 Windows 机器上验证启动、解锁、保存和升级。
 8. 检查 Git 差异，再提交并推送。
 9. 如果修改了平台表、iOS 状态或签名方式，同步检查 [`ios.md`](ios.md) 和 [`../SECURITY.md`](../SECURITY.md)。
+10. 如果修改了 Prism 前端，检查 [`frontend.md`](frontend.md)、
+    [`../THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) 和上游 `LICENSE` / `NOTICE`。
 
 ### 自动检查
 
@@ -54,7 +56,7 @@ flutter build apk --release --no-pub
 ```powershell
 Copy-Item `
   -LiteralPath 'build\app\outputs\flutter-apk\app-release.apk' `
-  -Destination 'dist\Cipherbook-1.4.0+6-android.apk' `
+  -Destination 'dist\Cipherbook-1.5.4+27-android.apk' `
   -Force
 ```
 
@@ -62,7 +64,7 @@ Copy-Item `
 
 ```powershell
 $adb = 'D:\DevTools\android-sdk\platform-tools\adb.exe'
-& $adb install -r 'dist\Cipherbook-1.4.0+6-android.apk'
+& $adb install -r 'dist\Cipherbook-1.5.4+27-android.apk'
 & $adb shell dumpsys package com.example.cipherbook |
   Select-String -Pattern 'versionName=|versionCode='
 ```
@@ -82,7 +84,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File packaging\windows\build_inst
 打包脚本会验证 EXE 的 `FileVersion` 与 `pubspec.yaml` 一致。当前产物：
 
 ```text
-dist\Cipherbook-1.4.0+6-windows-setup.exe
+dist\Cipherbook-1.5.4+27-windows-setup.exe
 ```
 
 安装器行为：
@@ -96,13 +98,13 @@ dist\Cipherbook-1.4.0+6-windows-setup.exe
 
 ```powershell
 Get-Item `
-  'dist\Cipherbook-1.4.0+6-android.apk', `
-  'dist\Cipherbook-1.4.0+6-windows-setup.exe' |
+  'dist\Cipherbook-1.5.4+27-android.apk', `
+  'dist\Cipherbook-1.5.4+27-windows-setup.exe' |
   Select-Object FullName, Length, LastWriteTime
 
 Get-FileHash -Algorithm SHA256 `
-  'dist\Cipherbook-1.4.0+6-android.apk', `
-  'dist\Cipherbook-1.4.0+6-windows-setup.exe'
+  'dist\Cipherbook-1.5.4+27-android.apk', `
+  'dist\Cipherbook-1.5.4+27-windows-setup.exe'
 ```
 
 ## Git 提交与推送
@@ -111,9 +113,9 @@ Get-FileHash -Algorithm SHA256 `
 git status --short
 git diff --check
 git diff
-git add README.md CHANGELOG.md docs lib test pubspec.yaml
-git commit -m "Release 1.4.0"
-git push origin main
+git add -A
+git commit -m "Release 1.5.4+27"
+git push -u origin frontend-v2
 ```
 
 `dist/` 和 `build/` 已被 `.gitignore` 排除。需要公开下载时，应把版本化安装包附到对应 GitHub Release，
@@ -127,7 +129,9 @@ git push origin main
 - Android Release 使用 debug 签名；
 - Windows 安装包没有正式代码签名；
 - iOS 尚无宿主工程、官方构建和安装方式；
+- 根项目尚未声明统一的整体许可证，且内置 Prism 前端组件为 GPL-3.0；
 - 没有公开 CI 产物校验和自动发布流水线；
 - Flutter 已提示未来需要升级 Gradle、AGP 和 Kotlin 版本。
 
-在解决签名、唯一应用 ID、依赖升级和发布自动化之前，不应把当前 APK 描述为可公开发布的正式商店版本。
+在解决签名、唯一应用 ID、依赖升级、整体许可证方案和发布自动化之前，不应把当前 APK
+描述为可公开发布的正式商店版本。

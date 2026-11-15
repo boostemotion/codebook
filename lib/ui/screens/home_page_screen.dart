@@ -67,10 +67,7 @@ class _GlassPerfBus extends ChangeNotifier {
 }
 
 class HomePage extends StatefulWidget {
-  const HomePage({
-    super.key,
-    required this.controller,
-  });
+  const HomePage({super.key, required this.controller});
 
   final VaultController controller;
 
@@ -122,7 +119,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final pickerTemporarilyOwnsFocus = state == AppLifecycleState.inactive &&
+    final pickerTemporarilyOwnsFocus =
+        state == AppLifecycleState.inactive &&
         widget.controller.externalUiActive;
     if (pickerTemporarilyOwnsFocus) {
       return;
@@ -135,9 +133,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _importPasswordController.clear();
       _canSubmitMasterPassword = false;
       _searchFocusNode.unfocus();
-      unawaited(
-        widget.controller.handleAppLifecycle(state),
-      );
+      unawaited(widget.controller.handleAppLifecycle(state));
     }
   }
 
@@ -151,8 +147,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _vaultViewKey.currentState?.clearSensitiveInputs();
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && !widget.controller.isUnlocked) {
-            Navigator.of(context, rootNavigator: true)
-                .popUntil((route) => route.isFirst);
+            Navigator.of(
+              context,
+              rootNavigator: true,
+            ).popUntil((route) => route.isFirst);
           }
         });
       }
@@ -243,10 +241,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   masterPasswordController: _masterPasswordController,
                   importPasswordController: _importPasswordController,
                   canSubmitMasterPassword: _canSubmitMasterPassword,
-                  onLanPair: () => _showLanSyncDialog(
-                    context,
-                    controller: controller,
-                  ),
+                  onLanPair: () =>
+                      _showLanSyncDialog(context, controller: controller),
                   onMasterPasswordChanged: (value) {
                     final canSubmit = value.trim().isNotEmpty;
                     if (canSubmit != _canSubmitMasterPassword) {
@@ -270,36 +266,41 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       );
     }
 
-    final items = controller.vaultData.activeItems.where((item) {
-      if (_searchQuery.isEmpty) {
-        return true;
-      }
-      final haystack = [
-        item.title,
-        item.username,
-        item.url,
-        item.notes,
-        item.folder,
-        item.tags.join(' '),
-      ].join(' ').toLowerCase();
-      return haystack.contains(_searchQuery);
-    }).where((item) {
-      if (_androidSelectedCategoryId == null) {
-        return true;
-      }
-      if (_androidSelectedCategoryId!.isEmpty) {
-        return item.folder.isEmpty;
-      }
-      return item.folder == _androidSelectedCategoryId;
-    }).toList()
-      ..sort((a, b) {
-        final byUpdatedAt = b.updatedAt.compareTo(a.updatedAt);
-        if (byUpdatedAt != 0) {
-          return byUpdatedAt;
-        }
-        return a.title.toLowerCase().compareTo(b.title.toLowerCase());
-      });
-    final selectedCategory = _androidSelectedCategoryId == null ||
+    final items =
+        controller.vaultData.activeItems
+            .where((item) {
+              if (_searchQuery.isEmpty) {
+                return true;
+              }
+              final haystack = [
+                item.title,
+                item.username,
+                item.url,
+                item.notes,
+                item.folder,
+                item.tags.join(' '),
+              ].join(' ').toLowerCase();
+              return haystack.contains(_searchQuery);
+            })
+            .where((item) {
+              if (_androidSelectedCategoryId == null) {
+                return true;
+              }
+              if (_androidSelectedCategoryId!.isEmpty) {
+                return item.folder.isEmpty;
+              }
+              return item.folder == _androidSelectedCategoryId;
+            })
+            .toList()
+          ..sort((a, b) {
+            final byUpdatedAt = b.updatedAt.compareTo(a.updatedAt);
+            if (byUpdatedAt != 0) {
+              return byUpdatedAt;
+            }
+            return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+          });
+    final selectedCategory =
+        _androidSelectedCategoryId == null ||
             _androidSelectedCategoryId!.isEmpty
         ? null
         : controller.vaultData.categoryById(_androidSelectedCategoryId);
@@ -332,17 +333,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     icon: const Icon(Icons.arrow_back_rounded),
                   )
                 : _androidSelectedCategoryId == null
-                    ? null
-                    : IconButton(
-                        key: const ValueKey('android-category-back'),
-                        tooltip: '返回全部密码',
-                        onPressed: () {
-                          setState(() {
-                            _androidSelectedCategoryId = null;
-                          });
-                        },
-                        icon: const Icon(Icons.arrow_back_rounded),
-                      ),
+                ? null
+                : IconButton(
+                    key: const ValueKey('android-category-back'),
+                    tooltip: '返回全部密码',
+                    onPressed: () {
+                      setState(() {
+                        _androidSelectedCategoryId = null;
+                      });
+                    },
+                    icon: const Icon(Icons.arrow_back_rounded),
+                  ),
             title: _androidSearchOpen
                 ? TextField(
                     key: const ValueKey('android-search-field'),
@@ -366,7 +367,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     },
                   )
                 : Text(
-                    _androidSelectedCategoryId == null ? '密码本' : categoryLabel),
+                    _androidSelectedCategoryId == null ? '密码本' : categoryLabel,
+                  ),
             actions: [
               if (!_androidSearchOpen)
                 IconButton(
@@ -377,10 +379,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               if (!_androidSearchOpen)
                 IconButton(
                   tooltip: '设备配对与同步',
-                  onPressed: () => _showLanSyncDialog(
-                    context,
-                    controller: controller,
-                  ),
+                  onPressed: () =>
+                      _showLanSyncDialog(context, controller: controller),
                   icon: const Icon(Icons.sync_rounded),
                 ),
               IconButton(
@@ -449,8 +449,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       ? '$categoryLabel  ·  ${items.length}'
                       : '搜索结果  ·  ${items.length}',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
               SizedBox(
@@ -494,9 +494,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         },
                         onItemDropped: (itemId) =>
                             controller.assignItemToCategory(
-                          itemId: itemId,
-                          categoryId: category.id,
-                        ),
+                              itemId: itemId,
+                              categoryId: category.id,
+                            ),
                       ),
                     Padding(
                       padding: const EdgeInsets.only(right: 16),
@@ -525,21 +525,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                               color: Theme.of(context).colorScheme.outline,
                             ),
                             const SizedBox(height: 12),
-                            Text(_searchQuery.isEmpty ? '还没有条目' : '没有匹配条目',
-                                style: Theme.of(context).textTheme.titleMedium),
+                            Text(
+                              _searchQuery.isEmpty ? '还没有条目' : '没有匹配条目',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
                             const SizedBox(height: 4),
                             Text(
-                                _searchQuery.isEmpty
-                                    ? '添加第一条密码，随时查找'
-                                    : '试试其他关键词',
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
-                                    )),
+                              _searchQuery.isEmpty ? '添加第一条密码，随时查找' : '试试其他关键词',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
                           ],
                         ),
                       )
@@ -547,7 +546,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         onNotification: (notification) {
                           if (notification is UserScrollNotification &&
                               notification.direction != ScrollDirection.idle) {
-                            final expanded = notification.direction !=
+                            final expanded =
+                                notification.direction !=
                                 ScrollDirection.reverse;
                             if (expanded != _androidFabExpanded) {
                               setState(() {
@@ -564,10 +564,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           separatorBuilder: (_, __) => Padding(
                             padding: const EdgeInsets.only(left: 64, right: 8),
                             child: Divider(
-                                height: 1,
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .outlineVariant),
+                              height: 1,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.outlineVariant,
+                            ),
                           ),
                           itemBuilder: (context, index) {
                             final item = items[index];
@@ -580,32 +581,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                               clipBehavior: Clip.antiAlias,
                               child: ListTile(
                                 contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
                                 leading: Container(
                                   width: 44,
                                   height: 44,
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .secondaryContainer,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.secondaryContainer,
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
                                     item.title.trim().isEmpty
                                         ? '?'
                                         : item.title
-                                            .trim()
-                                            .characters
-                                            .first
-                                            .toUpperCase(),
+                                              .trim()
+                                              .characters
+                                              .first
+                                              .toUpperCase(),
                                     style: Theme.of(context)
                                         .textTheme
                                         .titleMedium
                                         ?.copyWith(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .onSecondaryContainer,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSecondaryContainer,
                                           fontWeight: FontWeight.w700,
                                         ),
                                   ),
@@ -614,9 +617,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                   item.title.trim().isEmpty
                                       ? '未命名'
                                       : item.title,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleSmall
+                                  style: Theme.of(context).textTheme.titleSmall
                                       ?.copyWith(fontWeight: FontWeight.w700),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -634,8 +635,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                   item: item,
                                 ),
                                 trailing: PopupMenuButton<String>(
-                                  key:
-                                      ValueKey('android-entry-menu-${item.id}'),
+                                  key: ValueKey(
+                                    'android-entry-menu-${item.id}',
+                                  ),
                                   tooltip: '条目操作',
                                   onSelected: (action) async {
                                     switch (action) {
@@ -690,8 +692,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                     PopupMenuItem(
                                       value: 'delete',
                                       child: ListTile(
-                                        leading:
-                                            Icon(Icons.delete_outline_rounded),
+                                        leading: Icon(
+                                          Icons.delete_outline_rounded,
+                                        ),
                                         title: Text('移至回收站'),
                                       ),
                                     ),
@@ -767,10 +770,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         );
         return;
       case _AndroidOverflowAction.lanSync:
-        await _showLanSyncDialog(
-          context,
-          controller: widget.controller,
-        );
+        await _showLanSyncDialog(context, controller: widget.controller);
         return;
       case _AndroidOverflowAction.exportVault:
         await showModalBottomSheet<void>(
@@ -827,8 +827,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       widget.controller.lock,
                   const SingleActivator(LogicalKeyboardKey.keyF, control: true):
                       _focusSearch,
-                  const SingleActivator(LogicalKeyboardKey.keyN, control: true):
-                      () => _vaultViewKey.currentState?.showAddItem(),
+                  const SingleActivator(
+                    LogicalKeyboardKey.keyN,
+                    control: true,
+                  ): () =>
+                      _vaultViewKey.currentState?.showAddItem(),
                   const SingleActivator(LogicalKeyboardKey.escape):
                       _handleEscape,
                 },
@@ -858,8 +861,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                         sortMode: _sortMode,
                                         onSearchChanged: (value) {
                                           setState(() {
-                                            _searchQuery =
-                                                value.trim().toLowerCase();
+                                            _searchQuery = value
+                                                .trim()
+                                                .toLowerCase();
                                           });
                                         },
                                         onSortModeChanged: (value) {
@@ -961,12 +965,12 @@ class _LockedView extends StatelessWidget {
                   controller.hasVault ? '解锁密码本' : '创建密码本',
                   style: Theme.of(context).platform == TargetPlatform.android
                       ? Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          )
+                          fontWeight: FontWeight.w700,
+                        )
                       : Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.2,
-                          ),
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.2,
+                        ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -1004,8 +1008,9 @@ class _LockedView extends StatelessWidget {
                           if (controller.hasVault) {
                             controller.unlock(masterPasswordController.text);
                           } else {
-                            controller
-                                .createVault(masterPasswordController.text);
+                            controller.createVault(
+                              masterPasswordController.text,
+                            );
                           }
                         }
                       : null,
@@ -1042,8 +1047,9 @@ class _LockedView extends StatelessWidget {
                   const SizedBox(height: 10),
                   OutlinedButton.icon(
                     onPressed: () async {
-                      final plan = await controller
-                          .previewImport(importPasswordController.text);
+                      final plan = await controller.previewImport(
+                        importPasswordController.text,
+                      );
                       if (plan == null || !context.mounted) {
                         return;
                       }
@@ -1083,7 +1089,8 @@ class _StorageRepairView extends StatelessWidget {
   Widget build(BuildContext context) {
     final canRecover = controller.canRecoverVault;
     final title = canRecover ? '检测到可恢复的密码库' : '密码库需要修复';
-    final detail = controller.message ??
+    final detail =
+        controller.message ??
         (canRecover
             ? '已验证备份副本。恢复前不会覆盖当前文件。'
             : '无法安全打开本地密码库。为防止覆盖数据，创建和解锁已被禁用。');
@@ -1103,8 +1110,8 @@ class _StorageRepairView extends StatelessWidget {
                 title,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                  fontWeight: FontWeight.w900,
+                ),
               ),
               const SizedBox(height: 8),
               Text(detail, textAlign: TextAlign.center),
@@ -1124,33 +1131,26 @@ class _StorageRepairView extends StatelessWidget {
   }
 }
 
-enum _VaultTab {
-  passwords,
-  add,
-  importVault,
-  exportVault,
-  pairing,
-  settings,
-}
+enum _VaultTab { passwords, add, importVault, exportVault, pairing, settings }
 
 extension on _VaultTab {
   String get label => switch (this) {
-        _VaultTab.passwords => '密码',
-        _VaultTab.add => '新增',
-        _VaultTab.importVault => '导入',
-        _VaultTab.exportVault => '导出',
-        _VaultTab.pairing => '配对同步',
-        _VaultTab.settings => '设置',
-      };
+    _VaultTab.passwords => '密码',
+    _VaultTab.add => '新增',
+    _VaultTab.importVault => '导入',
+    _VaultTab.exportVault => '导出',
+    _VaultTab.pairing => '配对同步',
+    _VaultTab.settings => '设置',
+  };
 
   IconData get icon => switch (this) {
-        _VaultTab.passwords => Icons.lock_outline_rounded,
-        _VaultTab.add => Icons.add_circle_outline_rounded,
-        _VaultTab.importVault => Icons.download_rounded,
-        _VaultTab.exportVault => Icons.upload_file_rounded,
-        _VaultTab.pairing => Icons.sync_rounded,
-        _VaultTab.settings => Icons.settings_rounded,
-      };
+    _VaultTab.passwords => Icons.lock_outline_rounded,
+    _VaultTab.add => Icons.add_circle_outline_rounded,
+    _VaultTab.importVault => Icons.download_rounded,
+    _VaultTab.exportVault => Icons.upload_file_rounded,
+    _VaultTab.pairing => Icons.sync_rounded,
+    _VaultTab.settings => Icons.settings_rounded,
+  };
 }
 
 class _VaultView extends StatefulWidget {
@@ -1253,99 +1253,103 @@ class _VaultViewState extends State<_VaultView> {
     final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final platform = Theme.of(context).platform;
-    final isDesktopPlatform = platform == TargetPlatform.windows ||
+    final isDesktopPlatform =
+        platform == TargetPlatform.windows ||
         platform == TargetPlatform.macOS ||
         platform == TargetPlatform.linux;
-    final items = widget.controller.vaultData.activeItems.where((item) {
-      if (widget.searchQuery.isEmpty) {
-        return true;
-      }
-      final haystack = [
-        item.title,
-        item.username,
-        item.url,
-        item.notes,
-        item.folder,
-        item.tags.join(' '),
-      ].join(' ').toLowerCase();
-      return haystack.contains(widget.searchQuery);
-    }).toList()
-      ..sort((a, b) {
-        if (widget.sortMode == _SortMode.alphabetical) {
+    final items =
+        widget.controller.vaultData.activeItems.where((item) {
+          if (widget.searchQuery.isEmpty) {
+            return true;
+          }
+          final haystack = [
+            item.title,
+            item.username,
+            item.url,
+            item.notes,
+            item.folder,
+            item.tags.join(' '),
+          ].join(' ').toLowerCase();
+          return haystack.contains(widget.searchQuery);
+        }).toList()..sort((a, b) {
+          if (widget.sortMode == _SortMode.alphabetical) {
+            return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+          }
+          final byUpdatedAt = b.updatedAt.compareTo(a.updatedAt);
+          if (byUpdatedAt != 0) {
+            return byUpdatedAt;
+          }
           return a.title.toLowerCase().compareTo(b.title.toLowerCase());
-        }
-        final byUpdatedAt = b.updatedAt.compareTo(a.updatedAt);
-        if (byUpdatedAt != 0) {
-          return byUpdatedAt;
-        }
-        return a.title.toLowerCase().compareTo(b.title.toLowerCase());
-      });
+        });
 
     if (isDesktopPlatform) {
       return LayoutBuilder(
-          builder: (context, constraints) => Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _DesktopSidebar(
-                    key: const ValueKey('liquid-dock'),
-                    activeTab: _tab,
-                    compact: constraints.maxWidth < 700,
-                    onTabChanged: (tab) {
-                      _glassPerfBus.pulse(heavy: true);
-                      setState(() {
-                        _tab = tab;
-                        if (tab == _VaultTab.add) {
-                          _addPasswordObscured = true;
-                        }
-                      });
-                    },
-                    onLock: widget.controller.lock,
-                  ),
-                  const SizedBox(width: 1),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _DesktopHeader(
-                            tab: _tab,
-                            itemCount: items.length,
-                            searchController: widget.searchController,
-                            searchFocusNode: widget.searchFocusNode,
-                            sortMode: widget.sortMode,
-                            onSearchChanged: (value) {
-                              _glassPerfBus.pulse();
-                              widget.onSearchChanged(value);
-                            },
-                            onClearSearch: () {
-                              widget.searchController.clear();
-                              widget.onSearchChanged('');
-                            },
-                            onSortModeChanged: widget.onSortModeChanged,
-                          ),
-                          const SizedBox(height: 12),
-                          Expanded(
-                            child: _tab == _VaultTab.passwords
-                                ? _buildFilteredPasswordsPage(items, true)
-                                : Align(
-                                    alignment: Alignment.topLeft,
-                                    child: ConstrainedBox(
-                                      constraints:
-                                          const BoxConstraints(maxWidth: 680),
-                                      child: _buildActionPage(context),
-                                    ),
-                                  ),
-                          ),
-                        ],
-                      ),
+        builder: (context, constraints) => Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _DesktopSidebar(
+              key: const ValueKey('liquid-dock'),
+              activeTab: _tab,
+              compact: constraints.maxWidth < 700,
+              onTabChanged: (tab) {
+                _glassPerfBus.pulse(heavy: true);
+                setState(() {
+                  _tab = tab;
+                  if (tab == _VaultTab.add) {
+                    _addPasswordObscured = true;
+                  }
+                });
+              },
+              onLock: widget.controller.lock,
+            ),
+            const SizedBox(width: 1),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _DesktopHeader(
+                      tab: _tab,
+                      itemCount: items.length,
+                      searchController: widget.searchController,
+                      searchFocusNode: widget.searchFocusNode,
+                      sortMode: widget.sortMode,
+                      onSearchChanged: (value) {
+                        _glassPerfBus.pulse();
+                        widget.onSearchChanged(value);
+                      },
+                      onClearSearch: () {
+                        widget.searchController.clear();
+                        widget.onSearchChanged('');
+                      },
+                      onSortModeChanged: widget.onSortModeChanged,
                     ),
-                  ),
-                ],
-              ));
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: _tab == _VaultTab.passwords
+                          ? _buildFilteredPasswordsPage(items, true)
+                          : Align(
+                              alignment: Alignment.topLeft,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 680,
+                                ),
+                                child: _buildActionPage(context),
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
-    final shouldHideDock = keyboardVisible ||
+    final shouldHideDock =
+        keyboardVisible ||
         (!isDesktopPlatform &&
             widget.isSearchFocused &&
             _tab == _VaultTab.passwords);
@@ -1366,10 +1370,10 @@ class _VaultViewState extends State<_VaultView> {
                       Text(
                         '共 ${items.length} 条',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: const Color(0xA54A373F),
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.2,
-                            ),
+                          color: const Color(0xA54A373F),
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       IconButton(
@@ -1437,7 +1441,8 @@ class _VaultViewState extends State<_VaultView> {
                   },
                   child: shouldHideDock
                       ? const SizedBox.shrink(
-                          key: ValueKey('liquid-dock-hidden'))
+                          key: ValueKey('liquid-dock-hidden'),
+                        )
                       : _BottomActionDock(
                           key: const ValueKey('liquid-dock'),
                           activeIndex: _tab.index,
@@ -1512,10 +1517,7 @@ class _VaultViewState extends State<_VaultView> {
                   controller: widget.scrollController,
                   separatorBuilder: (_, __) => const SizedBox(height: 4),
                   itemCount: items.length,
-                  padding: const EdgeInsets.only(
-                    bottom: 16,
-                    right: 4,
-                  ),
+                  padding: const EdgeInsets.only(bottom: 16, right: 4),
                   itemBuilder: (context, index) {
                     final item = items[index];
                     final accountInfo = [
@@ -1589,7 +1591,9 @@ class _VaultViewState extends State<_VaultView> {
                       totalCount:
                           widget.controller.vaultData.activeItems.length,
                       uncategorizedCount: widget
-                          .controller.vaultData.activeItems
+                          .controller
+                          .vaultData
+                          .activeItems
                           .where((item) => item.folder.isEmpty)
                           .length,
                       onSelected: (categoryId) {
@@ -1606,11 +1610,8 @@ class _VaultViewState extends State<_VaultView> {
                       },
                       onCategoryAdded: (name) =>
                           widget.controller.addCategory(name),
-                      onCategoryRenamed: (categoryId, name) =>
-                          widget.controller.renameCategory(
-                        categoryId: categoryId,
-                        name: name,
-                      ),
+                      onCategoryRenamed: (categoryId, name) => widget.controller
+                          .renameCategory(categoryId: categoryId, name: name),
                       onCategoryDeleted: widget.controller.deleteCategory,
                     ),
                     const SizedBox(width: 16),
@@ -1736,10 +1737,7 @@ class _VaultViewState extends State<_VaultView> {
               initialValue: _addSelectedCategoryId,
               decoration: const InputDecoration(labelText: '分类'),
               items: [
-                const DropdownMenuItem(
-                  value: '',
-                  child: Text('无分类'),
-                ),
+                const DropdownMenuItem(value: '', child: Text('无分类')),
                 for (final category in widget.controller.vaultData.categories)
                   DropdownMenuItem(
                     value: category.id,
@@ -1748,8 +1746,9 @@ class _VaultViewState extends State<_VaultView> {
               ],
               onChanged: (value) {
                 setState(() {
-                  _addSelectedCategoryId =
-                      value == null || value.isEmpty ? null : value;
+                  _addSelectedCategoryId = value == null || value.isEmpty
+                      ? null
+                      : value;
                 });
               },
             ),
@@ -1813,8 +1812,9 @@ class _VaultViewState extends State<_VaultView> {
                   onPressed: widget.controller.busy
                       ? null
                       : () async {
-                          final plan = await widget.controller
-                              .previewImport(_importPasswordController.text);
+                          final plan = await widget.controller.previewImport(
+                            _importPasswordController.text,
+                          );
                           if (!mounted || plan == null) {
                             return;
                           }
@@ -1832,20 +1832,18 @@ class _VaultViewState extends State<_VaultView> {
                 child: FilledButton.icon(
                   onPressed:
                       (_pendingImportPlan == null || widget.controller.busy)
-                          ? null
-                          : () async {
-                              final result =
-                                  await widget.controller.applyImportPlan(
-                                _pendingImportPlan!,
-                              );
-                              if (!mounted || !result.succeeded) {
-                                return;
-                              }
-                              setState(() {
-                                _pendingImportPlan = null;
-                                _importSummary = null;
-                              });
-                            },
+                      ? null
+                      : () async {
+                          final result = await widget.controller
+                              .applyImportPlan(_pendingImportPlan!);
+                          if (!mounted || !result.succeeded) {
+                            return;
+                          }
+                          setState(() {
+                            _pendingImportPlan = null;
+                            _importSummary = null;
+                          });
+                        },
                   icon: const Icon(Icons.download_done_rounded),
                   label: const Text('确认导入'),
                 ),
@@ -1857,19 +1855,16 @@ class _VaultViewState extends State<_VaultView> {
             onPressed: widget.controller.busy
                 ? null
                 : () => _showLanSyncDialog(
-                      context,
-                      controller: widget.controller,
-                    ),
+                    context,
+                    controller: widget.controller,
+                  ),
             icon: const Icon(Icons.wifi_tethering_rounded),
             label: const Text('设备配对与同步'),
           ),
           const SizedBox(height: 16),
           const Divider(height: 1),
           const SizedBox(height: 14),
-          Text(
-            '从 Bitwarden 导入',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
+          Text('从 Bitwarden 导入', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 4),
           Text(
             '支持未加密 JSON 和 CSV。导入前会列出重复候选，是否合并由你确认。',
@@ -1879,10 +1874,7 @@ class _VaultViewState extends State<_VaultView> {
           OutlinedButton.icon(
             onPressed: widget.controller.busy
                 ? null
-                : () => _startBitwardenImport(
-                      context,
-                      widget.controller,
-                    ),
+                : () => _startBitwardenImport(context, widget.controller),
             icon: const Icon(Icons.compare_arrows_rounded),
             label: const Text('选择 Bitwarden 文件并核验'),
           ),
@@ -1917,18 +1909,15 @@ class _VaultViewState extends State<_VaultView> {
             onPressed: widget.controller.busy
                 ? null
                 : () => widget.controller.exportVault(
-                      exportPassword: _exportPasswordController.text,
-                    ),
+                    exportPassword: _exportPasswordController.text,
+                  ),
             icon: const Icon(Icons.upload_rounded),
             label: const Text('导出加密备份'),
           ),
           const SizedBox(height: 16),
           const Divider(height: 1),
           const SizedBox(height: 14),
-          Text(
-            '导出到 Bitwarden',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
+          Text('导出到 Bitwarden', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 4),
           Text(
             '交换文件包含明文凭据。建议导入 Bitwarden 后立即删除。',
@@ -1943,10 +1932,10 @@ class _VaultViewState extends State<_VaultView> {
                 onPressed: widget.controller.busy
                     ? null
                     : () => _exportToBitwarden(
-                          context,
-                          widget.controller,
-                          BitwardenExchangeFormat.json,
-                        ),
+                        context,
+                        widget.controller,
+                        BitwardenExchangeFormat.json,
+                      ),
                 icon: const Icon(Icons.data_object_rounded),
                 label: const Text('导出 JSON'),
               ),
@@ -1954,10 +1943,10 @@ class _VaultViewState extends State<_VaultView> {
                 onPressed: widget.controller.busy
                     ? null
                     : () => _exportToBitwarden(
-                          context,
-                          widget.controller,
-                          BitwardenExchangeFormat.csv,
-                        ),
+                        context,
+                        widget.controller,
+                        BitwardenExchangeFormat.csv,
+                      ),
                 icon: const Icon(Icons.table_rows_rounded),
                 label: const Text('导出 CSV'),
               ),
@@ -1967,10 +1956,7 @@ class _VaultViewState extends State<_VaultView> {
           OutlinedButton.icon(
             onPressed: widget.controller.busy
                 ? null
-                : () => _startBitwardenDeltaExport(
-                      context,
-                      widget.controller,
-                    ),
+                : () => _startBitwardenDeltaExport(context, widget.controller),
             icon: const Icon(Icons.rule_rounded),
             label: const Text('核对 Bitwarden 并导出缺失项'),
           ),
@@ -2002,10 +1988,9 @@ class _VaultViewState extends State<_VaultView> {
           Text(
             isAndroid ? '在局域网中发现并同步设备' : '设备连接同一局域网并保持解锁，使用共同主密码合并。',
             style: isAndroid
-                ? Theme.of(context)
-                    .textTheme
-                    .titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w800)
+                ? Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)
                 : Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 8),
@@ -2015,8 +2000,8 @@ class _VaultViewState extends State<_VaultView> {
               child: Text(
                 '配对后使用同一个主密码共享密码库。设备只在当前局域网内通信，数据仍以加密文件传输。',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: const Color(0xFF667085),
-                    ),
+                  color: const Color(0xFF667085),
+                ),
               ),
             ),
             const SizedBox(height: 14),
@@ -2026,9 +2011,9 @@ class _VaultViewState extends State<_VaultView> {
             onPressed: widget.controller.busy
                 ? null
                 : () => _showLanSyncDialog(
-                      context,
-                      controller: widget.controller,
-                    ),
+                    context,
+                    controller: widget.controller,
+                  ),
             icon: const Icon(Icons.sync_rounded),
             label: Text(isAndroid ? '打开设备配对' : '设备同步'),
           ),
@@ -2063,11 +2048,11 @@ class _VaultViewState extends State<_VaultView> {
               onPressed: widget.controller.busy
                   ? null
                   : () async {
-                      final result =
-                          await widget.controller.changeMasterPassword(
-                        oldPassword: _oldPasswordController.text,
-                        newPassword: _newPasswordController.text,
-                      );
+                      final result = await widget.controller
+                          .changeMasterPassword(
+                            oldPassword: _oldPasswordController.text,
+                            newPassword: _newPasswordController.text,
+                          );
                       if (mounted && result.succeeded) {
                         _oldPasswordController.clear();
                         _newPasswordController.clear();
@@ -2093,9 +2078,7 @@ class _VaultViewState extends State<_VaultView> {
                       }
                     },
               title: const Text('快速解锁'),
-              subtitle: Text(
-                supported ? '使用系统认证保护会话密钥' : '当前设备不支持',
-              ),
+              subtitle: Text(supported ? '使用系统认证保护会话密钥' : '当前设备不支持'),
             ),
             SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
@@ -2103,8 +2086,9 @@ class _VaultViewState extends State<_VaultView> {
               onChanged: !supported || !enabled || widget.controller.busy
                   ? null
                   : (value) async {
-                      await widget.controller
-                          .setAllowQuickUnlockOnFirstLaunch(value);
+                      await widget.controller.setAllowQuickUnlockOnFirstLaunch(
+                        value,
+                      );
                       if (mounted) {
                         setState(() {});
                       }
@@ -2114,8 +2098,8 @@ class _VaultViewState extends State<_VaultView> {
                 !supported
                     ? '当前设备不支持快速解锁'
                     : !enabled
-                        ? '请先开启快速解锁'
-                        : '启动应用后可直接使用系统认证，无需先输入一次主密码',
+                    ? '请先开启快速解锁'
+                    : '启动应用后可直接使用系统认证，无需先输入一次主密码',
               ),
             ),
           ],
@@ -2140,9 +2124,9 @@ class _ActionPageTitle extends StatelessWidget {
         children: [
           Text(
             title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -2298,8 +2282,9 @@ class _DesktopSidebarItem extends StatelessWidget {
                         style: TextStyle(
                           color: active ? color : const Color(0xFF475467),
                           fontSize: 13,
-                          fontWeight:
-                              active ? FontWeight.w700 : FontWeight.w500,
+                          fontWeight: active
+                              ? FontWeight.w700
+                              : FontWeight.w500,
                         ),
                       ),
                     ),
@@ -2336,9 +2321,9 @@ class _DesktopCategorySidebar extends StatelessWidget {
   final void Function(String categoryId, String itemId) onCategoryDropped;
   final Future<VaultOperationResult> Function(String name) onCategoryAdded;
   final Future<VaultOperationResult> Function(String categoryId, String name)
-      onCategoryRenamed;
+  onCategoryRenamed;
   final Future<VaultOperationResult> Function(String categoryId)
-      onCategoryDeleted;
+  onCategoryDeleted;
 
   @override
   Widget build(BuildContext context) {
@@ -2370,8 +2355,10 @@ class _DesktopCategorySidebar extends StatelessWidget {
                 label: const Text('新建'),
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                 ),
               ),
             ],
@@ -2423,9 +2410,7 @@ class _DesktopCategorySidebar extends StatelessWidget {
                         context: context,
                         builder: (dialogContext) => AlertDialog(
                           title: const Text('删除分类？'),
-                          content: Text(
-                            '“${category.name}”中的密码会移回未分类，密码不会删除。',
-                          ),
+                          content: Text('“${category.name}”中的密码会移回未分类，密码不会删除。'),
                           actions: [
                             TextButton(
                               onPressed: () =>
@@ -2442,9 +2427,11 @@ class _DesktopCategorySidebar extends StatelessWidget {
                       );
                       if (confirmed == true) {
                         await onCategoryDeleted(category.id);
-                        onSelected(selectedCategoryId == category.id
-                            ? null
-                            : selectedCategoryId);
+                        onSelected(
+                          selectedCategoryId == category.id
+                              ? null
+                              : selectedCategoryId,
+                        );
                       }
                     },
                   ),
@@ -2502,12 +2489,10 @@ class _CategoryDropTileState extends State<_CategoryDropTile> {
         color: _dragging
             ? theme.colorScheme.primaryContainer
             : (widget.active
-                ? activeColor.withValues(alpha: 0.08)
-                : Colors.transparent),
+                  ? activeColor.withValues(alpha: 0.08)
+                  : Colors.transparent),
         borderRadius: BorderRadius.circular(7),
-        border: Border.all(
-          color: _dragging ? activeColor : Colors.transparent,
-        ),
+        border: Border.all(color: _dragging ? activeColor : Colors.transparent),
       ),
       child: Material(
         color: Colors.transparent,
@@ -2535,8 +2520,9 @@ class _CategoryDropTileState extends State<_CategoryDropTile> {
                     style: TextStyle(
                       color: color,
                       fontSize: 13,
-                      fontWeight:
-                          widget.active ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: widget.active
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                     ),
                   ),
                 ),
@@ -2550,14 +2536,8 @@ class _CategoryDropTileState extends State<_CategoryDropTile> {
                         if (action == 'delete') widget.onDelete?.call();
                       },
                       itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: 'rename',
-                          child: Text('重命名'),
-                        ),
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Text('删除分类'),
-                        ),
+                        PopupMenuItem(value: 'rename', child: Text('重命名')),
+                        PopupMenuItem(value: 'delete', child: Text('删除分类')),
                       ],
                     )
                   else
@@ -2690,10 +2670,7 @@ class _CategoryNameDialogState extends State<_CategoryNameDialog> {
         autofocus: true,
         controller: _nameController,
         maxLength: maxVaultTagLength,
-        decoration: InputDecoration(
-          labelText: '分类名称',
-          errorText: _error,
-        ),
+        decoration: InputDecoration(labelText: '分类名称', errorText: _error),
         onSubmitted: (_) => _submit(),
       ),
       actions: [
@@ -2732,9 +2709,9 @@ class _DesktopHeader extends StatelessWidget {
   final ValueChanged<_SortMode> onSortModeChanged;
 
   String get subtitle => switch (tab) {
-        _VaultTab.passwords => '$itemCount 条记录',
-        _ => '',
-      };
+    _VaultTab.passwords => '$itemCount 条记录',
+    _ => '',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -2788,11 +2765,7 @@ class _DesktopHeader extends StatelessWidget {
           return Column(
             key: const ValueKey('vault-header'),
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              title,
-              const SizedBox(height: 12),
-              toolbar,
-            ],
+            children: [title, const SizedBox(height: 12), toolbar],
           );
         }
 
@@ -2874,20 +2847,14 @@ class _SearchField extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        _SortPill(
-          mode: sortMode,
-          onChanged: onSortModeChanged,
-        ),
+        _SortPill(mode: sortMode, onChanged: onSortModeChanged),
       ],
     );
   }
 }
 
 class _SortPill extends StatelessWidget {
-  const _SortPill({
-    required this.mode,
-    required this.onChanged,
-  });
+  const _SortPill({required this.mode, required this.onChanged});
 
   final _SortMode mode;
   final ValueChanged<_SortMode> onChanged;
@@ -2917,8 +2884,10 @@ class _SortPill extends StatelessWidget {
                 }
               },
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 14,
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -2956,10 +2925,7 @@ enum _SortMode {
   final String shortLabel;
 }
 
-Future<_SortMode?> _showSortModePicker(
-  BuildContext context,
-  _SortMode mode,
-) {
+Future<_SortMode?> _showSortModePicker(BuildContext context, _SortMode mode) {
   return showDialog<_SortMode>(
     context: context,
     builder: (context) {
@@ -3087,11 +3053,13 @@ class _BottomActionDockState extends State<_BottomActionDock>
                 AnimatedBuilder(
                   animation: _morphController,
                   builder: (context, _) {
-                    final t =
-                        Curves.easeOutCubic.transform(_morphController.value);
+                    final t = Curves.easeOutCubic.transform(
+                      _morphController.value,
+                    );
                     final fromLeft = (slotWidth * _fromIndex) + 3;
                     final toLeft = (slotWidth * _toIndex) + 3;
-                    final centerLeft = lerpDouble(
+                    final centerLeft =
+                        lerpDouble(
                           fromLeft + baseWidth / 2,
                           toLeft + baseWidth / 2,
                           t,
@@ -3099,7 +3067,8 @@ class _BottomActionDockState extends State<_BottomActionDock>
                         (toLeft + baseWidth / 2);
                     final travel = (_toIndex - _fromIndex).abs().toDouble();
                     final unionWave = math.sin(math.pi * t);
-                    final morphWidth = baseWidth +
+                    final morphWidth =
+                        baseWidth +
                         (slotWidth * 0.24 * unionWave * (1 + travel * 0.15));
                     final highlightLeft = centerLeft - morphWidth / 2;
 
@@ -3240,8 +3209,8 @@ class _EntryCardState extends State<_EntryCard> {
     final subtitleText = widget.accountInfo.isNotEmpty
         ? widget.accountInfo
         : (widget.item.notes.trim().isNotEmpty
-            ? widget.item.notes.trim()
-            : '点击查看详情');
+              ? widget.item.notes.trim()
+              : '点击查看详情');
     if (desktopSpacing) {
       final theme = Theme.of(context);
       return Material(
@@ -3255,84 +3224,96 @@ class _EntryCardState extends State<_EntryCard> {
             borderRadius: BorderRadius.circular(6),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: LayoutBuilder(builder: (context, constraints) {
-                final actions = <(IconData, String, VoidCallback)>[
-                  (Icons.visibility_outlined, '查看', widget.onView),
-                  (Icons.copy_outlined, '复制密码', widget.onCopy),
-                  (Icons.edit_outlined, '编辑', widget.onEdit),
-                  (Icons.delete_outline, '删除', widget.onDelete),
-                ];
-                return Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(leadingText,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final actions = <(IconData, String, VoidCallback)>[
+                    (Icons.visibility_outlined, '查看', widget.onView),
+                    (Icons.copy_outlined, '复制密码', widget.onCopy),
+                    (Icons.edit_outlined, '编辑', widget.onEdit),
+                    (Icons.delete_outline, '删除', widget.onDelete),
+                  ];
+                  return Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          leadingText,
                           style: TextStyle(
-                              color: theme.colorScheme.onPrimaryContainer,
-                              fontWeight: FontWeight.w700)),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(title,
+                            color: theme.colorScheme.onPrimaryContainer,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.titleSmall),
-                          if (widget.accountInfo.isNotEmpty)
-                            Text(widget.accountInfo,
+                              style: theme.textTheme.titleSmall,
+                            ),
+                            if (widget.accountInfo.isNotEmpty)
+                              Text(
+                                widget.accountInfo,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall),
-                        ],
-                      ),
-                    ),
-                    if (constraints.maxWidth < 340)
-                      PopupMenuButton<int>(
-                        tooltip: '条目操作',
-                        icon: const Icon(Icons.more_vert),
-                        onSelected: (index) => actions[index].$3(),
-                        itemBuilder: (context) => [
-                          for (var i = 0; i < actions.length; i++)
-                            PopupMenuItem(value: i, child: Text(actions[i].$2)),
-                        ],
-                      )
-                    else
-                      for (final action in actions)
-                        IconButton(
-                          tooltip: action.$2,
-                          onPressed: action.$3,
-                          icon: Icon(action.$1, size: 18),
-                          visualDensity: VisualDensity.compact,
+                                style: theme.textTheme.bodySmall,
+                              ),
+                          ],
                         ),
-                  ],
-                );
-              }),
+                      ),
+                      if (constraints.maxWidth < 340)
+                        PopupMenuButton<int>(
+                          tooltip: '条目操作',
+                          icon: const Icon(Icons.more_vert),
+                          onSelected: (index) => actions[index].$3(),
+                          itemBuilder: (context) => [
+                            for (var i = 0; i < actions.length; i++)
+                              PopupMenuItem(
+                                value: i,
+                                child: Text(actions[i].$2),
+                              ),
+                          ],
+                        )
+                      else
+                        for (final action in actions)
+                          IconButton(
+                            tooltip: action.$2,
+                            onPressed: action.$3,
+                            icon: Icon(action.$1, size: 18),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ),
       );
     }
     final titleStyle = Theme.of(context).textTheme.titleLarge?.copyWith(
-          fontWeight: FontWeight.w900,
-          fontSize: desktopSpacing ? 17 : 19,
-          height: desktopSpacing ? 1.02 : 1.0,
-          letterSpacing: -0.15,
-          color: const Color(0xFF101828),
-        );
+      fontWeight: FontWeight.w900,
+      fontSize: desktopSpacing ? 17 : 19,
+      height: desktopSpacing ? 1.02 : 1.0,
+      letterSpacing: -0.15,
+      color: const Color(0xFF101828),
+    );
     final accountStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
-          fontWeight: FontWeight.w500,
-          fontSize: desktopSpacing ? 11 : 12,
-          color: const Color(0xFF667085),
-        );
+      fontWeight: FontWeight.w500,
+      fontSize: desktopSpacing ? 11 : 12,
+      color: const Color(0xFF667085),
+    );
 
     final tint = desktopSpacing
         ? (_hovered ? const Color(0xFFF8FAFC) : const Color(0xFFFFFFFF))
@@ -3359,8 +3340,8 @@ class _EntryCardState extends State<_EntryCard> {
             shadowColor: desktopSpacing
                 ? (_hovered ? const Color(0x1A110A0E) : const Color(0x160D0609))
                 : (_hovered
-                    ? const Color(0x16150C10)
-                    : const Color(0x120E070A)),
+                      ? const Color(0x16150C10)
+                      : const Color(0x120E070A)),
             specularStrength: 0,
             borderRadius: BorderRadius.circular(radius),
             padding: EdgeInsets.fromLTRB(
@@ -3552,10 +3533,7 @@ class _DesktopActionCluster extends StatelessWidget {
 }
 
 class _DraggedEntryCard extends StatelessWidget {
-  const _DraggedEntryCard({
-    required this.item,
-    required this.accountInfo,
-  });
+  const _DraggedEntryCard({required this.item, required this.accountInfo});
 
   final VaultItem item;
   final String accountInfo;
@@ -3655,7 +3633,8 @@ class _MiniActionButtonState extends State<_MiniActionButton> {
   @override
   Widget build(BuildContext context) {
     final platform = Theme.of(context).platform;
-    final isDesktopPlatform = platform == TargetPlatform.windows ||
+    final isDesktopPlatform =
+        platform == TargetPlatform.windows ||
         platform == TargetPlatform.macOS ||
         platform == TargetPlatform.linux;
     final iconSize = widget.large ? 17.0 : 15.0;
@@ -3665,10 +3644,12 @@ class _MiniActionButtonState extends State<_MiniActionButton> {
     final padding = widget.boxed ? 2.0 : (widget.large ? 5.0 : 3.0);
 
     return MouseRegion(
-      onEnter:
-          isDesktopPlatform ? (_) => setState(() => _hovered = true) : null,
-      onExit:
-          isDesktopPlatform ? (_) => setState(() => _hovered = false) : null,
+      onEnter: isDesktopPlatform
+          ? (_) => setState(() => _hovered = true)
+          : null,
+      onExit: isDesktopPlatform
+          ? (_) => setState(() => _hovered = false)
+          : null,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 140),
         curve: Curves.easeOutCubic,
@@ -3740,18 +3721,13 @@ Future<T?> _showGlassDialog<T>({
 }
 
 class _GlassDialogActionBar extends StatelessWidget {
-  const _GlassDialogActionBar({
-    required this.children,
-  });
+  const _GlassDialogActionBar({required this.children});
 
   final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: children,
-    );
+    return Row(mainAxisAlignment: MainAxisAlignment.end, children: children);
   }
 }
 
@@ -3838,9 +3814,9 @@ Future<bool?> _showImportSummaryDialog(
               Text(
                 '导入预览',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      color: const Color(0xFF241A1E),
-                    ),
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF241A1E),
+                ),
               ),
               const SizedBox(height: 12),
               _ImportSummaryView(summary: summary),
@@ -3878,10 +3854,7 @@ Future<void> _startBitwardenImport(
   if (!context.mounted || decisions == null) {
     return;
   }
-  await controller.applyBitwardenImport(
-    plan,
-    decisions: decisions,
-  );
+  await controller.applyBitwardenImport(plan, decisions: decisions);
 }
 
 Future<bool> _confirmBitwardenExport(
@@ -3893,9 +3866,7 @@ Future<bool> _confirmBitwardenExport(
     context: context,
     builder: (context) => AlertDialog(
       title: Text('导出 Bitwarden $label？'),
-      content: const Text(
-        '交换文件包含可直接读取的账号和密码。请只保存到可信位置，并在导入 Bitwarden 后立即删除。',
-      ),
+      content: const Text('交换文件包含可直接读取的账号和密码。请只保存到可信位置，并在导入 Bitwarden 后立即删除。'),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
@@ -3974,11 +3945,11 @@ class _BitwardenDeltaExportDialog extends StatelessWidget {
                   ? '将只导出 Bitwarden 中不存在的 ${plan.missingItemCount} 条。'
                   : '没有发现需要补充到 Bitwarden 的条目。',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: plan.hasMissingItems
-                        ? colors.primary
-                        : colors.onSurfaceVariant,
-                    fontWeight: FontWeight.w700,
-                  ),
+                color: plan.hasMissingItems
+                    ? colors.primary
+                    : colors.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -4185,7 +4156,8 @@ class _BitwardenImportDialogState extends State<_BitwardenImportDialog> {
                       final review = widget.plan.reviews[index];
                       return _BitwardenReviewTile(
                         review: review,
-                        action: _decisions[review.importedItem.id] ??
+                        action:
+                            _decisions[review.importedItem.id] ??
                             BitwardenImportAction.keepBoth,
                         onChanged: (action) {
                           setState(() {
@@ -4262,28 +4234,27 @@ class _BitwardenReviewTile extends StatelessWidget {
             Expanded(
               child: Text(
                 imported.title.isEmpty ? '（未命名导入项）' : imported.title,
-                style: Theme.of(context)
-                    .textTheme
-                    .titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
             const SizedBox(width: 8),
             Text(
               label,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color:
-                        review.kind == BitwardenImportMatchKind.passwordConflict
-                            ? Theme.of(context).colorScheme.error
-                            : Theme.of(context).colorScheme.primary,
-                  ),
+                color: review.kind == BitwardenImportMatchKind.passwordConflict
+                    ? Theme.of(context).colorScheme.error
+                    : Theme.of(context).colorScheme.primary,
+              ),
             ),
           ],
         ),
         const SizedBox(height: 5),
         Text('导入项账号：${imported.username.isEmpty ? '（空）' : imported.username}'),
         Text(
-            '本机候选：${local.title} · ${local.username.isEmpty ? '（空）' : local.username}'),
+          '本机候选：${local.title} · ${local.username.isEmpty ? '（空）' : local.username}',
+        ),
         if (aliases.isNotEmpty) Text('共同账号信息：$aliases'),
         if (review.hasAmbiguousMatches)
           Text(
@@ -4307,7 +4278,8 @@ class _BitwardenReviewTile extends StatelessWidget {
             ),
             ChoiceChip(
               label: const Text('用导入项替换本机'),
-              selected: action == BitwardenImportAction.useImported &&
+              selected:
+                  action == BitwardenImportAction.useImported &&
                   !review.hasAmbiguousMatches,
               onSelected: review.hasAmbiguousMatches
                   ? null
@@ -4331,8 +4303,10 @@ class _BitwardenReviewTile extends StatelessWidget {
 }
 
 class _PasswordGeneratorControl extends StatefulWidget {
-  const _PasswordGeneratorControl(
-      {required this.controller, required this.onGenerated});
+  const _PasswordGeneratorControl({
+    required this.controller,
+    required this.onGenerated,
+  });
 
   final VaultController controller;
   final ValueChanged<String> onGenerated;
@@ -4347,30 +4321,31 @@ class _PasswordGeneratorControlState extends State<_PasswordGeneratorControl> {
 
   @override
   Widget build(BuildContext context) => Wrap(
-        alignment: WrapAlignment.end,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 12,
-        children: [
-          DropdownButton<int>(
-            value: _length,
-            underline: const SizedBox.shrink(),
-            borderRadius: BorderRadius.circular(12),
-            items: [
-              for (final length in [16, 20, 24, 32])
-                DropdownMenuItem(value: length, child: Text('$length 位'))
-            ],
-            onChanged: (value) {
-              if (value != null) setState(() => _length = value);
-            },
-          ),
-          TextButton.icon(
-            onPressed: () => widget.onGenerated(
-                widget.controller.generatePassword(length: _length)),
-            icon: const Icon(Icons.password_outlined, size: 18),
-            label: const Text('生成密码'),
-          ),
+    alignment: WrapAlignment.end,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    spacing: 12,
+    children: [
+      DropdownButton<int>(
+        value: _length,
+        underline: const SizedBox.shrink(),
+        borderRadius: BorderRadius.circular(12),
+        items: [
+          for (final length in [16, 20, 24, 32])
+            DropdownMenuItem(value: length, child: Text('$length 位')),
         ],
-      );
+        onChanged: (value) {
+          if (value != null) setState(() => _length = value);
+        },
+      ),
+      TextButton.icon(
+        onPressed: () => widget.onGenerated(
+          widget.controller.generatePassword(length: _length),
+        ),
+        icon: const Icon(Icons.password_outlined, size: 18),
+        label: const Text('生成密码'),
+      ),
+    ],
+  );
 }
 
 Future<void> _showAndroidItemEditor(
@@ -4383,15 +4358,18 @@ Future<void> _showAndroidItemEditor(
   final passwordController = TextEditingController(text: item?.password ?? '');
   final urlController = TextEditingController(text: item?.url ?? '');
   final notesController = TextEditingController(text: item?.notes ?? '');
-  String? androidSelectedCategoryId =
-      item == null || item.folder.isEmpty ? null : item.folder;
+  String? androidSelectedCategoryId = item == null || item.folder.isEmpty
+      ? null
+      : item.folder;
   var obscurePassword = true;
   var saving = false;
 
   final navigator = Navigator.of(context);
   final route = ModalBottomSheetRoute<void>(
-    capturedThemes:
-        InheritedTheme.capture(from: context, to: navigator.context),
+    capturedThemes: InheritedTheme.capture(
+      from: context,
+      to: navigator.context,
+    ),
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     modalBarrierColor: Theme.of(context).bottomSheetTheme.modalBarrierColor,
     isScrollControlled: true,
@@ -4478,10 +4456,7 @@ Future<void> _showAndroidItemEditor(
                     initialValue: androidSelectedCategoryId,
                     decoration: const InputDecoration(labelText: '分类'),
                     items: [
-                      const DropdownMenuItem(
-                        value: '',
-                        child: Text('无分类'),
-                      ),
+                      const DropdownMenuItem(value: '', child: Text('无分类')),
                       for (final category in controller.vaultData.categories)
                         DropdownMenuItem(
                           value: category.id,
@@ -4560,8 +4535,9 @@ Future<void> _showItemEditor(
   final passwordController = TextEditingController(text: item?.password ?? '');
   final urlController = TextEditingController(text: item?.url ?? '');
   final notesController = TextEditingController(text: item?.notes ?? '');
-  String? selectedCategoryId =
-      item == null || item.folder.isEmpty ? null : item.folder;
+  String? selectedCategoryId = item == null || item.folder.isEmpty
+      ? null
+      : item.folder;
   var saving = false;
   var obscurePassword = true;
 
@@ -4573,8 +4549,10 @@ Future<void> _showItemEditor(
         final dialogHeight = (viewportHeight - 64).clamp(320.0, 660.0);
         return Dialog(
           backgroundColor: Colors.transparent,
-          insetPadding:
-              const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 28,
+            vertical: 24,
+          ),
           child: _FrostedSurface(
             sigma: 20,
             borderRadius: BorderRadius.circular(16),
@@ -4585,12 +4563,12 @@ Future<void> _showItemEditor(
               height: dialogHeight,
               child: Theme(
                 data: Theme.of(context).copyWith(
-                  inputDecorationTheme: Theme.of(context)
-                      .inputDecorationTheme
+                  inputDecorationTheme: Theme.of(context).inputDecorationTheme
                       .copyWith(
                         filled: true,
-                        fillColor:
-                            Theme.of(context).colorScheme.surfaceContainerLow,
+                        fillColor: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerLow,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 18,
                           vertical: 16,
@@ -4621,8 +4599,8 @@ Future<void> _showItemEditor(
                     Text(
                       item == null ? '新增条目' : '编辑条目',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 14),
                     Expanded(
@@ -4631,20 +4609,25 @@ Future<void> _showItemEditor(
                         child: SingleChildScrollView(
                           primary: true,
                           padding: const EdgeInsets.only(
-                              top: 10, right: 14, bottom: 4),
+                            top: 10,
+                            right: 14,
+                            bottom: 4,
+                          ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               TextField(
                                 controller: titleController,
-                                decoration:
-                                    const InputDecoration(labelText: '名称'),
+                                decoration: const InputDecoration(
+                                  labelText: '名称',
+                                ),
                               ),
                               const SizedBox(height: 10),
                               TextField(
                                 controller: usernameController,
-                                decoration:
-                                    const InputDecoration(labelText: '账号'),
+                                decoration: const InputDecoration(
+                                  labelText: '账号',
+                                ),
                               ),
                               const SizedBox(height: 10),
                               TextField(
@@ -4678,15 +4661,17 @@ Future<void> _showItemEditor(
                               const SizedBox(height: 10),
                               TextField(
                                 controller: urlController,
-                                decoration:
-                                    const InputDecoration(labelText: '网址'),
+                                decoration: const InputDecoration(
+                                  labelText: '网址',
+                                ),
                               ),
                               const SizedBox(height: 10),
                               TextField(
                                 controller: notesController,
                                 maxLines: 5,
-                                decoration:
-                                    const InputDecoration(labelText: '备注'),
+                                decoration: const InputDecoration(
+                                  labelText: '备注',
+                                ),
                               ),
                               const SizedBox(height: 10),
                               DropdownButtonFormField<String>(
@@ -4710,8 +4695,8 @@ Future<void> _showItemEditor(
                                   setDialogState(() {
                                     selectedCategoryId =
                                         value == null || value.isEmpty
-                                            ? null
-                                            : value;
+                                        ? null
+                                        : value;
                                   });
                                 },
                               ),
@@ -4736,18 +4721,18 @@ Future<void> _showItemEditor(
                                   setDialogState(() {
                                     saving = true;
                                   });
-                                  final result =
-                                      await controller.addOrUpdateItem(
-                                    id: item?.id,
-                                    title: titleController.text,
-                                    username: usernameController.text,
-                                    password: passwordController.text,
-                                    url: urlController.text,
-                                    notes: notesController.text,
-                                    tags: item?.tags ?? const [],
-                                    totpSecret: item?.totpSecret,
-                                    categoryId: selectedCategoryId,
-                                  );
+                                  final result = await controller
+                                      .addOrUpdateItem(
+                                        id: item?.id,
+                                        title: titleController.text,
+                                        username: usernameController.text,
+                                        password: passwordController.text,
+                                        url: urlController.text,
+                                        notes: notesController.text,
+                                        tags: item?.tags ?? const [],
+                                        totpSecret: item?.totpSecret,
+                                        categoryId: selectedCategoryId,
+                                      );
                                   if (result.succeeded &&
                                       dialogContext.mounted) {
                                     Navigator.of(dialogContext).pop(true);
@@ -4803,18 +4788,22 @@ Future<void> _showAndroidItemDetails(
               Row(
                 children: [
                   Expanded(
-                    child: Text(item.title.trim().isEmpty ? '未命名' : item.title,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w700)),
+                    child: Text(
+                      item.title.trim().isEmpty ? '未命名' : item.title,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                   IconButton(
                     tooltip: '编辑条目',
                     onPressed: () {
                       Navigator.of(sheetContext).pop();
-                      _showItemEditor(context,
-                          controller: controller, item: item);
+                      _showItemEditor(
+                        context,
+                        controller: controller,
+                        item: item,
+                      );
                     },
                     icon: const Icon(Icons.edit_outlined),
                   ),
@@ -4837,7 +4826,8 @@ Future<void> _showAndroidItemDetails(
                     const SizedBox(width: 92, child: Text('密码:')),
                     Expanded(
                       child: SelectableText(
-                          showPassword ? item.password : '••••••••'),
+                        showPassword ? item.password : '••••••••',
+                      ),
                     ),
                     IconButton(
                       tooltip: showPassword ? '隐藏密码' : '显示密码',
@@ -4941,16 +4931,16 @@ Future<void> _confirmDeleteItem(
               Text(
                 '删除条目',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      color: const Color(0xFF241A1E),
-                    ),
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFF241A1E),
+                ),
               ),
               const SizedBox(height: 10),
               Text(
                 '确认删除“${item.title.trim().isEmpty ? '未命名条目' : item.title}”？',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: const Color(0xFF4A3B41),
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: const Color(0xFF4A3B41)),
               ),
               const SizedBox(height: 16),
               _GlassDialogActionBar(
@@ -5008,9 +4998,9 @@ Future<void> _showItemDetails(
                 Text(
                   item.title,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFF241A1E),
-                      ),
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xFF241A1E),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Flexible(
@@ -5079,11 +5069,7 @@ Future<void> _showItemDetails(
 }
 
 class _DetailRow extends StatelessWidget {
-  const _DetailRow({
-    required this.label,
-    required this.value,
-    this.onCopy,
-  });
+  const _DetailRow({required this.label, required this.value, this.onCopy});
 
   final String label;
   final String value;
@@ -5096,10 +5082,7 @@ class _DetailRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 92,
-            child: Text('$label:'),
-          ),
+          SizedBox(width: 92, child: Text('$label:')),
           Expanded(child: SelectableText(value)),
           if (onCopy != null)
             IconButton(
@@ -5140,17 +5123,11 @@ class _ImportSummaryView extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (final line in lines)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(line),
-          ),
+          Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(line)),
         if (changedDetails.isNotEmpty) ...[
           const Divider(),
           const SizedBox(height: 8),
-          Text(
-            '变更明细',
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
+          Text('变更明细', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
           SizedBox(
             height: 220,
@@ -5159,8 +5136,9 @@ class _ImportSummaryView extends StatelessWidget {
               separatorBuilder: (_, __) => const Divider(height: 12),
               itemBuilder: (context, index) {
                 final detail = changedDetails[index];
-                final title =
-                    detail.title.trim().isEmpty ? '（未命名）' : detail.title;
+                final title = detail.title.trim().isEmpty
+                    ? '（未命名）'
+                    : detail.title;
                 final subtitleParts = <String>[
                   'ID: ${detail.id}',
                   '导入更新时间: ${detail.incomingUpdatedAt.toIso8601String()}',
@@ -5395,8 +5373,8 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
       _status = plan == null
           ? widget.controller.message
           : (plan.summary.replacesLocalVault
-              ? '主密码验证成功，正在建立本地密码库…'
-              : '下载完成，请确认需要合并的变更。');
+                ? '主密码验证成功，正在建立本地密码库…'
+                : '下载完成，请确认需要合并的变更。');
     });
     if (plan?.summary.replacesLocalVault == true) {
       await _apply();
@@ -5464,8 +5442,8 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
                     child: Text(
                       _status ?? '正在发现局域网设备…',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: colors.onSurfaceVariant,
-                          ),
+                        color: colors.onSurfaceVariant,
+                      ),
                     ),
                   ),
                   if (_busy)
@@ -5491,8 +5469,10 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
                   if (host != null) ...[
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: Text('本机配对服务已开启',
-                          style: Theme.of(context).textTheme.titleSmall),
+                      child: Text(
+                        '本机配对服务已开启',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Align(
@@ -5501,9 +5481,11 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
                     ),
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: Text(host.addresses.isEmpty
-                          ? '端口：${host.port}'
-                          : '地址：${host.addresses.join('、')}  端口：${host.port}'),
+                      child: Text(
+                        host.addresses.isEmpty
+                            ? '端口：${host.port}'
+                            : '地址：${host.addresses.join('、')}  端口：${host.port}',
+                      ),
                     ),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
@@ -5529,10 +5511,12 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
                           initialValue: _selectedPeer,
                           decoration: const InputDecoration(labelText: '来源设备'),
                           items: _peers
-                              .map((peer) => DropdownMenuItem(
-                                    value: peer,
-                                    child: Text(peer.displayName),
-                                  ))
+                              .map(
+                                (peer) => DropdownMenuItem(
+                                  value: peer,
+                                  child: Text(peer.displayName),
+                                ),
+                              )
                               .toList(),
                           onChanged: _busy
                               ? null
@@ -5554,7 +5538,8 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
                         onPressed: _busy ? null : _download,
                         icon: const Icon(Icons.download_for_offline_rounded),
                         label: Text(
-                            widget.controller.hasVault ? '配对并预览' : '配对并进入密码本'),
+                          widget.controller.hasVault ? '配对并预览' : '配对并进入密码本',
+                        ),
                       ),
                       if (_plan != null) ...[
                         const SizedBox(height: 14),
@@ -5563,9 +5548,11 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
                         FilledButton.icon(
                           onPressed: _busy ? null : _apply,
                           icon: const Icon(Icons.merge_type_rounded),
-                          label: Text(_plan!.summary.replacesLocalVault
-                              ? '确认建立本地密码库'
-                              : '确认合并'),
+                          label: Text(
+                            _plan!.summary.replacesLocalVault
+                                ? '确认建立本地密码库'
+                                : '确认合并',
+                          ),
                         ),
                       ],
                     ],
@@ -5583,9 +5570,9 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
             child: Text(
               _status!,
               key: const ValueKey('lan-advanced-status'),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.onSurfaceVariant,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colors.onSurfaceVariant),
             ),
           ),
         TextButton(
@@ -5703,8 +5690,8 @@ class _LanSyncDialogState extends State<_LanSyncDialog> {
                       onChanged: _busy
                           ? null
                           : (peer) => setState(() {
-                                _selectedPeer = peer;
-                              }),
+                              _selectedPeer = peer;
+                            }),
                     ),
                   const SizedBox(height: 10),
                   TextField(
@@ -5784,10 +5771,7 @@ class _RecycleBinSheet extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '回收站',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
+                  Text('回收站', style: Theme.of(context).textTheme.headlineSmall),
                   const SizedBox(height: 8),
                   Text(
                     '恢复的条目会回到密码列表。永久删除无法撤销。',
@@ -5817,46 +5801,53 @@ class _RecycleBinSheet extends StatelessWidget {
                                       onPressed: controller.busy
                                           ? null
                                           : () =>
-                                              controller.restoreItem(item.id),
+                                                controller.restoreItem(item.id),
                                     ),
                                     IconButton(
                                       tooltip: '永久删除 ${item.title}',
                                       icon: const Icon(
-                                          Icons.delete_forever_rounded),
+                                        Icons.delete_forever_rounded,
+                                      ),
                                       onPressed: controller.busy
                                           ? null
                                           : () async {
-                                              final confirmed =
-                                                  await showDialog<bool>(
+                                              final confirmed = await showDialog<bool>(
                                                 context: context,
                                                 builder: (dialogContext) =>
                                                     AlertDialog(
-                                                  title: const Text('永久删除条目？'),
-                                                  content: Text(
-                                                    '“${item.title}”将被永久删除，且无法恢复。',
-                                                  ),
-                                                  actions: [
-                                                    TextButton(
-                                                      onPressed: () =>
-                                                          Navigator.of(
-                                                                  dialogContext)
-                                                              .pop(false),
-                                                      child: const Text('取消'),
+                                                      title: const Text(
+                                                        '永久删除条目？',
+                                                      ),
+                                                      content: Text(
+                                                        '“${item.title}”将被永久删除，且无法恢复。',
+                                                      ),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              Navigator.of(
+                                                                dialogContext,
+                                                              ).pop(false),
+                                                          child: const Text(
+                                                            '取消',
+                                                          ),
+                                                        ),
+                                                        FilledButton(
+                                                          onPressed: () =>
+                                                              Navigator.of(
+                                                                dialogContext,
+                                                              ).pop(true),
+                                                          child: const Text(
+                                                            '永久删除',
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
-                                                    FilledButton(
-                                                      onPressed: () =>
-                                                          Navigator.of(
-                                                                  dialogContext)
-                                                              .pop(true),
-                                                      child: const Text('永久删除'),
-                                                    ),
-                                                  ],
-                                                ),
                                               );
                                               if (confirmed == true) {
                                                 await controller
                                                     .deleteItemPermanently(
-                                                        item.id);
+                                                      item.id,
+                                                    );
                                               }
                                             },
                                     ),
@@ -5945,10 +5936,10 @@ class _AndroidCategoriesSheet extends StatelessWidget {
                         onPressed: controller.busy
                             ? null
                             : () => _showNameDialog(
-                                  context,
-                                  title: '新建分类',
-                                  onSubmit: controller.addCategory,
-                                ),
+                                context,
+                                title: '新建分类',
+                                onSubmit: controller.addCategory,
+                              ),
                         icon: const Icon(Icons.add_rounded, size: 18),
                         label: const Text('新建'),
                         style: FilledButton.styleFrom(
@@ -5978,14 +5969,15 @@ class _AndroidCategoriesSheet extends StatelessWidget {
                                 const SizedBox(height: 14),
                                 FilledButton.icon(
                                   key: const ValueKey(
-                                      'android-category-empty-add'),
+                                    'android-category-empty-add',
+                                  ),
                                   onPressed: controller.busy
                                       ? null
                                       : () => _showNameDialog(
-                                            context,
-                                            title: '新建分类',
-                                            onSubmit: controller.addCategory,
-                                          ),
+                                          context,
+                                          title: '新建分类',
+                                          onSubmit: controller.addCategory,
+                                        ),
                                   icon: const Icon(Icons.add_rounded),
                                   label: const Text('新建分类'),
                                 ),
@@ -5999,12 +5991,14 @@ class _AndroidCategoriesSheet extends StatelessWidget {
                             itemBuilder: (context, index) {
                               final category = categories[index];
                               return ListTile(
-                                key:
-                                    ValueKey('android-category-${category.id}'),
+                                key: ValueKey(
+                                  'android-category-${category.id}',
+                                ),
                                 leading: const Icon(Icons.folder_outlined),
                                 title: Text(category.name),
-                                subtitle:
-                                    Text('${counts[category.id] ?? 0} 条密码'),
+                                subtitle: Text(
+                                  '${counts[category.id] ?? 0} 条密码',
+                                ),
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -6014,7 +6008,8 @@ class _AndroidCategoriesSheet extends StatelessWidget {
                                         message: '拖动调整分类顺序',
                                         child: SizedBox(
                                           key: ValueKey(
-                                              'android-category-drag-${category.id}'),
+                                            'android-category-drag-${category.id}',
+                                          ),
                                           width: 48,
                                           height: 48,
                                           child: const Icon(Icons.drag_handle),
@@ -6027,53 +6022,60 @@ class _AndroidCategoriesSheet extends StatelessWidget {
                                       onPressed: controller.busy
                                           ? null
                                           : () => _showNameDialog(
-                                                context,
-                                                title: '重命名分类',
-                                                initialName: category.name,
-                                                onSubmit: (name) =>
-                                                    controller.renameCategory(
-                                                  categoryId: category.id,
-                                                  name: name,
-                                                ),
-                                              ),
+                                              context,
+                                              title: '重命名分类',
+                                              initialName: category.name,
+                                              onSubmit: (name) =>
+                                                  controller.renameCategory(
+                                                    categoryId: category.id,
+                                                    name: name,
+                                                  ),
+                                            ),
                                     ),
                                     IconButton(
                                       tooltip: '删除 ${category.name}',
                                       icon: const Icon(
-                                          Icons.delete_outline_rounded),
+                                        Icons.delete_outline_rounded,
+                                      ),
                                       onPressed: controller.busy
                                           ? null
                                           : () async {
-                                              final confirmed =
-                                                  await showDialog<bool>(
+                                              final confirmed = await showDialog<bool>(
                                                 context: context,
                                                 builder: (dialogContext) =>
                                                     AlertDialog(
-                                                  title: const Text('删除分类？'),
-                                                  content: Text(
-                                                    '“${category.name}”中的密码会移回未分类，密码不会删除。',
-                                                  ),
-                                                  actions: [
-                                                    TextButton(
-                                                      onPressed: () =>
-                                                          Navigator.of(
-                                                                  dialogContext)
-                                                              .pop(false),
-                                                      child: const Text('取消'),
+                                                      title: const Text(
+                                                        '删除分类？',
+                                                      ),
+                                                      content: Text(
+                                                        '“${category.name}”中的密码会移回未分类，密码不会删除。',
+                                                      ),
+                                                      actions: [
+                                                        TextButton(
+                                                          onPressed: () =>
+                                                              Navigator.of(
+                                                                dialogContext,
+                                                              ).pop(false),
+                                                          child: const Text(
+                                                            '取消',
+                                                          ),
+                                                        ),
+                                                        FilledButton(
+                                                          onPressed: () =>
+                                                              Navigator.of(
+                                                                dialogContext,
+                                                              ).pop(true),
+                                                          child: const Text(
+                                                            '删除分类',
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
-                                                    FilledButton(
-                                                      onPressed: () =>
-                                                          Navigator.of(
-                                                                  dialogContext)
-                                                              .pop(true),
-                                                      child: const Text('删除分类'),
-                                                    ),
-                                                  ],
-                                                ),
                                               );
                                               if (confirmed == true) {
                                                 await controller.deleteCategory(
-                                                    category.id);
+                                                  category.id,
+                                                );
                                               }
                                             },
                                     ),
@@ -6160,11 +6162,11 @@ Future<void> _showAndroidCategoryPicker(
                               ? const Icon(Icons.check_rounded)
                               : null,
                           onTap: () async {
-                            final result =
-                                await controller.assignItemToCategory(
-                              itemId: item.id,
-                              categoryId: category.id,
-                            );
+                            final result = await controller
+                                .assignItemToCategory(
+                                  itemId: item.id,
+                                  categoryId: category.id,
+                                );
                             if (!sheetContext.mounted) return;
                             if (result.succeeded) {
                               Navigator.of(sheetContext).pop();
@@ -6348,8 +6350,9 @@ class _AndroidImportSheetState extends State<_AndroidImportSheet> {
     setState(() {
       _loading = true;
     });
-    final plan =
-        await widget.controller.previewImport(_passwordController.text);
+    final plan = await widget.controller.previewImport(
+      _passwordController.text,
+    );
     if (!mounted) {
       return;
     }
@@ -6638,9 +6641,7 @@ class _AndroidExportSheetState extends State<_AndroidExportSheet> {
 }
 
 class _AndroidSettingsSheet extends StatefulWidget {
-  const _AndroidSettingsSheet({
-    required this.controller,
-  });
+  const _AndroidSettingsSheet({required this.controller});
 
   final VaultController controller;
 
@@ -6727,7 +6728,8 @@ class _AndroidSettingsSheetState extends State<_AndroidSettingsSheet> {
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 value: widget.controller.quickUnlockEnabled,
-                onChanged: !widget.controller.quickUnlockSupported ||
+                onChanged:
+                    !widget.controller.quickUnlockSupported ||
                         widget.controller.busy
                     ? null
                     : (enabled) async {
@@ -6747,7 +6749,8 @@ class _AndroidSettingsSheetState extends State<_AndroidSettingsSheet> {
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 value: widget.controller.allowQuickUnlockOnFirstLaunch,
-                onChanged: !widget.controller.quickUnlockSupported ||
+                onChanged:
+                    !widget.controller.quickUnlockSupported ||
                         !widget.controller.quickUnlockEnabled ||
                         widget.controller.busy
                     ? null
@@ -6760,8 +6763,8 @@ class _AndroidSettingsSheetState extends State<_AndroidSettingsSheet> {
                   !widget.controller.quickUnlockSupported
                       ? '当前设备不支持快速解锁。'
                       : !widget.controller.quickUnlockEnabled
-                          ? '请先开启使用系统认证。'
-                          : '启动应用后可直接使用系统认证，无需先输入一次主密码。',
+                      ? '请先开启使用系统认证。'
+                      : '启动应用后可直接使用系统认证，无需先输入一次主密码。',
                 ),
               ),
               const Divider(height: 32),
@@ -6803,10 +6806,7 @@ class _AndroidSettingsSheetState extends State<_AndroidSettingsSheet> {
 }
 
 class _TotpPanel extends StatefulWidget {
-  const _TotpPanel({
-    required this.secretOrUri,
-    required this.onCopy,
-  });
+  const _TotpPanel({required this.secretOrUri, required this.onCopy});
 
   final String secretOrUri;
   final Future<void> Function(String text) onCopy;
@@ -6856,7 +6856,8 @@ class _TotpPanelState extends State<_TotpPanel> {
         _result = result;
         _error = null;
         _secondsRemaining = result.secondsRemaining;
-        _counter = timestamp.millisecondsSinceEpoch ~/
+        _counter =
+            timestamp.millisecondsSinceEpoch ~/
             Duration.millisecondsPerSecond ~/
             result.periodSeconds;
       });
@@ -6994,9 +6995,7 @@ class _FrostedSurface extends StatelessWidget {
         padding: padding,
         decoration: BoxDecoration(
           borderRadius: borderRadius,
-          border: Border.all(
-            color: borderColor ?? const Color(0xFFD9DEE5),
-          ),
+          border: Border.all(color: borderColor ?? const Color(0xFFD9DEE5)),
         ),
         child: child,
       ),

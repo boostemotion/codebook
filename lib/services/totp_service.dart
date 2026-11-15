@@ -20,10 +20,7 @@ class TotpResult {
 class TotpService {
   const TotpService();
 
-  Future<TotpResult> generate(
-    String secretOrUri, {
-    DateTime? timestamp,
-  }) async {
+  Future<TotpResult> generate(String secretOrUri, {DateTime? timestamp}) async {
     final config = _parseConfig(secretOrUri);
     final moment = (timestamp ?? DateTime.now()).toUtc();
     final seconds = moment.millisecondsSinceEpoch ~/ 1000;
@@ -67,8 +64,8 @@ class TotpService {
       if (period < 15 || period > 120) {
         throw ArgumentError('TOTP 刷新周期必须在 15 到 120 秒之间。');
       }
-      final algorithmName =
-          (uri.queryParameters['algorithm'] ?? 'SHA1').toUpperCase();
+      final algorithmName = (uri.queryParameters['algorithm'] ?? 'SHA1')
+          .toUpperCase();
       return _TotpConfig(
         secretBytes: _decodeBase32(secret),
         digits: digits,
@@ -127,7 +124,8 @@ class TotpService {
 
   String _truncate(List<int> macBytes, int digits) {
     final offset = macBytes.last & 0x0F;
-    final binary = ((macBytes[offset] & 0x7F) << 24) |
+    final binary =
+        ((macBytes[offset] & 0x7F) << 24) |
         ((macBytes[offset + 1] & 0xFF) << 16) |
         ((macBytes[offset + 2] & 0xFF) << 8) |
         (macBytes[offset + 3] & 0xFF);

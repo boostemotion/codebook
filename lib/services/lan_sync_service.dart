@@ -86,17 +86,17 @@ class LanSyncHost {
     required this.addresses,
     required String vaultId,
     required int revision,
-  })  : _server = server,
-        _discoverySocket = discoverySocket,
-        _documentBytes = documentBytes,
-        _vaultId = vaultId,
-        _revision = revision,
-        _kdf = kdf,
-        _releaseNetworkLock = releaseNetworkLock,
-        _authorizationKey = authorizationKey == null
-            ? null
-            : Uint8List.fromList(authorizationKey),
-        _pairingStore = pairingStore;
+  }) : _server = server,
+       _discoverySocket = discoverySocket,
+       _documentBytes = documentBytes,
+       _vaultId = vaultId,
+       _revision = revision,
+       _kdf = kdf,
+       _releaseNetworkLock = releaseNetworkLock,
+       _authorizationKey = authorizationKey == null
+           ? null
+           : Uint8List.fromList(authorizationKey),
+       _pairingStore = pairingStore;
 
   final HttpServer _server;
   final RawDatagramSocket? _discoverySocket;
@@ -156,7 +156,8 @@ class LanSyncHost {
   }
 
   Future<void> handleRequest(HttpRequest request) async {
-    final uploading = request.uri.path == lanSyncUploadPath &&
+    final uploading =
+        request.uri.path == lanSyncUploadPath &&
         request.method == 'POST' &&
         onMerge != null;
     if (!uploading &&
@@ -190,8 +191,9 @@ class LanSyncHost {
     if (uploading) {
       try {
         final bytes = <int>[];
-        await for (final chunk
-            in request.timeout(const Duration(seconds: 15))) {
+        await for (final chunk in request.timeout(
+          const Duration(seconds: 15),
+        )) {
           if (bytes.length + chunk.length > lanSyncMaxDocumentBytes) {
             throw const FormatException('同步文件过大。');
           }
@@ -216,19 +218,18 @@ class LanSyncHost {
       try {
         final existingPeers = await _pairingStore.loadPeers();
         final existingPeer = existingPeers
-            .where(
-              (peer) => peer.deviceId == clientDeviceId,
-            )
+            .where((peer) => peer.deviceId == clientDeviceId)
             .firstOrNull;
         await _pairingStore.savePeer(
           LanPairingRecord(
             deviceId: clientDeviceId,
             deviceName:
                 request.headers.value('x-cipherbook-client-device-name') ??
-                    pendingLanPeerName,
+                pendingLanPeerName,
             address: request.connectionInfo?.remoteAddress.address ?? '',
             port: 0,
-            vaultId: request.headers.value('x-cipherbook-client-vault-id') ??
+            vaultId:
+                request.headers.value('x-cipherbook-client-vault-id') ??
                 vaultId,
             accessToken: clientAccessToken,
             // Receiving a request proves the peer is reachable, but does not
@@ -290,9 +291,9 @@ class LanSyncService {
     LanNetworkService? networkService,
     LanPairingStore? pairingStore,
     CryptoService? cryptoService,
-  })  : _networkService = networkService ?? LanNetworkService(),
-        _pairingStore = pairingStore ?? LanPairingStore(),
-        _cryptoService = cryptoService ?? CryptoService();
+  }) : _networkService = networkService ?? LanNetworkService(),
+       _pairingStore = pairingStore ?? LanPairingStore(),
+       _cryptoService = cryptoService ?? CryptoService();
 
   static const String _discoveryRequest = 'cipherbook-sync-discover-v1';
   static const String _discoveryOffer = 'cipherbook-sync-offer-v1';
@@ -344,8 +345,9 @@ class LanSyncService {
       server: server,
       discoverySocket: discoverySocket,
       documentBytes: Uint8List.fromList(documentBytes),
-      releaseNetworkLock:
-          networkLockAcquired ? _networkService.releaseMulticastLock : null,
+      releaseNetworkLock: networkLockAcquired
+          ? _networkService.releaseMulticastLock
+          : null,
       deviceId: identity.deviceId,
       accessToken: identity.accessToken,
       pairingStore: _pairingStore,
@@ -467,11 +469,7 @@ class LanSyncService {
       ...await _subnetBroadcastAddresses(),
     };
     for (final destination in destinations) {
-      socket.send(
-        request,
-        InternetAddress(destination),
-        lanSyncDiscoveryPort,
-      );
+      socket.send(request, InternetAddress(destination), lanSyncDiscoveryPort);
     }
     await Future<void>.delayed(timeout);
     await subscription.cancel();
@@ -484,11 +482,7 @@ class LanSyncService {
     required LanSyncPeer peer,
     required String pairingCode,
   }) async =>
-      (await downloadDetailed(
-        peer: peer,
-        pairingCode: pairingCode,
-      ))
-          .bytes;
+      (await downloadDetailed(peer: peer, pairingCode: pairingCode)).bytes;
 
   Future<LanSyncDownloadResult> downloadDetailed({
     required LanSyncPeer peer,
@@ -498,7 +492,8 @@ class LanSyncService {
   }) async {
     final normalizedCode = pairingCode?.trim().toUpperCase();
     final normalizedToken = accessToken?.trim();
-    final canUsePasswordProof = sharedPassword?.trim().isNotEmpty == true &&
+    final canUsePasswordProof =
+        sharedPassword?.trim().isNotEmpty == true &&
         peer.kdf != null &&
         peer.challenge?.isNotEmpty == true;
     if ((normalizedCode == null || normalizedCode.length < 6) &&
@@ -538,8 +533,9 @@ class LanSyncService {
           base64UrlEncode(mac.bytes),
         );
       }
-      final response =
-          await request.close().timeout(const Duration(seconds: 10));
+      final response = await request.close().timeout(
+        const Duration(seconds: 10),
+      );
       if (response.statusCode != HttpStatus.ok) {
         throw StateError(
           response.statusCode == HttpStatus.unauthorized
@@ -590,13 +586,16 @@ class LanSyncService {
         ..contentType = ContentType.binary
         ..contentLength = documentBytes.length;
       request.add(documentBytes);
-      final response =
-          await request.close().timeout(const Duration(seconds: 15));
+      final response = await request.close().timeout(
+        const Duration(seconds: 15),
+      );
       await response.drain<void>().timeout(const Duration(seconds: 10));
       if (response.statusCode != HttpStatus.noContent) {
-        throw StateError(response.statusCode == HttpStatus.notFound
-            ? '对端版本过旧，请更新后再同步。'
-            : '对端未能确认合并，请保持应用已解锁后重试。');
+        throw StateError(
+          response.statusCode == HttpStatus.notFound
+              ? '对端版本过旧，请更新后再同步。'
+              : '对端未能确认合并，请保持应用已解锁后重试。',
+        );
       }
     } finally {
       client.close(force: true);
@@ -604,13 +603,13 @@ class LanSyncService {
   }
 
   String _newPairingCode() => List.generate(
-        8,
-        (_) => _pairingAlphabet[_random.nextInt(_pairingAlphabet.length)],
-      ).join();
+    8,
+    (_) => _pairingAlphabet[_random.nextInt(_pairingAlphabet.length)],
+  ).join();
 
   String _newChallenge() => base64UrlEncode(
-        List<int>.generate(24, (_) => _random.nextInt(256)),
-      ).replaceAll('=', '');
+    List<int>.generate(24, (_) => _random.nextInt(256)),
+  ).replaceAll('=', '');
 
   Future<List<String>> _localAddresses() async {
     try {

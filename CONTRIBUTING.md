@@ -4,8 +4,8 @@
 
 ## 开始之前
 
-1. 阅读 [`docs/README.md`](docs/README.md)、[`docs/architecture.md`](docs/architecture.md)
-   和 [`docs/security.md`](docs/security.md)。
+1. 阅读 [`docs/README.md`](docs/README.md)、[`docs/architecture.md`](docs/architecture.md)、
+   [`docs/frontend.md`](docs/frontend.md) 和 [`docs/security.md`](docs/security.md)。
 2. 当前正式支持 Windows 和 Android。涉及 iOS 的提案先阅读 [`docs/ios.md`](docs/ios.md)，
    不得只凭共享 Dart 代码声称 iOS 可用。
 3. 安装 Flutter、Android SDK、JDK 17 和 Windows C++ Build Tools。iOS 原生编译还需要
@@ -17,11 +17,13 @@
 
 ## 修改原则
 
-- 业务和加密逻辑放在 `lib/services/` 与 `lib/state/`，Widget 不直接访问平台密钥、文件或网络。
+- 业务和加密逻辑放在 `lib/services/` 与 `lib/state/`；默认界面放在
+  `lib/presentation/`，Widget 不直接访问平台密钥、文件或网络。
+- `lib/ui/` 是旧 Material 回退界面，不再承接新功能；只有修复回退路径时才修改。
 - 条目、密码库文档、KDF、同步和 Bitwarden 交换格式的变更必须先补测试。
 - 新增平台桥接时，同时提供无平台环境的测试实现或明确的不可用分支。
 - 新增 iOS 能力时，必须同时更新 `docs/ios.md`、平台支持表和真实设备验收结果。
-- 不提交 `build/`、`dist/`、`*.jks`、`*.keystore`、`key.properties`、私钥或真实密码库。
+- 不提交 `build/`、`dist/`、`release/`、`*.jks`、`*.keystore`、`key.properties`、私钥或真实密码库。
 - 不在日志、测试快照、Issue 或截图中暴露主密码、DEK/KEK、TOTP 密钥和设备 token。
 - 涉及 UI 的改动应验证 Windows 和 Android 的窄窗口/小屏布局。
 - 文档中不得把测试签名、debug 签名或未经验证的第三方安装方式描述为正式发布。
@@ -32,6 +34,12 @@
 dart format lib test
 flutter analyze --no-pub lib test
 flutter test --no-pub
+```
+
+更新视觉基线前先确认界面改动符合要求：
+
+```powershell
+flutter test --no-pub --update-goldens test\frontend_visual_refresh_screenshot_test.dart
 ```
 
 安全相关改动还应说明：
@@ -59,6 +67,9 @@ Pull Request 建议包含：
 - 执行过的精确测试命令；
 - UI 改动的截图或录屏（不要包含真实凭据）；
 - 关联 Issue（如有）。
+
+修改 `packages/prism_shell/` 或 `plugins/prism_ui/` 时，不要移除上游
+`LICENSE`、`NOTICE` 或 [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) 中的归属说明。
 
 ## 安全问题
 

@@ -2,7 +2,7 @@
 
 ## 当前结论
 
-截至 `1.4.0+6`，Cipherbook **不支持 iOS 或 iPadOS**：
+截至 `1.5.4+27`，Cipherbook **不支持 iOS 或 iPadOS**：
 
 - 仓库没有 `ios/` 宿主工程；
 - 没有 Xcode、Bundle ID、Provisioning Profile 或 App Store 配置；

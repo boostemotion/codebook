@@ -13,55 +13,57 @@ import 'package:cipherbook/services/vault_repository.dart';
 import 'package:cipherbook/state/vault_controller.dart';
 
 void main() {
-  test('export with dedicated password can be imported as a new local vault',
-      () async {
-    final sourceRepo = _MemoryVaultRepository();
-    final sourceImportExport = _MemoryImportExportService();
-    final source = VaultController(
-      repository: sourceRepo,
-      cryptoService: CryptoService(),
-      importExportService: sourceImportExport,
-      deviceKeyStore: _MemoryDeviceKeyStore(),
-      passwordGeneratorService: PasswordGeneratorService(random: Random(1)),
-      clipboardService: _MemoryClipboardService(),
-    );
-    await source.bootstrap();
-    await source.createVault('local-pass');
-    await source.addOrUpdateItem(
-      title: 'Mail',
-      username: 'alice',
-      password: 'secret',
-      url: 'https://example.com',
-      notes: 'primary',
-      tags: const ['mail'],
-    );
+  test(
+    'export with dedicated password can be imported as a new local vault',
+    () async {
+      final sourceRepo = _MemoryVaultRepository();
+      final sourceImportExport = _MemoryImportExportService();
+      final source = VaultController(
+        repository: sourceRepo,
+        cryptoService: CryptoService(),
+        importExportService: sourceImportExport,
+        deviceKeyStore: _MemoryDeviceKeyStore(),
+        passwordGeneratorService: PasswordGeneratorService(random: Random(1)),
+        clipboardService: _MemoryClipboardService(),
+      );
+      await source.bootstrap();
+      await source.createVault('local-pass');
+      await source.addOrUpdateItem(
+        title: 'Mail',
+        username: 'alice',
+        password: 'secret',
+        url: 'https://example.com',
+        notes: 'primary',
+        tags: const ['mail'],
+      );
 
-    await source.exportVault(exportPassword: 'export-pass');
-    final exportedBytes = sourceImportExport.writtenBytes;
-    expect(exportedBytes, isNotNull);
+      await source.exportVault(exportPassword: 'export-pass');
+      final exportedBytes = sourceImportExport.writtenBytes;
+      expect(exportedBytes, isNotNull);
 
-    final destinationRepo = _MemoryVaultRepository();
-    final destinationImportExport = _MemoryImportExportService()
-      ..nextImportBytes = exportedBytes;
-    final destination = VaultController(
-      repository: destinationRepo,
-      cryptoService: CryptoService(),
-      importExportService: destinationImportExport,
-      deviceKeyStore: _MemoryDeviceKeyStore(),
-      passwordGeneratorService: PasswordGeneratorService(random: Random(2)),
-      clipboardService: _MemoryClipboardService(),
-    );
-    await destination.bootstrap();
+      final destinationRepo = _MemoryVaultRepository();
+      final destinationImportExport = _MemoryImportExportService()
+        ..nextImportBytes = exportedBytes;
+      final destination = VaultController(
+        repository: destinationRepo,
+        cryptoService: CryptoService(),
+        importExportService: destinationImportExport,
+        deviceKeyStore: _MemoryDeviceKeyStore(),
+        passwordGeneratorService: PasswordGeneratorService(random: Random(2)),
+        clipboardService: _MemoryClipboardService(),
+      );
+      await destination.bootstrap();
 
-    final plan = await destination.previewImport('export-pass');
-    expect(plan, isNotNull);
-    await destination.applyImportPlan(plan!);
+      final plan = await destination.previewImport('export-pass');
+      expect(plan, isNotNull);
+      await destination.applyImportPlan(plan!);
 
-    expect(destination.hasVault, isTrue);
-    expect(destination.isUnlocked, isTrue);
-    expect(destination.vaultData.activeItems.single.title, 'Mail');
-    expect(destinationRepo.document, isNotNull);
-  });
+      expect(destination.hasVault, isTrue);
+      expect(destination.isUnlocked, isTrue);
+      expect(destination.vaultData.activeItems.single.title, 'Mail');
+      expect(destinationRepo.document, isNotNull);
+    },
+  );
 
   test('import preview rejects wrong import password', () async {
     final exportService = _MemoryImportExportService();
@@ -109,7 +111,8 @@ void main() {
     await source.exportVault(exportPassword: 'export-pass');
 
     final original = EncryptedVaultDocument.decode(
-        Uint8List.fromList(exportService.writtenBytes!));
+      Uint8List.fromList(exportService.writtenBytes!),
+    );
     final tamperedCipherText = Uint8List.fromList(original.payload.cipherText);
     tamperedCipherText[0] = tamperedCipherText[0] ^ 0x01;
     final tampered = EncryptedVaultDocument(

@@ -87,10 +87,7 @@ void main() {
   });
 
   test('rejects KDF settings outside conservative Argon2 bounds', () {
-    for (final memoryKiB in [
-      minVaultKdfMemoryKiB - 1,
-      256 * 1024,
-    ]) {
+    for (final memoryKiB in [minVaultKdfMemoryKiB - 1, 256 * 1024]) {
       expect(
         () => KdfConfig.fromJson({
           'algorithm': vaultKdfAlgorithmArgon2id,
@@ -201,47 +198,49 @@ void main() {
     expect(kekSession.vaultData.activeItems.single.title, 'Bank');
   });
 
-  test('can re-encrypt the same data under a dedicated export password',
-      () async {
-    final cryptoService = CryptoService();
-    final original = await cryptoService.createVault(
-      password: 'master-pass',
-      vaultData: VaultData(
-        items: [
-          VaultItem(
-            id: '3',
-            title: 'Docs',
-            username: 'writer',
-            password: 'draft-pass',
-            url: '',
-            notes: '',
-            tags: const [],
-            createdAt: DateTime(2026, 1, 1),
-            updatedAt: DateTime(2026, 1, 1),
-          ),
-        ],
-        updatedAt: DateTime(2026, 1, 1),
-      ),
-    );
-    final session = await cryptoService.openVault(
-      document: original,
-      password: 'master-pass',
-    );
-    final exported = await cryptoService.saveVault(
-      vaultData: session.vaultData,
-      password: 'export-pass',
-      dataEncryptionKey: session.dataEncryptionKey,
-    );
+  test(
+    'can re-encrypt the same data under a dedicated export password',
+    () async {
+      final cryptoService = CryptoService();
+      final original = await cryptoService.createVault(
+        password: 'master-pass',
+        vaultData: VaultData(
+          items: [
+            VaultItem(
+              id: '3',
+              title: 'Docs',
+              username: 'writer',
+              password: 'draft-pass',
+              url: '',
+              notes: '',
+              tags: const [],
+              createdAt: DateTime(2026, 1, 1),
+              updatedAt: DateTime(2026, 1, 1),
+            ),
+          ],
+          updatedAt: DateTime(2026, 1, 1),
+        ),
+      );
+      final session = await cryptoService.openVault(
+        document: original,
+        password: 'master-pass',
+      );
+      final exported = await cryptoService.saveVault(
+        vaultData: session.vaultData,
+        password: 'export-pass',
+        dataEncryptionKey: session.dataEncryptionKey,
+      );
 
-    final exportSession = await cryptoService.openVault(
-      document: exported,
-      password: 'export-pass',
-    );
+      final exportSession = await cryptoService.openVault(
+        document: exported,
+        password: 'export-pass',
+      );
 
-    expect(exportSession.vaultData.activeItems.single.title, 'Docs');
-    await expectLater(
-      cryptoService.openVault(document: exported, password: 'master-pass'),
-      throwsA(isA<VaultUnlockException>()),
-    );
-  });
+      expect(exportSession.vaultData.activeItems.single.title, 'Docs');
+      await expectLater(
+        cryptoService.openVault(document: exported, password: 'master-pass'),
+        throwsA(isA<VaultUnlockException>()),
+      );
+    },
+  );
 }

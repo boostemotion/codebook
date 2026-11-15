@@ -175,7 +175,7 @@ bool VerifyWithWindowsHello(HWND window) {
             winrt::guid_of<decltype(operation)>(), winrt::put_abi(operation)));
         return operation.get() == UserConsentVerificationResult::Verified;
       },
-      std::chrono::seconds(15), false);
+      std::chrono::minutes(2), false);
 }
 
 void HandleMethodCall(

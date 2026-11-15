@@ -6,13 +6,18 @@ This is a Flutter app (`cipherbook`) targeting Android and Windows. It stores se
 - `lib/models/`: data models
 - `lib/services/`: crypto, storage, Bitwarden interchange, quick unlock, LAN sync, and utility services
 - `lib/state/`: session/controller logic and import plans
-- `lib/ui/`: screens and UI widgets
+- `lib/presentation/`: default Prism frontend, pages, theme, and Riverpod bridge
+- `lib/ui/`: legacy Material fallback, used only with `CIPHERBOOK_FRONTEND_V2=false`
+- `packages/prism_shell/`: reusable responsive shell and navigation
+- `plugins/prism_ui/`: bundled Prism component and motion library
 - `test/`: unit and flow tests (`*_test.dart`)
 - `android/`, `windows/`: platform host code
-- `docs/`: architecture, development, security, and release documentation
-- `tools/`: helper scripts (for example Android license setup)
+- `docs/`: architecture, frontend, design, security, development, and release documentation
+- `packaging/`: Windows installer scripts
+- `tool/`: debug and asset helper scripts
 
-Keep business logic in `lib/services/` and UI code in `lib/ui/` to avoid cross-layer coupling.
+Keep business logic in `lib/services/` and default UI code in `lib/presentation/`. Do not add new
+features to the legacy `lib/ui/` fallback unless the task explicitly targets that fallback.
 
 ## Build, Test, and Development Commands
 Run from repository root:
@@ -23,6 +28,7 @@ Run from repository root:
 - `flutter run -d windows` or `flutter run -d android`: local development run
 - `flutter build apk --release`: build Android release APK
 - `flutter build windows --release`: build Windows release binary
+- `flutter test --no-pub --update-goldens test/<name>_screenshot_test.dart`: update intentional visual baselines
 
 Windows builds require the Visual Studio C++ Build Tools environment. If your machine has path/encoding issues, prefer ASCII-only build paths for release builds. Exact commands are documented in `docs/development.md`.
 
@@ -33,6 +39,7 @@ Windows builds require the Visual Studio C++ Build Tools environment. If your ma
 - Classes/enums: `PascalCase`.
 - Methods/variables/parameters: `lowerCamelCase`.
 - Keep widgets small and composable; move non-UI logic to services/controllers.
+- Use `lib/presentation/theme/cipherbook_visual_tokens.dart` instead of duplicating colors or spacing.
 
 ## Testing Guidelines
 - Framework: `flutter_test`.
@@ -47,10 +54,14 @@ No explicit coverage gate is configured; treat meaningful regression coverage as
 
 ## Documentation Guidelines
 
-- Keep `README.md`, `CHANGELOG.md`, `docs/architecture.md`, `docs/security.md`, and `docs/release.md` aligned with actual behavior.
+- Keep `README.md`, `CHANGELOG.md`, `docs/architecture.md`, `docs/frontend.md`,
+  `docs/security.md`, and `docs/release.md` aligned with actual behavior.
 - `pubspec.yaml` is the only source of the application version and build number.
 - Document unsupported boundaries explicitly; do not claim Bitwarden parity, independent security audit, production signing, or iOS support.
 - Keep platform-specific build and ADB commands in `docs/development.md` rather than duplicating them across many files.
+- Keep only current design guidance in `docs/design/`; do not commit builder tasks, review rounds, or transient QA reports.
+- Preserve `packages/prism_shell/LICENSE`, `plugins/prism_ui/LICENSE`, `plugins/prism_ui/NOTICE`, and
+  `THIRD_PARTY_NOTICES.md` when updating vendored frontend code.
 
 ## Commit & Pull Request Guidelines
 Recent history shows short, action-focused commit subjects (Chinese and English are both used). Follow this style:
@@ -65,6 +76,9 @@ PRs should include:
 - Verification notes with exact commands run
 
 ## Security & Configuration Tips
-This project handles sensitive vault data. Do not log secrets, keys, plaintext passwords, TOTP seeds, Bitwarden plaintext exports, or LAN device tokens. Do not commit `build/`, `dist/`, signing keys, real vaults, or plaintext exchange files. Validate crypto/storage changes with focused tests before merging.
+This project handles sensitive vault data. Do not log secrets, keys, plaintext passwords, TOTP seeds, Bitwarden plaintext exports, or LAN device tokens. Do not commit `build/`, `dist/`, `release/`, signing keys, real vaults, or plaintext exchange files. Validate crypto/storage changes with focused tests before merging.
+
+The bundled Prism frontend is GPL-3.0. Do not describe the repository as having a unified license
+until a project-level licensing decision has been made and recorded.
 
 See `docs/security.md` for the threat model and `SECURITY.md` for private vulnerability reporting.

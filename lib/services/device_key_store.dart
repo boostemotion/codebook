@@ -13,8 +13,9 @@ abstract class DeviceKeyStore {
 }
 
 class MethodChannelDeviceKeyStore implements DeviceKeyStore {
-  static const MethodChannel _channel =
-      MethodChannel('dev.codex.cipherbook/device_key_store');
+  static const MethodChannel _channel = MethodChannel(
+    'dev.codex.cipherbook/device_key_store',
+  );
 
   @override
   Future<void> clear() async {
@@ -56,10 +57,7 @@ class MethodChannelDeviceKeyStore implements DeviceKeyStore {
   @override
   Future<void> storeWrappedDek(Uint8List wrappedDekBytes) async {
     try {
-      await _channel.invokeMethod<void>(
-        'storeWrappedDek',
-        wrappedDekBytes,
-      );
+      await _channel.invokeMethod<void>('storeWrappedDek', wrappedDekBytes);
     } on MissingPluginException {
       return;
     }

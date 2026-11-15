@@ -2,7 +2,7 @@ import 'dart:math';
 
 class PasswordGeneratorService {
   PasswordGeneratorService({Random? random})
-      : _random = random ?? Random.secure();
+    : _random = random ?? Random.secure();
 
   static const String _lower = 'abcdefghijkmnopqrstuvwxyz';
   static const String _upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';

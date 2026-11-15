@@ -14,19 +14,15 @@ void main() {
     expect(password.contains(RegExp(r'[A-Z]')), isTrue);
     expect(password.contains(RegExp(r'[2-9]')), isTrue);
     expect(
-        password.contains(RegExp(r'[!@#\$%\^&*\(\)\-_=+\[\]\{\}\?]')), isTrue);
+      password.contains(RegExp(r'[!@#\$%\^&*\(\)\-_=+\[\]\{\}\?]')),
+      isTrue,
+    );
   });
 
   test('rejects generated passwords outside the supported length range', () {
     final generator = PasswordGeneratorService(random: Random(1));
 
-    expect(
-      () => generator.generate(length: 6),
-      throwsArgumentError,
-    );
-    expect(
-      () => generator.generate(length: 129),
-      throwsArgumentError,
-    );
+    expect(() => generator.generate(length: 6), throwsArgumentError);
+    expect(() => generator.generate(length: 129), throwsArgumentError);
   });
 }

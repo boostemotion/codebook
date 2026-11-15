@@ -45,8 +45,9 @@ void main() {
   test('encrypted vault document rejects invalid nonce length', () async {
     final document = await CryptoService().createVault(password: 'master-pass');
     final map = document.toJson();
-    (map['payload'] as Map<String, dynamic>)['nonce'] =
-        base64Encode(Uint8List(12));
+    (map['payload'] as Map<String, dynamic>)['nonce'] = base64Encode(
+      Uint8List(12),
+    );
 
     expect(
       () => EncryptedVaultDocument.decode(_encodeJson(map)),
@@ -67,10 +68,10 @@ void main() {
       createdAt: createdAt,
       updatedAt: createdAt,
     );
-    final deleted = VaultData(items: [item], updatedAt: createdAt).markDeleted(
-      item.id,
-      createdAt.add(const Duration(minutes: 1)),
-    );
+    final deleted = VaultData(
+      items: [item],
+      updatedAt: createdAt,
+    ).markDeleted(item.id, createdAt.add(const Duration(minutes: 1)));
 
     expect(deleted.activeItems, isEmpty);
     expect(deleted.deletedItems.single.id, item.id);

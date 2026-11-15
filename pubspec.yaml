@@ -2,20 +2,26 @@ name: cipherbook
 description: Local-first encrypted password vault for Android and Windows.
 # App version (major.minor.patch) + monotonically increasing build number.
 # Android and Windows both inherit this value. See README.md for release rules.
-version: 1.4.0+6
+version: 1.5.4+27
 publish_to: none
 
 environment:
-  sdk: ">=3.3.0 <4.0.0"
+  sdk: ">=3.10.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  flutter_riverpod: ^3.4.3
   cryptography: ^2.9.0
   file_selector: ^1.0.3
   path_provider: ^2.1.5
+  prism_shell:
+    path: packages/prism_shell
+  prism_ui:
+    path: plugins/prism_ui
+  url_launcher: ^6.3.2
   uuid: ^4.5.1
 
 dev_dependencies:

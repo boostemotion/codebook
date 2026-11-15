@@ -17,10 +17,10 @@ class VaultRepository {
     Future<Directory> Function()? directoryProvider,
     this.maxFileBytes = defaultMaxVaultFileBytes,
     Future<File> Function(File file, String newPath)? renameFile,
-  })  : assert(maxFileBytes > 0),
-        _directory = directory,
-        _directoryProvider = directoryProvider,
-        _renameFile = renameFile;
+  }) : assert(maxFileBytes > 0),
+       _directory = directory,
+       _directoryProvider = directoryProvider,
+       _renameFile = renameFile;
 
   final Directory? _directory;
   final Future<Directory> Function()? _directoryProvider;
@@ -58,8 +58,10 @@ class VaultRepository {
         final newerTemporary = _selectNewestCandidate(
           temporary.where((candidate) => candidate.isNewerRevisionOf(primary)),
         );
-        final migrationTemporary =
-            _selectLegacyMigrationTemporary(primary, temporary);
+        final migrationTemporary = _selectLegacyMigrationTemporary(
+          primary,
+          temporary,
+        );
         final recovery = newerTemporary ?? migrationTemporary;
         if (recovery != null) {
           return recovery.toLoadResult(VaultStorageState.recoveryAvailable);
@@ -201,7 +203,8 @@ class VaultRepository {
   }
 
   Future<File> _vaultFile() async {
-    final directory = _directory ??
+    final directory =
+        _directory ??
         await (_directoryProvider?.call() ?? getApplicationSupportDirectory());
     return File('${directory.path}${Platform.pathSeparator}vault.pwv');
   }
@@ -262,16 +265,18 @@ class VaultRepository {
           backup;
     }
 
-    final validTemporary =
-        temporary.where((candidate) => candidate.document != null).toList();
+    final validTemporary = temporary
+        .where((candidate) => candidate.document != null)
+        .toList();
     final vaultIds = validTemporary
         .map((candidate) => candidate.document!.metadata?.vaultId)
         .whereType<String>()
         .toSet();
     if (vaultIds.length > 1 ||
         (vaultIds.isNotEmpty &&
-            validTemporary
-                .any((candidate) => candidate.document!.metadata == null))) {
+            validTemporary.any(
+              (candidate) => candidate.document!.metadata == null,
+            ))) {
       return null;
     }
     return _selectNewestCandidate(validTemporary);
@@ -308,8 +313,9 @@ class VaultRepository {
             final firstMetadata = first.document!.metadata;
             final secondMetadata = second.document!.metadata;
             if (firstMetadata != null && secondMetadata != null) {
-              final revisionOrder =
-                  secondMetadata.revision.compareTo(firstMetadata.revision);
+              final revisionOrder = secondMetadata.revision.compareTo(
+                firstMetadata.revision,
+              );
               if (revisionOrder != 0) {
                 return revisionOrder;
               }
@@ -330,11 +336,12 @@ class VaultRepository {
       return const [];
     }
     final entities = await target.parent.list().toList();
-    final files = entities
-        .whereType<File>()
-        .where((file) => file.uri.pathSegments.last.startsWith(prefix))
-        .toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
+    final files =
+        entities
+            .whereType<File>()
+            .where((file) => file.uri.pathSegments.last.startsWith(prefix))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
     return files;
   }
 
@@ -385,9 +392,9 @@ class VaultRepository {
       '${DateTime.now().microsecondsSinceEpoch}.${_temporaryFileSequence++}';
 
   VaultLoadResult _permissionDeniedResult(String? error) => VaultLoadResult(
-        state: VaultStorageState.permissionDenied,
-        error: error ?? 'Vault storage permission was denied.',
-      );
+    state: VaultStorageState.permissionDenied,
+    error: error ?? 'Vault storage permission was denied.',
+  );
 }
 
 class _VaultCandidate {
@@ -410,13 +417,12 @@ class _VaultCandidate {
     EncryptedVaultDocument document,
     Uint8List rawBytes,
     DateTime modifiedAt,
-  ) =>
-      _VaultCandidate._(
-        source: source,
-        document: document,
-        rawBytes: rawBytes,
-        modifiedAt: modifiedAt,
-      );
+  ) => _VaultCandidate._(
+    source: source,
+    document: document,
+    rawBytes: rawBytes,
+    modifiedAt: modifiedAt,
+  );
 
   factory _VaultCandidate.invalid(VaultRecoverySource source, String error) =>
       _VaultCandidate._(source: source, error: error);
@@ -424,8 +430,7 @@ class _VaultCandidate {
   factory _VaultCandidate.permissionDenied(
     VaultRecoverySource source,
     String error,
-  ) =>
-      _VaultCandidate._(source: source, error: error, permissionDenied: true);
+  ) => _VaultCandidate._(source: source, error: error, permissionDenied: true);
 
   factory _VaultCandidate.unsupportedVersion(
     VaultRecoverySource source,
@@ -459,12 +464,12 @@ class _VaultCandidate {
   }
 
   VaultLoadResult toLoadResult(VaultStorageState state) => VaultLoadResult(
-        state: state,
-        document: document,
-        rawBytes: rawBytes,
-        recoverySource: source,
-        error: error,
-      );
+    state: state,
+    document: document,
+    rawBytes: rawBytes,
+    recoverySource: source,
+    error: error,
+  );
 }
 
 extension<T> on Iterable<T> {

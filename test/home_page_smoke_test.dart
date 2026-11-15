@@ -30,8 +30,9 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('Android unlocked view uses Material list, FAB, and overflow',
-      (tester) async {
+  testWidgets('Android unlocked view uses Material list, FAB, and overflow', (
+    tester,
+  ) async {
     final controller = _buildController();
     await controller.bootstrap();
     await controller.createVault('master-pass');
@@ -49,7 +50,9 @@ void main() {
     expect(find.byKey(const ValueKey('android-vault-list')), findsOneWidget);
     expect(find.byKey(const ValueKey('android-vault-fab')), findsOneWidget);
     expect(
-        find.byKey(const ValueKey('android-vault-overflow')), findsOneWidget);
+      find.byKey(const ValueKey('android-vault-overflow')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('liquid-dock')), findsNothing);
 
     controller.dispose();
@@ -118,8 +121,9 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('Android category filter can return and always offers creation',
-      (tester) async {
+  testWidgets('Android category filter can return and always offers creation', (
+    tester,
+  ) async {
     final controller = _buildController();
     await controller.bootstrap();
     await controller.createVault('master-pass');
@@ -140,8 +144,9 @@ void main() {
       notes: '',
       tags: const [],
     );
-    final alpha = controller.vaultData.activeItems
-        .singleWhere((item) => item.title == 'Alpha');
+    final alpha = controller.vaultData.activeItems.singleWhere(
+      (item) => item.title == 'Alpha',
+    );
     final category = controller.vaultData.categories.single;
     await controller.assignItemToCategory(
       itemId: alpha.id,
@@ -157,10 +162,7 @@ void main() {
 
     expect(find.text('Alpha'), findsOneWidget);
     expect(find.text('Beta'), findsNothing);
-    expect(
-      find.byKey(const ValueKey('android-category-back')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('android-category-back')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('android-category-bar-add')),
       findsOneWidget,
@@ -183,9 +185,7 @@ void main() {
     expect(find.text('Beta'), findsOneWidget);
     expect(find.byKey(const ValueKey('android-category-back')), findsNothing);
 
-    await tester.tap(
-      find.byKey(const ValueKey('android-category-bar-add')),
-    );
+    await tester.tap(find.byKey(const ValueKey('android-category-bar-add')));
     await tester.pumpAndSettle();
 
     expect(find.text('分类管理'), findsOneWidget);
@@ -193,10 +193,7 @@ void main() {
       find.byKey(const ValueKey('android-category-close')),
       findsOneWidget,
     );
-    expect(
-      find.byKey(const ValueKey('android-category-add')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('android-category-add')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('android-category-close')));
     await tester.pumpAndSettle();
     expect(find.text('分类管理'), findsNothing);
@@ -246,8 +243,9 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('Android reorders categories with the drag handle',
-      (tester) async {
+  testWidgets('Android reorders categories with the drag handle', (
+    tester,
+  ) async {
     final controller = _buildController();
     await controller.bootstrap();
     await controller.createVault('master-pass');
@@ -290,18 +288,19 @@ void main() {
     await dragFirstCategoryDown();
     await tester.pumpAndSettle();
 
-    expect(
-      controller.vaultData.categories.map((category) => category.name),
-      ['第二', '第一'],
-    );
+    expect(controller.vaultData.categories.map((category) => category.name), [
+      '第二',
+      '第一',
+    ]);
 
     controller.dispose();
   });
 
   testWidgets('busy overlay is visible while creating vault', (tester) async {
     final controller = _buildController(
-      cryptoService:
-          _SlowCryptoService(delay: const Duration(milliseconds: 200)),
+      cryptoService: _SlowCryptoService(
+        delay: const Duration(milliseconds: 200),
+      ),
     );
     await controller.bootstrap();
     await tester.pumpWidget(_buildApp(controller));
@@ -347,56 +346,66 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('Android search replaces the app bar and Windows keeps its dock',
-      (tester) async {
-    final controller = _buildController();
-    await controller.bootstrap();
-    await controller.createVault('master-pass');
-    await controller.addOrUpdateItem(
-      title: 'Alpha',
-      username: 'alice',
-      password: 'pw',
-      url: '',
-      notes: '',
-      tags: const [],
-    );
+  testWidgets(
+    'Android search replaces the app bar and Windows keeps its dock',
+    (tester) async {
+      final controller = _buildController();
+      await controller.bootstrap();
+      await controller.createVault('master-pass');
+      await controller.addOrUpdateItem(
+        title: 'Alpha',
+        username: 'alice',
+        password: 'pw',
+        url: '',
+        notes: '',
+        tags: const [],
+      );
 
-    await tester.pumpWidget(_buildApp(controller));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('搜索'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('android-search-field')), findsOneWidget);
-    expect(find.byKey(const ValueKey('liquid-dock')), findsNothing);
+      await tester.pumpWidget(_buildApp(controller));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('搜索'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('android-search-field')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('liquid-dock')), findsNothing);
 
-    await tester.pumpWidget(
-      _buildApp(controller, platform: TargetPlatform.windows),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('liquid-dock')), findsOneWidget);
+      await tester.pumpWidget(
+        _buildApp(controller, platform: TargetPlatform.windows),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('liquid-dock')), findsOneWidget);
 
-    controller.dispose();
-  });
+      controller.dispose();
+    },
+  );
 
   testWidgets(
-      'Windows unlocked view uses desktop dock instead of Android actions',
-      (tester) async {
-    final controller = _buildController();
-    await controller.bootstrap();
-    await controller.createVault('master-pass');
-    await tester.pumpWidget(
-      _buildApp(controller, platform: TargetPlatform.windows),
-    );
-    await tester.pumpAndSettle();
+    'Windows unlocked view uses desktop dock instead of Android actions',
+    (tester) async {
+      final controller = _buildController();
+      await controller.bootstrap();
+      await controller.createVault('master-pass');
+      await tester.pumpWidget(
+        _buildApp(controller, platform: TargetPlatform.windows),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const ValueKey('liquid-dock')), findsOneWidget);
-    expect(find.byKey(const ValueKey('android-vault-fab')), findsNothing);
-    expect(find.byKey(const ValueKey('android-vault-overflow')), findsNothing);
+      expect(find.byKey(const ValueKey('liquid-dock')), findsOneWidget);
+      expect(find.byKey(const ValueKey('android-vault-fab')), findsNothing);
+      expect(
+        find.byKey(const ValueKey('android-vault-overflow')),
+        findsNothing,
+      );
 
-    controller.dispose();
-  });
+      controller.dispose();
+    },
+  );
 
-  testWidgets('Windows category sidebar creates filters and moves items',
-      (tester) async {
+  testWidgets('Windows category sidebar creates filters and moves items', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller = _buildController();
@@ -438,12 +447,18 @@ void main() {
       categoryId: controller.vaultData.categories.single.id,
     );
     await tester.pumpAndSettle();
-    expect(controller.vaultData.activeItems.single.folder,
-        controller.vaultData.categories.single.id);
+    expect(
+      controller.vaultData.activeItems.single.folder,
+      controller.vaultData.categories.single.id,
+    );
 
-    await tester.tap(find.byKey(ValueKey(
-      'desktop-category-${controller.vaultData.categories.single.id}',
-    )));
+    await tester.tap(
+      find.byKey(
+        ValueKey(
+          'desktop-category-${controller.vaultData.categories.single.id}',
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Alpha'), findsOneWidget);
 
@@ -474,8 +489,9 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('Windows compact sidebar keeps navigation usable',
-      (tester) async {
+  testWidgets('Windows compact sidebar keeps navigation usable', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(600, 640));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller = _buildController();
@@ -486,12 +502,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(tester.getSize(find.byKey(const ValueKey('liquid-dock'))).width,
-        lessThan(80));
-    await tester.tap(find.descendant(
-      of: find.byKey(const ValueKey('liquid-dock')),
-      matching: find.byIcon(Icons.sync_rounded),
-    ));
+    expect(
+      tester.getSize(find.byKey(const ValueKey('liquid-dock'))).width,
+      lessThan(80),
+    );
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('liquid-dock')),
+        matching: find.byIcon(Icons.sync_rounded),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('设备同步'));
     await tester.pump();
@@ -501,8 +521,9 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('Windows entry actions remain accessible in a narrow window',
-      (tester) async {
+  testWidgets('Windows entry actions remain accessible in a narrow window', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(320, 640));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller = _buildController();
@@ -574,16 +595,18 @@ void main() {
       expect(find.text('创建密码库'), findsNothing);
       expect(find.byType(TextField), findsNothing);
       expect(
-          find.text('密码库需要修复').evaluate().isNotEmpty ||
-              find.text('检测到可恢复的密码库').evaluate().isNotEmpty,
-          isTrue);
+        find.text('密码库需要修复').evaluate().isNotEmpty ||
+            find.text('检测到可恢复的密码库').evaluate().isNotEmpty,
+        isTrue,
+      );
 
       controller.dispose();
     }
   });
 
-  testWidgets('Windows entry details mask passwords until requested',
-      (tester) async {
+  testWidgets('Windows entry details mask passwords until requested', (
+    tester,
+  ) async {
     final controller = _buildController();
     await controller.bootstrap();
     await controller.createVault('master-pass');
@@ -612,40 +635,43 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('locking dismisses a Windows detail dialog with revealed secrets',
-      (tester) async {
-    final controller = _buildController();
-    await controller.bootstrap();
-    await controller.createVault('master-pass');
-    await controller.addOrUpdateItem(
-      title: 'Desktop private entry',
-      username: 'alice',
-      password: 'do-not-display',
-      url: '',
-      notes: '',
-      tags: const [],
-    );
-    await tester.pumpWidget(
-      _buildApp(controller, platform: TargetPlatform.windows),
-    );
-    await tester.pumpAndSettle();
+  testWidgets(
+    'locking dismisses a Windows detail dialog with revealed secrets',
+    (tester) async {
+      final controller = _buildController();
+      await controller.bootstrap();
+      await controller.createVault('master-pass');
+      await controller.addOrUpdateItem(
+        title: 'Desktop private entry',
+        username: 'alice',
+        password: 'do-not-display',
+        url: '',
+        notes: '',
+        tags: const [],
+      );
+      await tester.pumpWidget(
+        _buildApp(controller, platform: TargetPlatform.windows),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('查看'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('显示密码'));
-    await tester.pumpAndSettle();
-    expect(find.text('do-not-display'), findsOneWidget);
+      await tester.tap(find.byTooltip('查看'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('显示密码'));
+      await tester.pumpAndSettle();
+      expect(find.text('do-not-display'), findsOneWidget);
 
-    await controller.lock();
-    await tester.pumpAndSettle();
+      await controller.lock();
+      await tester.pumpAndSettle();
 
-    expect(find.text('do-not-display'), findsNothing);
-    expect(find.text('显示密码'), findsNothing);
-    controller.dispose();
-  });
+      expect(find.text('do-not-display'), findsNothing);
+      expect(find.text('显示密码'), findsNothing);
+      controller.dispose();
+    },
+  );
 
-  testWidgets('Windows editor retains input after a failed save',
-      (tester) async {
+  testWidgets('Windows editor retains input after a failed save', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller = _buildController();
@@ -675,16 +701,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.widget<TextField>(titleField).controller!.text, '  ');
-    expect(tester.widget<TextField>(passwordField).controller!.text,
-        'Retain this password');
+    expect(
+      tester.widget<TextField>(passwordField).controller!.text,
+      'Retain this password',
+    );
     expect(controller.vaultData.activeItems, isEmpty);
     expect(find.textContaining('名称不能为空'), findsOneWidget);
 
     controller.dispose();
   });
 
-  testWidgets('Windows add page masks the next password after saving',
-      (tester) async {
+  testWidgets('Windows add page masks the next password after saving', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller = _buildController();
@@ -713,8 +742,9 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('Windows dock resets password masking when reopening add page',
-      (tester) async {
+  testWidgets('Windows dock resets password masking when reopening add page', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller = _buildController();
@@ -742,8 +772,9 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('Windows editor retains input after a persistence failure',
-      (tester) async {
+  testWidgets('Windows editor retains input after a persistence failure', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final repository = _MemoryVaultRepository();
@@ -784,8 +815,9 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('Windows retains a failed import preview for retry',
-      (tester) async {
+  testWidgets('Windows retains a failed import preview for retry', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final repository = _MemoryVaultRepository();
@@ -827,8 +859,9 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('Windows clears master passwords after a successful change',
-      (tester) async {
+  testWidgets('Windows clears master passwords after a successful change', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller = _buildController();
@@ -873,163 +906,180 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-        find.byKey(const ValueKey('android-settings-sheet')), findsOneWidget);
+      find.byKey(const ValueKey('android-settings-sheet')),
+      findsOneWidget,
+    );
     expect(find.byType(BottomSheet), findsOneWidget);
     expect(find.text('此设置仅在当前应用会话中生效。'), findsOneWidget);
 
     controller.dispose();
   });
 
-  testWidgets('Android sync keeps primary action visible and options collapsed',
-      (tester) async {
-    await tester.binding.setSurfaceSize(const Size(320, 640));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    final controller = _SyncDialogController();
-    await controller.bootstrap();
-    await controller.createVault('master-pass');
-    await tester.pumpWidget(_buildApp(controller));
-    await tester.pumpAndSettle();
+  testWidgets(
+    'Android sync keeps primary action visible and options collapsed',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 640));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final controller = _SyncDialogController();
+      await controller.bootstrap();
+      await controller.createVault('master-pass');
+      await tester.pumpWidget(_buildApp(controller));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('设备配对与同步'));
-    await tester.pumpAndSettle();
-    expect(find.text('设备同步'), findsOneWidget);
-    expect(find.text('验证并同步所有设备'), findsOneWidget);
-    expect(find.text('没有发现可配对设备。'), findsOneWidget);
-    expect(find.text('单台设备导入'), findsNothing);
+      await tester.tap(find.byTooltip('设备配对与同步'));
+      await tester.pumpAndSettle();
+      expect(find.text('设备同步'), findsOneWidget);
+      expect(find.text('验证并同步所有设备'), findsOneWidget);
+      expect(find.text('没有发现可配对设备。'), findsOneWidget);
+      expect(find.text('单台设备导入'), findsNothing);
 
-    await tester.tap(find.text('更多选项'));
-    await tester.pumpAndSettle();
-    expect(find.text('单台设备导入'), findsOneWidget);
-    await tester.ensureVisible(find.text('单台设备导入'));
-    await tester.tap(find.text('单台设备导入'));
-    await tester.pumpAndSettle();
-    expect(find.text('配对码（可选）'), findsOneWidget);
-    await tester.ensureVisible(find.text('配对并预览'));
-    await tester.tap(find.text('配对并预览'));
-    await tester.pumpAndSettle();
-    final status = find.byKey(const ValueKey('lan-advanced-status'));
-    expect(status, findsOneWidget);
-    expect(tester.widget<Text>(status).data, '请先选择来源设备。');
-    expect(tester.getBottomLeft(status).dy,
-        lessThan(tester.getTopLeft(find.text('关闭')).dy));
-    expect(tester.takeException(), isNull);
-    controller.dispose();
-  });
-
-  testWidgets('Android editor obscures passwords and retains input on failure',
-      (tester) async {
-    final repository = _MemoryVaultRepository();
-    final controller = _buildController(repository: repository);
-    await controller.bootstrap();
-    await controller.createVault('master-pass');
-
-    await tester.pumpWidget(_buildApp(controller));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('android-vault-fab')));
-    await tester.pumpAndSettle();
-
-    final passwordField = find.byWidgetPredicate(
-      (widget) => widget is TextField && widget.decoration?.labelText == '密码',
-    );
-    final titleField = find.byWidgetPredicate(
-      (widget) => widget is TextField && widget.decoration?.labelText == '名称',
-    );
-    final passwordWidget = tester.widget<TextField>(passwordField);
-    expect(passwordWidget.obscureText, isTrue);
-    expect(passwordWidget.enableSuggestions, isFalse);
-    expect(passwordWidget.autocorrect, isFalse);
-
-    await tester.enterText(titleField, 'Retain after disk failure');
-    repository.failNextSave = true;
-    final scrollable = find.descendant(
-      of: find.byType(DraggableScrollableSheet),
-      matching: find.byType(Scrollable),
-    );
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('android-item-save')),
-      300,
-      scrollable: scrollable.first,
-    );
-    await tester.drag(find.byType(ListView).last, const Offset(0, -220));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('android-item-save')));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(BottomSheet), findsOneWidget);
-    expect(find.textContaining('Synthetic save failure'), findsOneWidget);
-    final retainedTitleField = find.byWidgetPredicate(
-      (widget) => widget is TextField && widget.decoration?.labelText == '名称',
-    );
-    await tester.scrollUntilVisible(
-      retainedTitleField,
-      -300,
-      scrollable: scrollable.first,
-    );
-    expect(
-      tester.widget<TextField>(retainedTitleField).controller!.text,
-      'Retain after disk failure',
-    );
-
-    controller.dispose();
-  });
+      await tester.tap(find.text('更多选项'));
+      await tester.pumpAndSettle();
+      expect(find.text('单台设备导入'), findsOneWidget);
+      await tester.ensureVisible(find.text('单台设备导入'));
+      await tester.tap(find.text('单台设备导入'));
+      await tester.pumpAndSettle();
+      expect(find.text('配对码（可选）'), findsOneWidget);
+      await tester.ensureVisible(find.text('配对并预览'));
+      await tester.tap(find.text('配对并预览'));
+      await tester.pumpAndSettle();
+      final status = find.byKey(const ValueKey('lan-advanced-status'));
+      expect(status, findsOneWidget);
+      expect(tester.widget<Text>(status).data, '请先选择来源设备。');
+      expect(
+        tester.getBottomLeft(status).dy,
+        lessThan(tester.getTopLeft(find.text('关闭')).dy),
+      );
+      expect(tester.takeException(), isNull);
+      controller.dispose();
+    },
+  );
 
   testWidgets(
-      'simplified Android editor preserves hidden tags and TOTP on save',
-      (tester) async {
-    final controller = _buildController();
-    await controller.bootstrap();
-    await controller.createVault('master-pass');
-    await controller.addOrUpdateItem(
-      title: 'Existing entry',
-      username: 'alice',
-      password: 'secret',
-      url: '',
-      notes: '',
-      tags: const ['existing-tag'],
-      totpSecret: 'JBSWY3DPEHPK3PXP',
-    );
-    await tester.pumpWidget(_buildApp(controller));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('条目操作'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('编辑'));
-    await tester.pumpAndSettle();
-    final textFields = tester.widgetList<TextField>(find.byType(TextField));
-    expect(textFields.map((field) => field.decoration?.labelText),
-        containsAll(['名称', '账号', '密码', '网址', '备注']));
-    expect(
-        textFields
-            .any((field) => (field.decoration?.labelText ?? '').contains('密钥')),
-        isFalse);
-    expect(
-        textFields
-            .any((field) => (field.decoration?.labelText ?? '').contains('标签')),
-        isFalse);
-    final titleField = find.byWidgetPredicate((widget) =>
-        widget is TextField && widget.decoration?.labelText == '名称');
-    await tester.enterText(titleField, 'Updated entry');
-    final editorScrollable = find.descendant(
-      of: find.byType(DraggableScrollableSheet),
-      matching: find.byType(Scrollable),
-    );
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('android-item-save')),
-      300,
-      scrollable: editorScrollable.first,
-    );
-    await tester.drag(find.byType(ListView).last, const Offset(0, -220));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('android-item-save')));
-    await tester.pumpAndSettle();
-    final saved = controller.vaultData.activeItems.single;
-    expect(saved.title, 'Updated entry');
-    expect(saved.tags, ['existing-tag']);
-    expect(saved.totpSecret, 'JBSWY3DPEHPK3PXP');
-    controller.dispose();
-  });
+    'Android editor obscures passwords and retains input on failure',
+    (tester) async {
+      final repository = _MemoryVaultRepository();
+      final controller = _buildController(repository: repository);
+      await controller.bootstrap();
+      await controller.createVault('master-pass');
 
-  testWidgets('Android entry details obscure password until requested',
-      (tester) async {
+      await tester.pumpWidget(_buildApp(controller));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('android-vault-fab')));
+      await tester.pumpAndSettle();
+
+      final passwordField = find.byWidgetPredicate(
+        (widget) => widget is TextField && widget.decoration?.labelText == '密码',
+      );
+      final titleField = find.byWidgetPredicate(
+        (widget) => widget is TextField && widget.decoration?.labelText == '名称',
+      );
+      final passwordWidget = tester.widget<TextField>(passwordField);
+      expect(passwordWidget.obscureText, isTrue);
+      expect(passwordWidget.enableSuggestions, isFalse);
+      expect(passwordWidget.autocorrect, isFalse);
+
+      await tester.enterText(titleField, 'Retain after disk failure');
+      repository.failNextSave = true;
+      final scrollable = find.descendant(
+        of: find.byType(DraggableScrollableSheet),
+        matching: find.byType(Scrollable),
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('android-item-save')),
+        300,
+        scrollable: scrollable.first,
+      );
+      await tester.drag(find.byType(ListView).last, const Offset(0, -220));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('android-item-save')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BottomSheet), findsOneWidget);
+      expect(find.textContaining('Synthetic save failure'), findsOneWidget);
+      final retainedTitleField = find.byWidgetPredicate(
+        (widget) => widget is TextField && widget.decoration?.labelText == '名称',
+      );
+      await tester.scrollUntilVisible(
+        retainedTitleField,
+        -300,
+        scrollable: scrollable.first,
+      );
+      expect(
+        tester.widget<TextField>(retainedTitleField).controller!.text,
+        'Retain after disk failure',
+      );
+
+      controller.dispose();
+    },
+  );
+
+  testWidgets(
+    'simplified Android editor preserves hidden tags and TOTP on save',
+    (tester) async {
+      final controller = _buildController();
+      await controller.bootstrap();
+      await controller.createVault('master-pass');
+      await controller.addOrUpdateItem(
+        title: 'Existing entry',
+        username: 'alice',
+        password: 'secret',
+        url: '',
+        notes: '',
+        tags: const ['existing-tag'],
+        totpSecret: 'JBSWY3DPEHPK3PXP',
+      );
+      await tester.pumpWidget(_buildApp(controller));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('条目操作'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('编辑'));
+      await tester.pumpAndSettle();
+      final textFields = tester.widgetList<TextField>(find.byType(TextField));
+      expect(
+        textFields.map((field) => field.decoration?.labelText),
+        containsAll(['名称', '账号', '密码', '网址', '备注']),
+      );
+      expect(
+        textFields.any(
+          (field) => (field.decoration?.labelText ?? '').contains('密钥'),
+        ),
+        isFalse,
+      );
+      expect(
+        textFields.any(
+          (field) => (field.decoration?.labelText ?? '').contains('标签'),
+        ),
+        isFalse,
+      );
+      final titleField = find.byWidgetPredicate(
+        (widget) => widget is TextField && widget.decoration?.labelText == '名称',
+      );
+      await tester.enterText(titleField, 'Updated entry');
+      final editorScrollable = find.descendant(
+        of: find.byType(DraggableScrollableSheet),
+        matching: find.byType(Scrollable),
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('android-item-save')),
+        300,
+        scrollable: editorScrollable.first,
+      );
+      await tester.drag(find.byType(ListView).last, const Offset(0, -220));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('android-item-save')));
+      await tester.pumpAndSettle();
+      final saved = controller.vaultData.activeItems.single;
+      expect(saved.title, 'Updated entry');
+      expect(saved.tags, ['existing-tag']);
+      expect(saved.totpSecret, 'JBSWY3DPEHPK3PXP');
+      controller.dispose();
+    },
+  );
+
+  testWidgets('Android entry details obscure password until requested', (
+    tester,
+  ) async {
     final controller = _buildController();
     await controller.bootstrap();
     await controller.createVault('master-pass');
@@ -1054,8 +1104,9 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('Android narrow screen opens editor from entry details',
-      (tester) async {
+  testWidgets('Android narrow screen opens editor from entry details', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(320, 640));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     final controller = _buildController();
@@ -1125,15 +1176,17 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('Windows previews Bitwarden duplicates before importing',
-      (tester) async {
+  testWidgets('Windows previews Bitwarden duplicates before importing', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    const testEmail = 'ui.user' '@' 'example.test';
+    const testEmail =
+        'ui.user'
+        '@'
+        'example.test';
     final importExport = _MemoryImportExportService();
-    final controller = _buildController(
-      importExportService: importExport,
-    );
+    final controller = _buildController(importExportService: importExport);
     await controller.bootstrap();
     await controller.createVault('master-pass');
     await controller.addOrUpdateItem(
@@ -1145,20 +1198,20 @@ void main() {
       tags: const [],
     );
     final now = DateTime(2026, 1, 1);
-    importExport.bitwardenImportBytes =
-        const BitwardenInterchangeService().encodeJson(<VaultItem>[
-      VaultItem(
-        id: 'bitwarden-duplicate',
-        title: '示例站点',
-        username: testEmail,
-        password: 'same-password',
-        url: 'https://example.com/login',
-        notes: '',
-        tags: const [],
-        createdAt: now,
-        updatedAt: now,
-      ),
-    ]);
+    importExport.bitwardenImportBytes = const BitwardenInterchangeService()
+        .encodeJson(<VaultItem>[
+          VaultItem(
+            id: 'bitwarden-duplicate',
+            title: '示例站点',
+            username: testEmail,
+            password: 'same-password',
+            url: 'https://example.com/login',
+            notes: '',
+            tags: const [],
+            createdAt: now,
+            updatedAt: now,
+          ),
+        ]);
 
     await tester.pumpWidget(
       _buildApp(controller, platform: TargetPlatform.windows),
@@ -1181,15 +1234,17 @@ void main() {
     controller.dispose();
   });
 
-  testWidgets('Windows exports only entries missing from Bitwarden baseline',
-      (tester) async {
+  testWidgets('Windows exports only entries missing from Bitwarden baseline', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(1200, 1000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    const testEmail = 'delta.ui' '@' 'example.test';
+    const testEmail =
+        'delta.ui'
+        '@'
+        'example.test';
     final importExport = _MemoryImportExportService();
-    final controller = _buildController(
-      importExportService: importExport,
-    );
+    final controller = _buildController(importExportService: importExport);
     await controller.bootstrap();
     await controller.createVault('master-pass');
     await controller.addOrUpdateItem(
@@ -1208,12 +1263,11 @@ void main() {
       notes: '',
       tags: const [],
     );
-    final existing = controller.vaultData.activeItems
-        .firstWhere((item) => item.title == 'Bitwarden 已有项');
-    importExport.bitwardenImportBytes =
-        const BitwardenInterchangeService().encodeJson(<VaultItem>[
-      existing.copyWith(id: 'bitwarden-baseline'),
-    ]);
+    final existing = controller.vaultData.activeItems.firstWhere(
+      (item) => item.title == 'Bitwarden 已有项',
+    );
+    importExport.bitwardenImportBytes = const BitwardenInterchangeService()
+        .encodeJson(<VaultItem>[existing.copyWith(id: 'bitwarden-baseline')]);
 
     await tester.pumpWidget(
       _buildApp(controller, platform: TargetPlatform.windows),
@@ -1234,23 +1288,26 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(importExport.bitwardenExportBytes, isNotNull);
-    final exported = const BitwardenInterchangeService()
-        .decode(importExport.bitwardenExportBytes!);
+    final exported = const BitwardenInterchangeService().decode(
+      importExport.bitwardenExportBytes!,
+    );
     expect(exported.items, hasLength(1));
     expect(exported.items.single.title, '仅 Codebook 缺失项');
     expect(tester.takeException(), isNull);
     controller.dispose();
   });
 
-  testWidgets('Android narrow screen opens Bitwarden review without overflow',
-      (tester) async {
+  testWidgets('Android narrow screen opens Bitwarden review without overflow', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(360, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    const testEmail = 'narrow.user' '@' 'example.test';
+    const testEmail =
+        'narrow.user'
+        '@'
+        'example.test';
     final importExport = _MemoryImportExportService();
-    final controller = _buildController(
-      importExportService: importExport,
-    );
+    final controller = _buildController(importExportService: importExport);
     await controller.bootstrap();
     await controller.createVault('master-pass');
     await controller.addOrUpdateItem(
@@ -1262,20 +1319,20 @@ void main() {
       tags: const [],
     );
     final now = DateTime(2026, 1, 1);
-    importExport.bitwardenImportBytes =
-        const BitwardenInterchangeService().encodeJson(<VaultItem>[
-      VaultItem(
-        id: 'bitwarden-narrow',
-        title: '窄屏示例',
-        username: testEmail,
-        password: 'same-password',
-        url: 'https://example.com/login',
-        notes: '',
-        tags: const [],
-        createdAt: now,
-        updatedAt: now,
-      ),
-    ]);
+    importExport.bitwardenImportBytes = const BitwardenInterchangeService()
+        .encodeJson(<VaultItem>[
+          VaultItem(
+            id: 'bitwarden-narrow',
+            title: '窄屏示例',
+            username: testEmail,
+            password: 'same-password',
+            url: 'https://example.com/login',
+            notes: '',
+            tags: const [],
+            createdAt: now,
+            updatedAt: now,
+          ),
+        ]);
 
     await tester.pumpWidget(_buildApp(controller));
     await tester.pumpAndSettle();
@@ -1308,14 +1365,14 @@ Widget _buildApp(
 
 class _SyncDialogController extends VaultController {
   _SyncDialogController()
-      : super(
-          repository: _MemoryVaultRepository(),
-          cryptoService: _FastCryptoService(),
-          importExportService: _NoopImportExportService(),
-          deviceKeyStore: _MemoryDeviceKeyStore(),
-          passwordGeneratorService: PasswordGeneratorService(random: Random(1)),
-          clipboardService: _MemoryClipboardService(),
-        );
+    : super(
+        repository: _MemoryVaultRepository(),
+        cryptoService: _FastCryptoService(),
+        importExportService: _NoopImportExportService(),
+        deviceKeyStore: _MemoryDeviceKeyStore(),
+        passwordGeneratorService: PasswordGeneratorService(random: Random(1)),
+        clipboardService: _MemoryClipboardService(),
+      );
 
   @override
   Future<VaultOperationResult> discoverLanSyncPeers() async =>
